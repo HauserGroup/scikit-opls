@@ -45,7 +45,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         ``n_orthogonal=0`` (plain multi-component PLS, a non-``ropls`` mode).
     n_orthogonal : int, default=1
         Number of orthogonal (y-uncorrelated) components to remove from ``X``.
-        To choose this by cross-validated Q2, use :class:`~scikit_opls.OPLSCV`.
+        To choose this by cross-validated Q2, use
+        :func:`~scikit_opls.selection.select_orthogonal`.
     scale : {"none", "center", "pareto", "standard"}, default="standard"
         Column preprocessing applied to ``X`` (matches ``ropls`` ``scaleC``).
     copy : bool, default=True

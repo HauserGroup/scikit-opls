@@ -3,19 +3,20 @@
 This package provides OPLS and OPLS-DA algorithms compatible with the scikit-learn API.
 """
 
-from . import inspection, plotting, validation
+from . import inspection, plotting, selection, validation
 from ._opls import OPLS
 from ._opls_da import OPLSDA
-from ._search import OPLSCV
+from .selection import select_orthogonal
 
 __version__ = "0.1.0"
 
 __all__ = [
     "OPLS",
-    "OPLSCV",
     "OPLSDA",
     "inspection",
     "plotting",
+    "selection",
+    "select_orthogonal",
     "validation",
     "__version__",
 ]

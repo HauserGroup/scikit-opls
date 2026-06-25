@@ -57,12 +57,12 @@ def test_orthogonal_vip_sum_of_squares_equals_n_features():
 
 
 def test_vip_unwraps_da_and_cv_wrappers():
-    from scikit_opls import OPLSCV, OPLSDA
+    from scikit_opls import OPLSDA, select_orthogonal
 
     X, y = _regression_data(seed=2)
     labels = np.where(y > 0, "hi", "lo")
     da = OPLSDA(n_components=1, n_orthogonal=2).fit(X, labels)
-    cv = OPLSCV(n_components=1, cv=4).fit(X, y)
+    cv = select_orthogonal(OPLS(n_components=1), cv=4, max_orthogonal=3).fit(X, y)
     assert vip(da).shape == (X.shape[1],)
     assert vip(cv).shape == (X.shape[1],)
 

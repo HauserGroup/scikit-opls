@@ -27,15 +27,17 @@ _EPS = np.finfo(np.float64).eps
 
 
 def _predictive_engine(model: Any) -> Any:
-    """Return the fitted ``OPLS`` engine, unwrapping ``OPLSDA``/``OPLSCV``."""
-    return getattr(model, "opls_", model)
+    """Return the fitted ``OPLS`` engine, unwrapping DA/search wrappers."""
+    inner = getattr(model, "best_estimator_", model)
+    return getattr(inner, "opls_", inner)
 
 
 class OPLSScoresDisplay:
     """Predictive vs orthogonal score scatter for an OPLS-family model.
 
-    Works for :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` and
-    :class:`~scikit_opls.OPLSCV`. Construct with :meth:`from_estimator`.
+    Works for :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` and fitted
+    ``GridSearchCV`` returned by :func:`~scikit_opls.selection.select_orthogonal`.
+    Construct with :meth:`from_estimator`.
 
     Parameters
     ----------
@@ -78,7 +80,7 @@ class OPLSScoresDisplay:
 
         Parameters
         ----------
-        estimator : OPLS, OPLSDA or OPLSCV
+        estimator : OPLS, OPLSDA or GridSearchCV
             A fitted estimator.
         X : array-like of shape (n_samples, n_features)
             Samples to project.
@@ -142,8 +144,9 @@ class OPLSScoresDisplay:
 class SPlotDisplay:
     """S-plot: covariance vs correlation of each feature with the predictive score.
 
-    Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` or
-    :class:`~scikit_opls.OPLSCV`. Construct with :meth:`from_estimator`.
+    Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` or fitted
+    ``GridSearchCV`` returned by :func:`~scikit_opls.selection.select_orthogonal`.
+    Construct with :meth:`from_estimator`.
 
     Parameters
     ----------
@@ -177,7 +180,7 @@ class SPlotDisplay:
 
         Parameters
         ----------
-        estimator : OPLS, OPLSDA or OPLSCV
+        estimator : OPLS, OPLSDA or GridSearchCV
             A fitted estimator.
         X : array-like of shape (n_samples, n_features)
             Samples to project.
@@ -242,7 +245,7 @@ def scores_plot(
 
     Parameters
     ----------
-    model : OPLS, OPLSDA or OPLSCV
+    model : OPLS, OPLSDA or GridSearchCV
         A fitted estimator.
     X : array-like of shape (n_samples, n_features)
         Samples to project.
@@ -267,7 +270,7 @@ def s_plot(model: Any, X: ArrayLike, ax: Any = None) -> Any:
 
     Parameters
     ----------
-    model : OPLS, OPLSDA or OPLSCV
+    model : OPLS, OPLSDA or GridSearchCV
         A fitted estimator.
     X : array-like of shape (n_samples, n_features)
         Samples to project.

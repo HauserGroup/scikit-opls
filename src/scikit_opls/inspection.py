@@ -12,7 +12,8 @@ Both satisfy ``sum_j VIP_j**2 == n_features`` (mean squared VIP of 1).
 VIP is computed on demand here rather than eagerly in ``OPLS.fit``. The
 ``vip(model)``/``orthogonal_vip(model)`` functions are the canonical API; they
 accept a fitted :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, or
-:class:`~scikit_opls.OPLSCV` (wrappers are unwrapped automatically).
+``GridSearchCV`` returned by :func:`~scikit_opls.selection.select_orthogonal`
+(wrappers are unwrapped automatically).
 """
 
 from __future__ import annotations
@@ -140,19 +141,20 @@ def _orthogonal_vip(
 
 
 def _unwrap(model: Any) -> Any:
-    """Return the inner fitted ``OPLS`` of a DA/CV wrapper, or ``model`` itself."""
-    inner = getattr(model, "opls_", model)
+    """Return the fitted inner ``OPLS`` from DA/search wrappers, or ``model`` itself."""
+    inner = getattr(model, "best_estimator_", model)
+    inner = getattr(inner, "opls_", inner)
     check_is_fitted(inner)
     return inner
 
 
 def vip(model: Any) -> NDArray[np.float64]:
-    """Predictive VIP for a fitted OPLS / OPLSDA / OPLSCV.
+    """Predictive VIP for a fitted OPLS / OPLSDA / selected GridSearchCV.
 
     Parameters
     ----------
-    model : OPLS, OPLSDA or OPLSCV
-        A fitted estimator (DA/CV wrappers are unwrapped automatically).
+    model : OPLS, OPLSDA or GridSearchCV
+        A fitted estimator (DA/search wrappers are unwrapped automatically).
 
     Returns
     -------
@@ -164,12 +166,12 @@ def vip(model: Any) -> NDArray[np.float64]:
 
 
 def orthogonal_vip(model: Any) -> NDArray[np.float64]:
-    """Orthogonal VIP for a fitted OPLS / OPLSDA / OPLSCV (niche; opt-in).
+    """Orthogonal VIP for a fitted OPLS / OPLSDA / selected GridSearchCV.
 
     Parameters
     ----------
-    model : OPLS, OPLSDA or OPLSCV
-        A fitted estimator (DA/CV wrappers are unwrapped automatically).
+    model : OPLS, OPLSDA or GridSearchCV
+        A fitted estimator (DA/search wrappers are unwrapped automatically).
 
     Returns
     -------
