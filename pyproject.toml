@@ -27,6 +27,8 @@ plot = ["matplotlib>=3.11.0"]
 [dependency-groups]
 dev = [
     "matplotlib>=3.11.0",
+    "mdformat>=1.0.0",
+    "mdformat-gfm>=1.0.0",
     "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=0.26.0",
     "pre-commit>=4.6.0",

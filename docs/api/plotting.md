@@ -3,9 +3,9 @@
 Requires the `plot` extra: `pip install "scikit-opls[plot]"`.
 
 ::: scikit_opls.plotting
-    options:
-      members:
-        - OPLSScoresDisplay
-        - SPlotDisplay
-        - scores_plot
-        - s_plot
+options:
+members:
+\- OPLSScoresDisplay
+\- SPlotDisplay
+\- scores_plot
+\- s_plot

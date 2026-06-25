@@ -113,11 +113,11 @@ uv run python examples/palmerpenguins_opls_regression.py
 
 ## Parameters
 
-| Parameter      | Meaning                                                            |
-| -------------- | ----------------------------------------------------------------- |
-| `n_components` | Predictive components (classic OPLS uses 1).                      |
+| Parameter      | Meaning                                                                     |
+| -------------- | --------------------------------------------------------------------------- |
+| `n_components` | Predictive components (classic OPLS uses 1).                                |
 | `n_orthogonal` | Orthogonal components to remove (`int`; use `select_orthogonal` to select). |
-| `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"`.                  |
+| `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"`.                             |
 
 `select_orthogonal` exposes `cv`, `max_orthogonal`, `tol`, `scoring` and `n_jobs`
 through standard `GridSearchCV`.

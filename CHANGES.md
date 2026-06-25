@@ -37,33 +37,47 @@ and default-value changes will be documented here.
 
 - MkDocs documentation site (Material + mkdocstrings, numpy docstring style) with
   a `mkdocs build --strict` CI gate and a `gh-deploy` workflow.
+
 - `OPLSScoresDisplay` and `SPlotDisplay` plotting classes following scikit-learn's
   Display convention (`from_estimator(...)`, `plot(ax=...)`, `ax_` / `figure_`).
   `scores_plot` / `s_plot` are kept as thin wrappers.
+
 - `OPLS.get_feature_names_out` so `set_output(transform="pandas")` yields named
   predictive-score columns
   (`opls_pred0, …`).
+
 - `n_jobs` on `validation.permutation_test` (runs the independent permutations in
   parallel; reproducible regardless of `n_jobs`). `GridSearchCV` provides
   `n_jobs` for `select_orthogonal`.
+
 - `selection.select_orthogonal` for `GridSearchCV`-based selection of
   `n_orthogonal`.
+
 - `inspection.vip` / `inspection.orthogonal_vip` model-level helpers.
+
 - `_orthogonal.orthogonal_filter`, a block-agnostic NIPALS deflation primitive
   shared by `opls_filter` (and a future `O2PLS`).
 
 - Full numpydoc docstrings on all public methods and functions.
+
 - `OPLS.score` docstring documenting the inherited `RegressorMixin` R² score.
+
 - Richer `__sklearn_tags__` (`target_tags.required`, `input_tags.sparse=False`,
   `non_deterministic=False`) with tests asserting the resolved tags.
+
 - `ConvergenceWarning` when the orthogonal filter truncates early.
+
 - Input validation (`check_array`, `check_consistent_length`) and an
   `n_permutations` guard in `permutation_test`; `check_array` in the plotting
   helpers.
+
 - Explicit Ruff rule selection (`E,W,F,I,N,UP,D`, numpy docstring convention).
+
 - `pytest-cov` and `[tool.coverage]` configuration.
+
 - GitHub Actions CI (lint, format, type-check, tests, pre-commit) on Linux,
   macOS and Windows.
+
 - `CONTRIBUTING.md`, a pull-request template, and `RELEASING.md`.
 
 ### Changed
