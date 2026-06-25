@@ -29,6 +29,9 @@ and default-value changes will be documented here.
 
 ### Added
 
+- `OPLS.get_feature_names_out` (and `OPLSCV` delegation) so
+  `set_output(transform="pandas")` yields named predictive-score columns
+  (`opls_pred0, …`).
 - `OPLSCV` (and `OPLSCV` in the `parametrize_with_checks` compliance suite).
 - `inspection.vip` / `inspection.orthogonal_vip` model-level helpers.
 - `_orthogonal.orthogonal_filter`, a block-agnostic NIPALS deflation primitive
