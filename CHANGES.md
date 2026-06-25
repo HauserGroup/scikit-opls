@@ -29,6 +29,8 @@ and default-value changes will be documented here.
 
 ### Added
 
+- MkDocs documentation site (Material + mkdocstrings, numpy docstring style) with
+  a `mkdocs build --strict` CI gate and a `gh-deploy` workflow.
 - `OPLSScoresDisplay` and `SPlotDisplay` plotting classes following scikit-learn's
   Display convention (`from_estimator(...)`, `plot(ax=...)`, `ax_` / `figure_`).
   `scores_plot` / `s_plot` are kept as thin wrappers.
