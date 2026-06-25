@@ -10,12 +10,6 @@ VALID_SCALING = ("none", "center", "pareto", "standard")
 _EPS = np.finfo(np.float64).eps
 
 
-def check_scaling(mode: str) -> None:
-    """Raise ``ValueError`` if ``mode`` is not a recognised scaling option."""
-    if mode not in VALID_SCALING:
-        raise ValueError(f"scale must be one of {VALID_SCALING}, got {mode!r}")
-
-
 def compute_scaling(
     X: NDArray[np.float64], mode: str
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
@@ -28,8 +22,23 @@ def compute_scaling(
 
     Standard deviation uses ``ddof=1`` (sample) to match R/``ropls``. Columns with
     (near) zero variance get a scale of ``1.0`` to avoid division by zero.
+
+    ``mode`` is assumed valid (validated by the estimator's parameter constraints).
+
+    Parameters
+    ----------
+    X : ndarray of shape (n_samples, n_features)
+        Predictor matrix.
+    mode : {"none", "center", "pareto", "standard"}
+        Scaling mode.
+
+    Returns
+    -------
+    mean_ : ndarray of shape (n_features,)
+        Per-column centering vector.
+    scale_ : ndarray of shape (n_features,)
+        Per-column scaling vector.
     """
-    check_scaling(mode)
     X = np.asarray(X, dtype=np.float64)
     n_features = X.shape[1]
 
@@ -54,6 +63,21 @@ def compute_scaling(
 def apply_scaling(
     X: NDArray[np.float64], mean_: NDArray[np.float64], scale_: NDArray[np.float64]
 ) -> NDArray[np.float64]:
-    """Apply a previously computed centering/scaling to ``X``."""
+    """Apply a previously computed centering/scaling to ``X``.
+
+    Parameters
+    ----------
+    X : ndarray of shape (n_samples, n_features)
+        Predictor matrix.
+    mean_ : ndarray of shape (n_features,)
+        Centering vector from :func:`compute_scaling`.
+    scale_ : ndarray of shape (n_features,)
+        Scaling vector from :func:`compute_scaling`.
+
+    Returns
+    -------
+    X_scaled : ndarray of shape (n_samples, n_features)
+        ``(X - mean_) / scale_``.
+    """
     X = np.asarray(X, dtype=np.float64)
     return (X - mean_) / scale_

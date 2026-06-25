@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLS
 from scikit_opls._preprocessing import apply_scaling, compute_scaling
@@ -25,17 +26,17 @@ def test_standard_scaling_unit_variance():
     X = rng.normal(size=(40, 6))
     mean_, scale_ = compute_scaling(X, "standard")
     Xs = apply_scaling(X, mean_, scale_)
-    np.testing.assert_allclose(Xs.mean(axis=0), 0.0, atol=1e-12)
-    np.testing.assert_allclose(Xs.std(axis=0, ddof=1), 1.0, atol=1e-12)
+    assert_allclose(Xs.mean(axis=0), 0.0, atol=1e-12)
+    assert_allclose(Xs.std(axis=0, ddof=1), 1.0, atol=1e-12)
 
 
 def test_center_only_keeps_scale():
     rng = np.random.default_rng(0)
     X = rng.normal(size=(40, 6))
     mean_, scale_ = compute_scaling(X, "center")
-    np.testing.assert_allclose(scale_, 1.0)
+    assert_allclose(scale_, 1.0)
     Xs = apply_scaling(X, mean_, scale_)
-    np.testing.assert_allclose(Xs.mean(axis=0), 0.0, atol=1e-12)
+    assert_allclose(Xs.mean(axis=0), 0.0, atol=1e-12)
 
 
 @pytest.mark.parametrize("mode", ["standard", "pareto"])
@@ -51,4 +52,4 @@ def test_fit_predict_scaling_consistency():
     """transform() on the training data reproduces the fitted predictive scores."""
     X, y = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
-    np.testing.assert_allclose(model.transform(X), model.x_scores_, atol=1e-8)
+    assert_allclose(model.transform(X), model.x_scores_, atol=1e-8)

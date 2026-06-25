@@ -74,6 +74,15 @@ s_plot(model, X)                               # covariance vs correlation
 permutation_test(OPLS(n_orthogonal=2), X, y)   # model significance
 ```
 
+### Example datasets
+
+Two small scripts under `examples/` show usage with the CSV files in `data/`:
+
+```bash
+uv run python examples/colorectal_cancer_nmr_oplsda.py
+uv run python examples/palmerpenguins_opls_regression.py
+```
+
 ## Parameters
 
 | Parameter      | Meaning                                                            |
@@ -86,10 +95,17 @@ permutation_test(OPLS(n_orthogonal=2), X, y)   # model significance
 ## Development
 
 ```bash
-uv run pytest        # tests (includes sklearn check_estimator compliance)
-uv run ruff check    # lint
-uv run pyright src   # type-check
+uv sync --dev              # install the project and dev tools
+uv run pre-commit install  # enable the git hooks (run once)
+
+uv run pytest --cov        # tests + coverage (incl. sklearn check_estimator)
+uv run ruff check          # lint
+uv run ruff format --check # format check
+uv run pyright src         # type-check
+uv run pre-commit run --all-files  # run every hook
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow.
 
 ## References
 

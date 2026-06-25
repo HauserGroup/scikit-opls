@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from sklearn.base import clone
+from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLSDA
 
@@ -47,7 +48,7 @@ def test_predict_proba_sums_to_one():
     model = OPLSDA(n_orthogonal=1).fit(X, y)
     proba = model.predict_proba(X)
     assert proba.shape == (X.shape[0], 2)
-    np.testing.assert_allclose(proba.sum(axis=1), 1.0, atol=1e-8)
+    assert_allclose(proba.sum(axis=1), 1.0, atol=1e-8)
 
 
 def test_decision_function_sign_matches_predict():

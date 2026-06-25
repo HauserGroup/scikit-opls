@@ -1,5 +1,9 @@
 """Permutation testing for OPLS model significance (``ropls`` ``permI``)."""
 
+# sklearn.base.clone and check_array are under-typed; suppress the resulting
+# static-checker false positives (the test suite is the real correctness gate).
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -7,8 +11,17 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+from sklearn.base import clone
+from sklearn.metrics import r2_score
+from sklearn.model_selection import check_cv, cross_val_predict
+from sklearn.utils.validation import check_array, check_consistent_length
 
-from ._validation import clone_estimator
+
+def _cross_val_q2(estimator: Any, X: ArrayLike, y: ArrayLike) -> float:
+    """Out-of-fold Q2 of ``estimator`` on ``(X, y)`` using its own ``cv``."""
+    cv = check_cv(getattr(estimator, "cv", 5))
+    y_pred = cross_val_predict(clone(estimator), X, y, cv=cv)
+    return float(r2_score(y, y_pred))
 
 
 @dataclass
@@ -42,24 +55,43 @@ def permutation_test(
 ) -> PermutationResult:
     """Assess significance of an :class:`~scikit_opls.OPLS` model by permuting ``y``.
 
-    The estimator must expose ``r2y_`` after fitting and a ``score_q2`` method
+    The estimator must expose ``r2y_`` after fitting and a ``cv`` attribute
     (both provided by :class:`~scikit_opls.OPLS`).
+
+    Parameters
+    ----------
+    estimator : object
+        An unfitted OPLS-like estimator (cloned internally for each fit).
+    X : array-like of shape (n_samples, n_features)
+        Predictors.
+    y : array-like of shape (n_samples,)
+        Response.
+    n_permutations : int, default=20
+        Number of label permutations.
+    random_state : int or None, default=None
+        Seed for the permutation RNG.
+
+    Returns
+    -------
+    result : PermutationResult
+        Observed and permuted R2Y/Q2 with empirical p-values.
     """
-    X = np.asarray(X, dtype=np.float64)
+    if n_permutations < 1:
+        raise ValueError(f"n_permutations must be >= 1, got {n_permutations}")
+    X = check_array(X, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64).ravel()
+    check_consistent_length(X, y)
     rng = np.random.default_rng(random_state)
 
-    base = clone_estimator(estimator).fit(X, y)
-    observed_r2y = float(base.r2y_)
-    observed_q2 = float(base.score_q2(X, y))
+    observed_r2y = float(clone(estimator).fit(X, y).r2y_)
+    observed_q2 = _cross_val_q2(estimator, X, y)
 
     permuted_r2y = np.empty(n_permutations)
     permuted_q2 = np.empty(n_permutations)
     for i in range(n_permutations):
         y_perm = rng.permutation(y)
-        model = clone_estimator(estimator).fit(X, y_perm)
-        permuted_r2y[i] = float(model.r2y_)
-        permuted_q2[i] = float(model.score_q2(X, y_perm))
+        permuted_r2y[i] = float(clone(estimator).fit(X, y_perm).r2y_)
+        permuted_q2[i] = _cross_val_q2(estimator, X, y_perm)
 
     r2y_p = (1 + int(np.sum(permuted_r2y >= observed_r2y))) / (n_permutations + 1)
     q2_p = (1 + int(np.sum(permuted_q2 >= observed_q2))) / (n_permutations + 1)

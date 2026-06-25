@@ -17,6 +17,7 @@ dev = [
     "pre-commit>=4.6.0",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
+    "pytest-cov>=7.0.0",
     "ruff>=0.15.19",
 ]
 
@@ -26,3 +27,43 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/scikit_opls"]
+
+[tool.ruff]
+# scratch/ is out of scope (see CLAUDE.md) and never linted.
+extend-exclude = ["scratch"]
+
+[tool.ruff.lint]
+# Encode the scikit-learn coding guidelines explicitly rather than relying on
+# Ruff defaults: pycodestyle (E/W), pyflakes (F, catches `import *`/unused),
+# isort (I), pep8-naming (N), pyupgrade (UP), pydocstyle (D, numpy convention).
+select = ["E", "W", "F", "I", "N", "UP", "D"]
+# N803/N806: scikit-learn convention names the 2-D design matrix `X` (uppercase).
+ignore = ["N803", "N806"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"
+
+[tool.ruff.lint.per-file-ignores]
+# Tests and the package __init__ do not need full numpydoc docstrings.
+"tests/**" = ["D"]
+"src/scikit_opls/__init__.py" = ["D104"]
+
+[tool.ruff.lint.isort]
+# Intra-package imports are deliberately relative (e.g. `from ._opls import OPLS`),
+# the common convention for an installable third-party package. Ruff's isort
+# enforces ordering; `known-first-party` keeps the package grouped correctly.
+known-first-party = ["scikit_opls"]
+
+[tool.coverage.run]
+source = ["scikit_opls"]
+branch = true
+omit = ["*/scratch/*"]
+
+[tool.coverage.report]
+fail_under = 90
+exclude_lines = [
+    "pragma: no cover",
+    "import matplotlib",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]

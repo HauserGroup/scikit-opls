@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from scikit_opls import OPLS
 from scikit_opls.validation import permutation_test
@@ -33,3 +34,16 @@ def test_permutation_pvalues_in_unit_interval():
     )
     assert 0.0 < result.r2y_p_value <= 1.0
     assert 0.0 < result.q2_p_value <= 1.0
+
+
+@pytest.mark.parametrize("bad", [0, -1])
+def test_permutation_test_rejects_non_positive_n_permutations(bad):
+    X, y = _regression_data(seed=7)
+    with pytest.raises(ValueError, match="n_permutations"):
+        permutation_test(OPLS(n_orthogonal=1, cv=4), X, y, n_permutations=bad)
+
+
+def test_permutation_test_mismatched_lengths_raise():
+    X, y = _regression_data(seed=8)
+    with pytest.raises(ValueError):
+        permutation_test(OPLS(n_orthogonal=1, cv=4), X, y[:-1])
