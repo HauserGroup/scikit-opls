@@ -60,6 +60,7 @@ branch = true
 omit = ["*/scratch/*"]
 
 [tool.coverage.report]
+fail_under = 90
 exclude_lines = [
     "pragma: no cover",
     "import matplotlib",
