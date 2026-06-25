@@ -4,7 +4,8 @@ This package provides OPLS and OPLS-DA algorithms compatible with the scikit-lea
 """
 
 from ._opls import OPLS
+from ._opls_da import OPLSDA
 
 __version__ = "0.1.0"
 
-__all__ = ["OPLS", "__version__"]
+__all__ = ["OPLS", "OPLSDA", "__version__"]
