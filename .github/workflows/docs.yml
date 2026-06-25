@@ -18,5 +18,6 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          enable-cache: true
       - run: uv sync --dev
       - run: uv run mkdocs gh-deploy --force

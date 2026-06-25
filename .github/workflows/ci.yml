@@ -20,6 +20,7 @@ jobs:
         uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
+          enable-cache: true
 
       - name: Sync dependencies
         run: uv sync --dev
@@ -43,6 +44,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          enable-cache: true
       - run: uv sync --dev
       - run: uv run pre-commit run --all-files
 
@@ -53,6 +55,7 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.13"
+          enable-cache: true
       - run: uv sync --dev
       # --strict fails on broken refs / missing docstrings (the doc-build gate).
       - run: uv run mkdocs build --strict
