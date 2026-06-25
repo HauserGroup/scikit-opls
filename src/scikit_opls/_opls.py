@@ -27,9 +27,10 @@ from .metrics import explained_x_variance, q2_y, r2_y, rmsee
 from .vip import orthogonal_vip, predictive_vip
 
 # Selection rule shared with ropls: keep adding orthogonal components while the
-# cross-validated Q2 improves by more than this margin.
+# cross-validated Q2 improves by more than this margin. ropls caps automatic
+# orthogonal components at 9; we use the same cap.
 _Q2_IMPROVEMENT_TOL = 0.01
-_MAX_AUTO_ORTHO = 10
+_MAX_AUTO_ORTHO = 9
 
 
 class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
@@ -38,11 +39,13 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     Parameters
     ----------
     n_components : int, default=1
-        Number of predictive components. Classic OPLS uses 1.
+        Number of predictive components. True OPLS uses 1, which is required
+        whenever ``n_orthogonal != 0``. Values > 1 are only allowed with
+        ``n_orthogonal=0`` (plain multi-component PLS, a non-``ropls`` mode).
     n_orthogonal : int or "auto", default=1
         Number of orthogonal (y-uncorrelated) components to remove from ``X``.
         ``"auto"`` selects the count by cross-validated Q2 (like ``ropls`` with
-        ``orthoI = NA``).
+        ``orthoI = NA``), capped at 9 as in ``ropls``.
     scale : {"none", "center", "pareto", "standard"}, default="standard"
         Column preprocessing applied to ``X`` (matches ``ropls`` ``scaleC``).
     cv : int, cross-validation generator or iterable, default=7
@@ -84,6 +87,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     # ------------------------------------------------------------------ fitting
     def fit(self, X: ArrayLike, y: ArrayLike) -> OPLS:
         check_scaling(self.scale)
+        self._check_n_components()
         X, y = validate_fit(self, X, y, copy=self.copy)
         if y.ndim == 2 and y.shape[-1] == 1:
             warnings.warn(
@@ -94,13 +98,31 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             )
             y = y.ravel()
         self._y_ndim = y.ndim
-        Y2 = y.reshape(len(y), -1)  # always 2-D: (n,) -> (n, 1), (n, k) -> (n, k)
+        Y2 = y.reshape(len(y), -1)  # always 2-D: (n,) -> (n, 1)
+
+        # Univariate-response contract: OPLS is defined for a single response.
+        if Y2.shape[1] > 1:
+            raise ValueError(
+                "OPLS requires a single response column; got y with "
+                f"{Y2.shape[1]} columns. Multi-output OPLS is not supported."
+            )
+        # True-OPLS predictive-component contract: a single predictive component
+        # when any orthogonal filtering is requested (ropls predI=1 for OPLS).
+        # n_orthogonal=0 keeps the unrestricted PLSRegression-equivalence mode.
+        if self.n_components != 1 and self.n_orthogonal != 0:
+            raise ValueError(
+                f"OPLS uses one predictive component when orthogonal filtering is "
+                f"requested; got n_components={self.n_components} with "
+                f"n_orthogonal={self.n_orthogonal!r}. Set n_components=1, or use "
+                "n_orthogonal=0 for plain (multi-component) PLS."
+            )
 
         n_ortho = self._resolve_n_orthogonal(X, Y2)
-        if n_ortho > 0 and Y2.shape[1] > 1:
+        max_components = min(X.shape[0], X.shape[1])
+        if self.n_components > max_components:
             raise ValueError(
-                "OPLS orthogonal filtering requires a single response; "
-                f"got y with {Y2.shape[1]} columns. Use PLSRegression for multi-output."
+                f"n_components={self.n_components} exceeds the maximum of "
+                f"min(n_samples, n_features)={max_components}."
             )
 
         self.x_mean_, self.x_std_ = compute_scaling(X, self.scale)
@@ -180,6 +202,14 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Xs, self.x_ortho_weights_, self.x_ortho_loadings_
         )
         return X_filtered
+
+    # ------------------------------------------------------------ validation
+    def _check_n_components(self) -> None:
+        nc = self.n_components
+        if isinstance(nc, (bool, np.bool_)) or not isinstance(nc, (int, np.integer)):
+            raise ValueError(f"n_components must be a positive int, got {nc!r}")
+        if nc < 1:
+            raise ValueError(f"n_components must be >= 1, got {nc}")
 
     # ------------------------------------------------------------ n_orthogonal
     def _resolve_n_orthogonal(

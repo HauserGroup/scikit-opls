@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from scikit_opls import OPLS
 from scikit_opls.metrics import explained_x_variance, rmsee
@@ -20,10 +21,14 @@ def test_metrics_present_and_sane():
     assert model.rmsee_ > 0.0
 
 
-def test_predictive_vip_sum_of_squares_equals_n_features():
+@pytest.mark.parametrize(
+    ("n_components", "n_orthogonal"),
+    [(1, 2), (2, 0)],  # true OPLS, and multi-component plain PLS
+)
+def test_predictive_vip_sum_of_squares_equals_n_features(n_components, n_orthogonal):
     """sum_j VIP_j**2 == n_features (exact normalisation)."""
     X, y = _regression_data()
-    model = OPLS(n_components=2, n_orthogonal=2).fit(X, y)
+    model = OPLS(n_components=n_components, n_orthogonal=n_orthogonal).fit(X, y)
     assert model.vip_.shape == (X.shape[1],)
     assert np.all(model.vip_ >= 0.0)
     np.testing.assert_allclose(np.sum(model.vip_**2), X.shape[1], rtol=1e-6)

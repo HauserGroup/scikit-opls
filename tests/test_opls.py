@@ -62,12 +62,13 @@ def test_column_vector_y_warns_and_ravels():
     assert pred.shape == (X.shape[0],)
 
 
-def test_multi_output_passthrough_without_orthogonal():
-    """True multi-output is allowed when no orthogonal filtering is requested."""
+@pytest.mark.parametrize("n_orthogonal", [0, 1])
+def test_multi_output_rejected(n_orthogonal):
+    """OPLS is univariate; multi-column Y is rejected regardless of n_orthogonal."""
     X, y = _regression_data()
     Y = np.column_stack([y, y * 0.5])
-    pred = OPLS(n_components=2, n_orthogonal=0, scale="none").fit(X, Y).predict(X)
-    assert pred.shape == (X.shape[0], 2)
+    with pytest.raises(ValueError, match="single response"):
+        OPLS(n_orthogonal=n_orthogonal).fit(X, Y)
 
 
 def test_transform_shapes():
@@ -104,13 +105,6 @@ def test_auto_selects_orthogonal_components():
     model = OPLS(n_components=1, n_orthogonal="auto", cv=5).fit(X, y)
     assert isinstance(model.n_orthogonal_, int)
     assert 1 <= model.n_orthogonal_ <= 10
-
-
-def test_multi_output_with_orthogonal_raises():
-    X, y = _regression_data()
-    Y = np.column_stack([y, y * 2])
-    with pytest.raises(ValueError, match="single response"):
-        OPLS(n_orthogonal=1).fit(X, Y)
 
 
 def test_invalid_scale_raises():
