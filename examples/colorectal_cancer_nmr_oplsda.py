@@ -12,6 +12,7 @@ from sklearn.metrics import (
 from sklearn.model_selection import train_test_split
 
 from scikit_opls import OPLSDA
+from scikit_opls.inspection import vip
 
 DATA_URL = (
     "https://github.com/HauserGroup/scikit-opls/releases/download/data/"
@@ -53,7 +54,7 @@ def main() -> None:
     )
     predictions = model.predict(X_test)
 
-    vip_order = np.argsort(model.opls_.vip_)[-5:][::-1]
+    vip_order = np.argsort(vip(model))[-5:][::-1]
     important_bins = [feature_columns[index].strip() for index in vip_order]
 
     print(f"Balanced samples: {len(data)} ({samples_per_class} per class)")
