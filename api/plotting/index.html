@@ -535,14 +535,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../opls_cv/" class="md-nav__link">
+      <a href="../selection/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    OPLSCV
+    Selection
   
 
     
@@ -1077,8 +1077,9 @@ imported lazily inside :meth:<code>plot</code>, so importing this module never r
 
 
         <p>Predictive vs orthogonal score scatter for an OPLS-family model.</p>
-<p>Works for :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls.OPLSDA</code> and
-:class:<code>~scikit_opls.OPLSCV</code>. Construct with :meth:<code>from_estimator</code>.</p>
+<p>Works for :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls.OPLSDA</code> and fitted
+<code>GridSearchCV</code> returned by :func:<code>~scikit_opls.selection.select_orthogonal</code>.
+Construct with :meth:<code>from_estimator</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1242,7 +1243,7 @@ imported lazily inside :meth:<code>plot</code>, so importing this module never r
                 <code>estimator</code>
             </td>
             <td>
-                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <a class="autorefs autorefs-internal" title="scikit_opls._search.OPLSCV" href="../opls_cv/#scikit_opls.OPLSCV">OPLSCV</a>)</code>
+                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <span title="GridSearchCV">GridSearchCV</span>)</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1435,8 +1436,9 @@ imported lazily inside :meth:<code>plot</code>, so importing this module never r
 
 
         <p>S-plot: covariance vs correlation of each feature with the predictive score.</p>
-<p>Accepts :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls.OPLSDA</code> or
-:class:<code>~scikit_opls.OPLSCV</code>. Construct with :meth:<code>from_estimator</code>.</p>
+<p>Accepts :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls.OPLSDA</code> or fitted
+<code>GridSearchCV</code> returned by :func:<code>~scikit_opls.selection.select_orthogonal</code>.
+Construct with :meth:<code>from_estimator</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1580,7 +1582,7 @@ imported lazily inside :meth:<code>plot</code>, so importing this module never r
                 <code>estimator</code>
             </td>
             <td>
-                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <a class="autorefs autorefs-internal" title="scikit_opls._search.OPLSCV" href="../opls_cv/#scikit_opls.OPLSCV">OPLSCV</a>)</code>
+                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <span title="GridSearchCV">GridSearchCV</span>)</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1776,7 +1778,7 @@ Display API in new code.</p>
                 <code>model</code>
             </td>
             <td>
-                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <a class="autorefs autorefs-internal" title="scikit_opls._search.OPLSCV" href="../opls_cv/#scikit_opls.OPLSCV">OPLSCV</a>)</code>
+                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <span title="GridSearchCV">GridSearchCV</span>)</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1900,7 +1902,7 @@ API in new code.</p>
                 <code>model</code>
             </td>
             <td>
-                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <a class="autorefs autorefs-internal" title="scikit_opls._search.OPLSCV" href="../opls_cv/#scikit_opls.OPLSCV">OPLSCV</a>)</code>
+                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <span title="GridSearchCV">GridSearchCV</span>)</code>
             </td>
             <td>
               <div class="doc-md-description">
@@ -1980,7 +1982,12 @@ API in new code.</p>
 
     </div>
 
-</div>
+</div><p>options:
+members:
+- OPLSScoresDisplay
+- SPlotDisplay
+- scores_plot
+- s_plot</p>
 
 
 

@@ -621,14 +621,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../api/opls_cv/" class="md-nav__link">
+      <a href="../api/selection/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    OPLSCV
+    Selection
   
 
     
@@ -894,21 +894,24 @@
 <span class="n">model</span><span class="o">.</span><span class="n">r2y_</span><span class="p">,</span> <span class="n">model</span><span class="o">.</span><span class="n">rmsee_</span>      <span class="c1"># training-fit summaries</span>
 </code></pre></div>
 <h2 id="choosing-n_orthogonal-by-cross-validation">Choosing <code>n_orthogonal</code> by cross-validation<a class="headerlink" href="#choosing-n_orthogonal-by-cross-validation" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">scikit_opls</span><span class="w"> </span><span class="kn">import</span> <span class="n">OPLSCV</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">scikit_opls</span><span class="w"> </span><span class="kn">import</span> <span class="n">OPLS</span><span class="p">,</span> <span class="n">select_orthogonal</span>
 
-<span class="n">cv_model</span> <span class="o">=</span> <span class="n">OPLSCV</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">cv</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
-<span class="n">cv_model</span><span class="o">.</span><span class="n">n_orthogonal_</span>   <span class="c1"># selected number of orthogonal components</span>
-<span class="n">cv_model</span><span class="o">.</span><span class="n">q2_path_</span>        <span class="c1"># out-of-fold Q2 at each step</span>
-<span class="n">cv_model</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>      <span class="c1"># delegates to the refit final model</span>
+<span class="n">search</span> <span class="o">=</span> <span class="n">select_orthogonal</span><span class="p">(</span><span class="n">OPLS</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">1</span><span class="p">),</span> <span class="n">cv</span><span class="o">=</span><span class="mi">7</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="n">search</span><span class="o">.</span><span class="n">best_params_</span><span class="p">[</span><span class="s2">&quot;n_orthogonal&quot;</span><span class="p">]</span>       <span class="c1"># selected count</span>
+<span class="n">search</span><span class="o">.</span><span class="n">cv_results_</span><span class="p">[</span><span class="s2">&quot;mean_test_score&quot;</span><span class="p">]</span>     <span class="c1"># out-of-fold R2/Q2 path</span>
+<span class="n">search</span><span class="o">.</span><span class="n">best_estimator_</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>         <span class="c1"># final model refit on all data</span>
 </code></pre></div>
 <h2 id="classification-opls-da">Classification (OPLS-DA)<a class="headerlink" href="#classification-opls-da" title="Permanent link">&para;</a></h2>
-<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">scikit_opls</span><span class="w"> </span><span class="kn">import</span> <span class="n">OPLSDA</span>
+<div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">scikit_opls</span><span class="w"> </span><span class="kn">import</span> <span class="n">OPLSDA</span><span class="p">,</span> <span class="n">select_orthogonal</span>
 
 <span class="n">y_lab</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">where</span><span class="p">(</span><span class="n">X</span><span class="p">[:,</span> <span class="mi">0</span><span class="p">]</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;case&quot;</span><span class="p">,</span> <span class="s2">&quot;ctrl&quot;</span><span class="p">)</span>
 <span class="n">clf</span> <span class="o">=</span> <span class="n">OPLSDA</span><span class="p">(</span><span class="n">n_components</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">n_orthogonal</span><span class="o">=</span><span class="mi">2</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y_lab</span><span class="p">)</span>
 <span class="n">clf</span><span class="o">.</span><span class="n">predict</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>            <span class="c1"># class labels</span>
 <span class="n">clf</span><span class="o">.</span><span class="n">predict_proba</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>      <span class="c1"># Platt-scaled probabilities</span>
 <span class="n">clf</span><span class="o">.</span><span class="n">decision_function</span><span class="p">(</span><span class="n">X</span><span class="p">)</span>  <span class="c1"># signed confidence</span>
+
+<span class="c1"># Cross-validated OPLS-DA selection uses GridSearchCV&#39;s stratified folds.</span>
+<span class="n">select_orthogonal</span><span class="p">(</span><span class="n">OPLSDA</span><span class="p">(),</span> <span class="n">scoring</span><span class="o">=</span><span class="s2">&quot;roc_auc&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y_lab</span><span class="p">)</span>
 </code></pre></div>
 <h2 id="inspection-plotting-and-validation">Inspection, plotting and validation<a class="headerlink" href="#inspection-plotting-and-validation" title="Permanent link">&para;</a></h2>
 <div class="highlight"><pre><span></span><code><span class="kn">from</span><span class="w"> </span><span class="nn">scikit_opls.inspection</span><span class="w"> </span><span class="kn">import</span> <span class="n">vip</span>

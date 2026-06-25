@@ -14,7 +14,7 @@
         <link rel="prev" href="../../quickstart/">
       
       
-        <link rel="next" href="../opls_cv/">
+        <link rel="next" href="../selection/">
       
       
         
@@ -659,14 +659,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../opls_cv/" class="md-nav__link">
+      <a href="../selection/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    OPLSCV
+    Selection
   
 
     
@@ -988,7 +988,7 @@
               <div class="doc-md-description">
                 <p>Number of predictive components. True OPLS uses 1, which is required
 whenever <code>n_orthogonal != 0</code>. Values &gt; 1 are only allowed with
-<code>n_orthogonal=0</code> (plain multi-component PLS, a non-<code>ropls</code> mode).</p>
+<code>n_orthogonal=0</code> (plain multi-component PLS extension mode).</p>
               </div>
             </td>
             <td>
@@ -1005,7 +1005,8 @@ whenever <code>n_orthogonal != 0</code>. Values &gt; 1 are only allowed with
             <td>
               <div class="doc-md-description">
                 <p>Number of orthogonal (y-uncorrelated) components to remove from <code>X</code>.
-To choose this by cross-validated Q2, use :class:<code>~scikit_opls.OPLSCV</code>.</p>
+To choose this by cross-validated Q2, use
+:func:<code>~scikit_opls.selection.select_orthogonal</code>.</p>
               </div>
             </td>
             <td>
@@ -1021,7 +1022,7 @@ To choose this by cross-validated Q2, use :class:<code>~scikit_opls.OPLSCV</code
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Column preprocessing applied to <code>X</code> (matches <code>ropls</code> <code>scaleC</code>).</p>
+                <p>Column preprocessing applied to <code>X</code>.</p>
               </div>
             </td>
             <td>

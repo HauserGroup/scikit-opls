@@ -535,14 +535,14 @@
   
   
     <li class="md-nav__item">
-      <a href="../opls_cv/" class="md-nav__link">
+      <a href="../selection/" class="md-nav__link">
         
   
   
   <span class="md-ellipsis">
     
   
-    OPLSCV
+    Selection
   
 
     
@@ -662,21 +662,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scikit_opls.inspection.vip" class="md-nav__link">
+  <a href="#scikit_opls.inspection.explained_x_variance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        vip
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scikit_opls.inspection.orthogonal_vip" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        orthogonal_vip
+        explained_x_variance
       
     </span>
   </a>
@@ -695,10 +684,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scikit_opls.inspection.explained_x_variance" class="md-nav__link">
+  <a href="#scikit_opls.inspection.vip" class="md-nav__link">
     <span class="md-ellipsis">
       
-        explained_x_variance
+        vip
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scikit_opls.inspection.orthogonal_vip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        orthogonal_vip
       
     </span>
   </a>
@@ -842,21 +842,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scikit_opls.inspection.vip" class="md-nav__link">
+  <a href="#scikit_opls.inspection.explained_x_variance" class="md-nav__link">
     <span class="md-ellipsis">
       
-        vip
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scikit_opls.inspection.orthogonal_vip" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        orthogonal_vip
+        explained_x_variance
       
     </span>
   </a>
@@ -875,10 +864,21 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scikit_opls.inspection.explained_x_variance" class="md-nav__link">
+  <a href="#scikit_opls.inspection.vip" class="md-nav__link">
     <span class="md-ellipsis">
       
-        explained_x_variance
+        vip
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#scikit_opls.inspection.orthogonal_vip" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        orthogonal_vip
       
     </span>
   </a>
@@ -918,16 +918,15 @@
         <p>Model inspection for OPLS: VIP scores and explained-variance metrics.</p>
 <p>VIP (Variable Importance in Projection) follows Galindo-Prieto et al. (2014):</p>
 <ul>
-<li>predictive VIP weights each predictive component by the Y variance it explains
-  (<code>ropls</code> <code>vipVn</code>);</li>
-<li>orthogonal VIP weights each orthogonal component by the X variance it explains
-  (<code>ropls</code> <code>orthoVipVn</code>).</li>
+<li>predictive VIP weights each predictive component by the Y variance it explains;</li>
+<li>orthogonal VIP weights each orthogonal component by the X variance it explains.</li>
 </ul>
 <p>Both satisfy <code>sum_j VIP_j**2 == n_features</code> (mean squared VIP of 1).</p>
 <p>VIP is computed on demand here rather than eagerly in <code>OPLS.fit</code>. The
 <code>vip(model)</code>/<code>orthogonal_vip(model)</code> functions are the canonical API; they
 accept a fitted :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls.OPLSDA</code>, or
-:class:<code>~scikit_opls.OPLSCV</code> (wrappers are unwrapped automatically).</p>
+<code>GridSearchCV</code> returned by :func:<code>~scikit_opls.selection.select_orthogonal</code>
+(wrappers are unwrapped automatically).</p>
 
 
 
@@ -952,17 +951,23 @@ accept a fitted :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls
 <div class="doc doc-object doc-function">
 
 
-<h2 id="scikit_opls.inspection.vip" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">vip</span>
+<h2 id="scikit_opls.inspection.explained_x_variance" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">explained_x_variance</span>
 
 
-<a href="#scikit_opls.inspection.vip" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">vip</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
+<a href="#scikit_opls.inspection.explained_x_variance" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">explained_x_variance</span><span class="p">(</span>
+    <span class="n">X</span><span class="p">:</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">scores</span><span class="p">:</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">float64</span><span class="p">],</span>
+    <span class="n">loadings</span><span class="p">:</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">float64</span><span class="p">],</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Predictive VIP for a fitted OPLS / OPLSDA / OPLSCV.</p>
+        <p>Fraction of the (preprocessed) <code>X</code> sum-of-squares captured by a block.</p>
+<p>Used for both the predictive block (<code>R2X</code>) and the orthogonal block
+(<code>R2X_ortho</code>): <code>SS(scores @ loadingsᵀ) / SS(X)</code>.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -978,14 +983,46 @@ accept a fitted :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>model</code>
+                <code>X</code>
             </td>
             <td>
-                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <a class="autorefs autorefs-internal" title="scikit_opls._search.OPLSCV" href="../opls_cv/#scikit_opls.OPLSCV">OPLSCV</a>)</code>
+                  <code>ndarray of shape (n_samples, n_features)</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>A fitted estimator (DA/CV wrappers are unwrapped automatically).</p>
+                <p>Preprocessed predictor matrix.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>scores</code>
+            </td>
+            <td>
+                  <code>ndarray of shape (n_samples, n_components)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Block scores.</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>loadings</code>
+            </td>
+            <td>
+                  <code>ndarray of shape (n_features, n_components)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Block loadings.</p>
               </div>
             </td>
             <td>
@@ -1006,86 +1043,13 @@ accept a fitted :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls
       </thead>
       <tbody>
           <tr class="doc-section-item">
-<td><code>vip</code></td>            <td>
-                  <code>ndarray of shape (n_features,)</code>
+<td><code>fraction</code></td>            <td>
+                  <code><span title="float">float</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Predictive VIP scores.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="scikit_opls.inspection.orthogonal_vip" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">orthogonal_vip</span>
-
-
-<a href="#scikit_opls.inspection.orthogonal_vip" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">orthogonal_vip</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Orthogonal VIP for a fitted OPLS / OPLSDA / OPLSCV (niche; opt-in).</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>model</code>
-            </td>
-            <td>
-                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <a class="autorefs autorefs-internal" title="scikit_opls._search.OPLSCV" href="../opls_cv/#scikit_opls.OPLSCV">OPLSCV</a>)</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>A fitted estimator (DA/CV wrappers are unwrapped automatically).</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-    <p><span class="doc-section-title">Returns:</span></p>
-    <table>
-      <thead>
-        <tr>
-<th>Name</th>          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-<td><code>vip</code></td>            <td>
-                  <code>ndarray of shape (n_features,)</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Orthogonal VIP scores.</p>
+                <p>Captured fraction in <code>[0, 1]</code>; <code>0.0</code> if the block is empty or <code>X</code>
+has zero sum-of-squares.</p>
               </div>
             </td>
           </tr>
@@ -1210,23 +1174,17 @@ accept a fitted :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls
 <div class="doc doc-object doc-function">
 
 
-<h2 id="scikit_opls.inspection.explained_x_variance" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">explained_x_variance</span>
+<h2 id="scikit_opls.inspection.vip" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">vip</span>
 
 
-<a href="#scikit_opls.inspection.explained_x_variance" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">explained_x_variance</span><span class="p">(</span>
-    <span class="n">X</span><span class="p">:</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">scores</span><span class="p">:</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">float64</span><span class="p">],</span>
-    <span class="n">loadings</span><span class="p">:</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">float64</span><span class="p">],</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">float</span>
+<a href="#scikit_opls.inspection.vip" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">vip</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Fraction of the (preprocessed) <code>X</code> sum-of-squares captured by a block.</p>
-<p>Used for both the predictive block (<code>R2X</code>) and the orthogonal block
-(<code>R2X_ortho</code>): <code>SS(scores @ loadingsᵀ) / SS(X)</code>.</p>
+        <p>Predictive VIP for a fitted OPLS / OPLSDA / selected GridSearchCV.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1242,46 +1200,14 @@ accept a fitted :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>X</code>
+                <code>model</code>
             </td>
             <td>
-                  <code>ndarray of shape (n_samples, n_features)</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Preprocessed predictor matrix.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>scores</code>
-            </td>
-            <td>
-                  <code>ndarray of shape (n_samples, n_components)</code>
+                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <span title="GridSearchCV">GridSearchCV</span>)</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Block scores.</p>
-              </div>
-            </td>
-            <td>
-                <em>required</em>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>loadings</code>
-            </td>
-            <td>
-                  <code>ndarray of shape (n_features, n_components)</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Block loadings.</p>
+                <p>A fitted estimator (DA/search wrappers are unwrapped automatically).</p>
               </div>
             </td>
             <td>
@@ -1302,13 +1228,86 @@ accept a fitted :class:<code>~scikit_opls.OPLS</code>, :class:<code>~scikit_opls
       </thead>
       <tbody>
           <tr class="doc-section-item">
-<td><code>fraction</code></td>            <td>
-                  <code><span title="float">float</span></code>
+<td><code>vip</code></td>            <td>
+                  <code>ndarray of shape (n_features,)</code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Captured fraction in <code>[0, 1]</code>; <code>0.0</code> if the block is empty or <code>X</code>
-has zero sum-of-squares.</p>
+                <p>Predictive VIP scores.</p>
+              </div>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    </div>
+
+</div>
+
+<div class="doc doc-object doc-function">
+
+
+<h2 id="scikit_opls.inspection.orthogonal_vip" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">orthogonal_vip</span>
+
+
+<a href="#scikit_opls.inspection.orthogonal_vip" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">orthogonal_vip</span><span class="p">(</span><span class="n">model</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
+</code></pre></div>
+
+    <div class="doc doc-contents ">
+
+        <p>Orthogonal VIP for a fitted OPLS / OPLSDA / selected GridSearchCV.</p>
+
+
+<p><span class="doc-section-title">Parameters:</span></p>
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Type</th>
+          <th>Description</th>
+          <th>Default</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+            <td>
+                <code>model</code>
+            </td>
+            <td>
+                  <code>(<a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a>, <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a> or <span title="GridSearchCV">GridSearchCV</span>)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>A fitted estimator (DA/search wrappers are unwrapped automatically).</p>
+              </div>
+            </td>
+            <td>
+                <em>required</em>
+            </td>
+          </tr>
+      </tbody>
+    </table>
+
+
+    <p><span class="doc-section-title">Returns:</span></p>
+    <table>
+      <thead>
+        <tr>
+<th>Name</th>          <th>Type</th>
+          <th>Description</th>
+        </tr>
+      </thead>
+      <tbody>
+          <tr class="doc-section-item">
+<td><code>vip</code></td>            <td>
+                  <code>ndarray of shape (n_features,)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Orthogonal VIP scores.</p>
               </div>
             </td>
           </tr>
@@ -1326,7 +1325,12 @@ has zero sum-of-squares.</p>
 
     </div>
 
-</div>
+</div><p>options:
+members:
+- vip
+- orthogonal_vip
+- predictive_vip
+- explained_x_variance</p>
 
 
 

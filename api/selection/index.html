@@ -25,7 +25,7 @@
     
     
       
-        <title>OPLSCV - scikit-opls</title>
+        <title>Selection - scikit-opls</title>
       
     
     
@@ -78,7 +78,7 @@
     <div data-md-component="skip">
       
         
-        <a href="#oplscv" class="md-skip">
+        <a href="#selection" class="md-skip">
           Skip to content
         </a>
       
@@ -112,7 +112,7 @@
         <div class="md-header__topic" data-md-component="header-topic">
           <span class="md-ellipsis">
             
-              OPLSCV
+              Selection
             
           </span>
         </div>
@@ -551,7 +551,7 @@
   <span class="md-ellipsis">
     
   
-    OPLSCV
+    Selection
   
 
     
@@ -569,7 +569,7 @@
   <span class="md-ellipsis">
     
   
-    OPLSCV
+    Selection
   
 
     
@@ -595,10 +595,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV" class="md-nav__link">
+  <a href="#scikit_opls.selection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        OPLSCV
+        selection
       
     </span>
   </a>
@@ -606,54 +606,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV.fit" class="md-nav__link">
+  <a href="#scikit_opls.selection.select_orthogonal" class="md-nav__link">
     <span class="md-ellipsis">
       
-        fit
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV.predict" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        predict
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV.transform" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        transform
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV.transform_orthogonal" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        transform_orthogonal
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV.get_feature_names_out" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        get_feature_names_out
+        select_orthogonal
       
     </span>
   </a>
@@ -842,10 +798,10 @@
     <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
       
         <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV" class="md-nav__link">
+  <a href="#scikit_opls.selection" class="md-nav__link">
     <span class="md-ellipsis">
       
-        OPLSCV
+        selection
       
     </span>
   </a>
@@ -853,54 +809,10 @@
 </li>
       
         <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV.fit" class="md-nav__link">
+  <a href="#scikit_opls.selection.select_orthogonal" class="md-nav__link">
     <span class="md-ellipsis">
       
-        fit
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV.predict" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        predict
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV.transform" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        transform
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV.transform_orthogonal" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        transform_orthogonal
-      
-    </span>
-  </a>
-  
-</li>
-      
-        <li class="md-nav__item">
-  <a href="#scikit_opls.OPLSCV.get_feature_names_out" class="md-nav__link">
-    <span class="md-ellipsis">
-      
-        get_feature_names_out
+        select_orthogonal
       
     </span>
   </a>
@@ -927,199 +839,23 @@
   
 
 
-<h1 id="oplscv">OPLSCV<a class="headerlink" href="#oplscv" title="Permanent link">&para;</a></h1>
+<h1 id="selection">Selection<a class="headerlink" href="#selection" title="Permanent link">&para;</a></h1>
 
 
-<div class="doc doc-object doc-class">
+<div class="doc doc-object doc-module">
 
 
 
-<a id="scikit_opls.OPLSCV"></a>
+<a id="scikit_opls.selection"></a>
     <div class="doc doc-contents first">
-            <p class="doc doc-class-bases">
-              Bases: <code><span title="sklearn.base.RegressorMixin">RegressorMixin</span></code>, <code><span title="sklearn.base.TransformerMixin">TransformerMixin</span></code>, <code><span title="sklearn.base.BaseEstimator">BaseEstimator</span></code></p>
 
-
-
-        <p>OPLS with the number of orthogonal components chosen by cross-validated Q2.</p>
-
-
-<p><span class="doc-section-title">Parameters:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-          <th>Default</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td>
-                <code>n_components</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Number of predictive components passed to the inner :class:<code>~scikit_opls.OPLS</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>1</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>scale</code>
-            </td>
-            <td>
-                  <code>(&#39;none&#39;, &#39;center&#39;, &#39;pareto&#39;, &#39;standard&#39;)</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Column preprocessing applied to <code>X</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>&#34;none&#34;</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>cv</code>
-            </td>
-            <td>
-                  <code>int, cross-validation generator or iterable</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Cross-validation used to score each candidate <code>n_orthogonal</code>.</p>
-              </div>
-            </td>
-            <td>
-                  <code>7</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>max_orthogonal</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Cap on the number of orthogonal components (<code>ropls</code> orthoI = NA cap).</p>
-              </div>
-            </td>
-            <td>
-                  <code>9</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>q2_tol</code>
-            </td>
-            <td>
-                  <code><span title="float">float</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Minimum out-of-fold Q2 improvement required to keep an extra component.</p>
-              </div>
-            </td>
-            <td>
-                  <code>0.01</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>copy</code>
-            </td>
-            <td>
-                  <code><span title="bool">bool</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Whether the input arrays are copied during validation.</p>
-              </div>
-            </td>
-            <td>
-                  <code>True</code>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td>
-                <code>n_jobs</code>
-            </td>
-            <td>
-                  <code><span title="int">int</span> or None</code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Number of jobs for the cross-validation of each candidate <code>n_orthogonal</code>
-(passed to :func:<code>~sklearn.model_selection.cross_val_predict</code>). <code>None</code>
-means 1; <code>-1</code> uses all processors. The forward search itself is
-sequential (it stops early), so parallelism is over the CV folds.</p>
-              </div>
-            </td>
-            <td>
-                  <code>None</code>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
-
-<p><span class="doc-section-title">Attributes:</span></p>
-    <table>
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Type</th>
-          <th>Description</th>
-        </tr>
-      </thead>
-      <tbody>
-          <tr class="doc-section-item">
-            <td><code><span title="scikit_opls.OPLSCV.n_orthogonal_">n_orthogonal_</span></code></td>
-            <td>
-                  <code><span title="int">int</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Chosen number of orthogonal components.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="scikit_opls.OPLSCV.q2_path_">q2_path_</span></code></td>
-            <td>
-                  <code><span title="ndarray">ndarray</span></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Out-of-fold Q2 at <code>k = 0, 1, …</code> up to the stopping point.</p>
-              </div>
-            </td>
-          </tr>
-          <tr class="doc-section-item">
-            <td><code><span title="scikit_opls.OPLSCV.opls_">opls_</span></code></td>
-            <td>
-                  <code><a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a></code>
-            </td>
-            <td>
-              <div class="doc-md-description">
-                <p>Final model refit on all data with <code>n_orthogonal=n_orthogonal_</code>.</p>
-              </div>
-            </td>
-          </tr>
-      </tbody>
-    </table>
-
+        <p>Cross-validated selection of <code>n_orthogonal</code> via scikit-learn <code>GridSearchCV</code>.</p>
+<p>:func:<code>select_orthogonal</code> returns a :class:<code>~sklearn.model_selection.GridSearchCV</code>
+preconfigured to search <code>n_orthogonal</code> with a parsimonious refit: among
+configurations whose mean CV score is within <code>tol</code> of the best, pick the one with
+the fewest orthogonal components. Works for :class:<code>~scikit_opls.OPLS</code> (regression,
+R2 == out-of-fold Q2) and :class:<code>~scikit_opls.OPLSDA</code> (classification —
+<code>GridSearchCV</code> uses stratified folds automatically), inheriting <code>n_jobs</code> for free.</p>
 
 
 
@@ -1144,17 +880,25 @@ sequential (it stops early), so parallelism is over the CV folds.</p>
 <div class="doc doc-object doc-function">
 
 
-<h2 id="scikit_opls.OPLSCV.fit" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">fit</span>
+<h2 id="scikit_opls.selection.select_orthogonal" class="doc doc-heading">
+            <span class="doc doc-object-name doc-function-name">select_orthogonal</span>
 
 
-<a href="#scikit_opls.OPLSCV.fit" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">fit</span><span class="p">(</span><span class="n">X</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">,</span> <span class="n">y</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">OPLSCV</span>
+<a href="#scikit_opls.selection.select_orthogonal" class="headerlink" title="Permanent link">&para;</a></h2>
+<div class="doc-signature highlight"><pre><span></span><code><span class="nf">select_orthogonal</span><span class="p">(</span>
+    <span class="n">estimator</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="o">*</span><span class="p">,</span>
+    <span class="n">max_orthogonal</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">9</span><span class="p">,</span>
+    <span class="n">tol</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span><span class="p">,</span>
+    <span class="n">scoring</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">cv</span><span class="p">:</span> <span class="n">Any</span> <span class="o">=</span> <span class="mi">5</span><span class="p">,</span>
+    <span class="n">n_jobs</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">GridSearchCV</span>
 </code></pre></div>
 
     <div class="doc doc-contents ">
 
-        <p>Select <code>n_orthogonal</code> by cross-validated Q2, then refit on all data.</p>
+        <p>Build a <code>GridSearchCV</code> selecting <code>n_orthogonal</code> for an OPLS/OPLSDA estimator.</p>
 
 
 <p><span class="doc-section-title">Parameters:</span></p>
@@ -1170,14 +914,14 @@ sequential (it stops early), so parallelism is over the CV folds.</p>
       <tbody>
           <tr class="doc-section-item">
             <td>
-                <code>X</code>
+                <code>estimator</code>
             </td>
             <td>
-                  <code>array-like of shape (n_samples, n_features)</code>
+                  <code><a class="autorefs autorefs-internal" title="scikit_opls._opls.OPLS" href="../opls/#scikit_opls.OPLS">OPLS</a> or <a class="autorefs autorefs-internal" title="scikit_opls._opls_da.OPLSDA" href="../opls_da/#scikit_opls.OPLSDA">OPLSDA</a></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Training predictors.</p>
+                <p>Unfitted base estimator whose <code>n_orthogonal</code> is to be chosen.</p>
               </div>
             </td>
             <td>
@@ -1186,18 +930,87 @@ sequential (it stops early), so parallelism is over the CV folds.</p>
           </tr>
           <tr class="doc-section-item">
             <td>
-                <code>y</code>
+                <code>max_orthogonal</code>
             </td>
             <td>
-                  <code>array-like of shape (n_samples,)</code>
+                  <code><span title="int">int</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>Target values.</p>
+                <p>Inclusive upper bound of the search grid (<code>0..max_orthogonal</code>).</p>
               </div>
             </td>
             <td>
-                <em>required</em>
+                  <code>9</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>tol</code>
+            </td>
+            <td>
+                  <code><span title="float">float</span></code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Parsimony tolerance: among scores within <code>tol</code> of the best, the fewest
+orthogonal components win.</p>
+              </div>
+            </td>
+            <td>
+                  <code>0.01</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>scoring</code>
+            </td>
+            <td>
+                  <code>(<span title="str">str</span>, <span title="callable">callable</span> or None)</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Passed to <code>GridSearchCV</code>. <code>None</code> uses the estimator's own <code>score</code> (R2/Q2
+for <code>OPLS</code>, accuracy for <code>OPLSDA</code>). For OPLS-DA, <code>"roc_auc"</code> is usually
+preferable.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>cv</code>
+            </td>
+            <td>
+                  <code>int, cross-validation generator or iterable</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Passed through to <code>GridSearchCV</code>. An int <code>cv</code> becomes <code>KFold</code> for <code>OPLS</code>
+and <code>StratifiedKFold</code> for <code>OPLSDA</code> automatically.</p>
+              </div>
+            </td>
+            <td>
+                  <code>5</code>
+            </td>
+          </tr>
+          <tr class="doc-section-item">
+            <td>
+                <code>n_jobs</code>
+            </td>
+            <td>
+                  <code><span title="int">int</span> or None</code>
+            </td>
+            <td>
+              <div class="doc-md-description">
+                <p>Passed through to <code>GridSearchCV</code>. <code>None</code> means 1; <code>-1</code> uses all
+processors.</p>
+              </div>
+            </td>
+            <td>
+                  <code>None</code>
             </td>
           </tr>
       </tbody>
@@ -1214,12 +1027,14 @@ sequential (it stops early), so parallelism is over the CV folds.</p>
       </thead>
       <tbody>
           <tr class="doc-section-item">
-<td><code>self</code></td>            <td>
-                  <code><a class="autorefs autorefs-internal" title="scikit_opls._search.OPLSCV" href="#scikit_opls.OPLSCV">OPLSCV</a></code>
+<td><code>search</code></td>            <td>
+                  <code><span title="sklearn.model_selection.GridSearchCV">GridSearchCV</span></code>
             </td>
             <td>
               <div class="doc-md-description">
-                <p>The fitted estimator.</p>
+                <p>Unfitted. After <code>fit</code>: <code>best_params_["n_orthogonal"]</code> is the chosen count,
+<code>best_estimator_</code> the final model refit on all data, and
+<code>cv_results_["mean_test_score"]</code> the score path.</p>
               </div>
             </td>
           </tr>
@@ -1227,86 +1042,13 @@ sequential (it stops early), so parallelism is over the CV folds.</p>
     </table>
 
 
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="scikit_opls.OPLSCV.predict" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">predict</span>
-
-
-<a href="#scikit_opls.OPLSCV.predict" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">predict</span><span class="p">(</span><span class="n">X</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
+<p><span class="doc-section-title">Examples:</span></p>
+    <div class="highlight"><pre><span></span><code><span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">scikit_opls</span><span class="w"> </span><span class="kn">import</span> <span class="n">OPLS</span><span class="p">,</span> <span class="n">OPLSDA</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="kn">from</span><span class="w"> </span><span class="nn">scikit_opls.selection</span><span class="w"> </span><span class="kn">import</span> <span class="n">select_orthogonal</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">search</span> <span class="o">=</span> <span class="n">select_orthogonal</span><span class="p">(</span><span class="n">OPLS</span><span class="p">())</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">search</span><span class="o">.</span><span class="n">best_params_</span><span class="p">[</span><span class="s2">&quot;n_orthogonal&quot;</span><span class="p">]</span>
+<span class="gp">&gt;&gt;&gt; </span><span class="n">select_orthogonal</span><span class="p">(</span><span class="n">OPLSDA</span><span class="p">(),</span> <span class="n">scoring</span><span class="o">=</span><span class="s2">&quot;roc_auc&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">fit</span><span class="p">(</span><span class="n">X</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
 </code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Predict <code>y</code> with the selected final model.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="scikit_opls.OPLSCV.transform" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">transform</span>
-
-
-<a href="#scikit_opls.OPLSCV.transform" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">transform</span><span class="p">(</span><span class="n">X</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Project samples onto the predictive components of the final model.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="scikit_opls.OPLSCV.transform_orthogonal" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">transform_orthogonal</span>
-
-
-<a href="#scikit_opls.OPLSCV.transform_orthogonal" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">transform_orthogonal</span><span class="p">(</span><span class="n">X</span><span class="p">:</span> <span class="n">ArrayLike</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Project samples onto the orthogonal components of the final model.</p>
-
-
-    </div>
-
-</div>
-
-<div class="doc doc-object doc-function">
-
-
-<h2 id="scikit_opls.OPLSCV.get_feature_names_out" class="doc doc-heading">
-            <span class="doc doc-object-name doc-function-name">get_feature_names_out</span>
-
-
-<a href="#scikit_opls.OPLSCV.get_feature_names_out" class="headerlink" title="Permanent link">&para;</a></h2>
-<div class="doc-signature highlight"><pre><span></span><code><span class="nf">get_feature_names_out</span><span class="p">(</span>
-    <span class="n">input_features</span><span class="o">=</span><span class="kc">None</span><span class="p">,</span>
-<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">NDArray</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">object_</span><span class="p">]</span>
-</code></pre></div>
-
-    <div class="doc doc-contents ">
-
-        <p>Output feature names of the selected final model's :meth:<code>transform</code>.</p>
 
 
     </div>
