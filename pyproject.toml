@@ -12,6 +12,13 @@ dependencies = [
     "scipy>=1.18.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/HauserGroup/scikit-opls"
+Documentation = "https://hausergroup.github.io/scikit-opls/"
+Repository = "https://github.com/HauserGroup/scikit-opls"
+"Bug Tracker" = "https://github.com/HauserGroup/scikit-opls/issues"
+Changelog = "https://github.com/HauserGroup/scikit-opls/blob/main/CHANGES.md"
+
 [project.optional-dependencies]
 # Plotting (scikit_opls.plotting) is the only matplotlib consumer and imports it
 # lazily, so it is an opt-in extra: `pip install scikit-opls[plot]`.

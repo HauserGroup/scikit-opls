@@ -1,5 +1,12 @@
 # scikit-opls
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/HauserGroup/scikit-opls/actions/workflows/ci.yml/badge.svg)](https://github.com/HauserGroup/scikit-opls/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hausergroup.github.io/scikit-opls/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Orcid: Jakob](https://img.shields.io/badge/Jakob-bar?style=flat&logo=orcid&labelColor=white&color=grey)](https://orcid.org/0000-0002-2841-7284)
+
 Orthogonal Projections to Latent Structures (**OPLS** / **OPLS-DA**) with a
 scikit-learn interface.
 
