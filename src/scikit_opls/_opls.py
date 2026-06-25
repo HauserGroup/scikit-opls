@@ -42,12 +42,13 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     n_components : int, default=1
         Number of predictive components. True OPLS uses 1, which is required
         whenever ``n_orthogonal != 0``. Values > 1 are only allowed with
-        ``n_orthogonal=0`` (plain multi-component PLS, a non-``ropls`` mode).
+        ``n_orthogonal=0`` (plain multi-component PLS extension mode).
     n_orthogonal : int, default=1
         Number of orthogonal (y-uncorrelated) components to remove from ``X``.
-        To choose this by cross-validated Q2, use :class:`~scikit_opls.OPLSCV`.
+        To choose this by cross-validated Q2, use
+        :func:`~scikit_opls.selection.select_orthogonal`.
     scale : {"none", "center", "pareto", "standard"}, default="standard"
-        Column preprocessing applied to ``X`` (matches ``ropls`` ``scaleC``).
+        Column preprocessing applied to ``X``.
     copy : bool, default=True
         Whether the input arrays are copied during validation.
 
@@ -75,6 +76,20 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         "scale": [StrOptions(set(VALID_SCALING))],
         "copy": ["boolean"],
     }
+
+    _doc_link_module = "scikit_opls"
+
+    @property
+    def _doc_link_template(self) -> str:
+        return "https://hausergroup.github.io/scikit-opls/api/{estimator_name_lower}/"
+
+    @_doc_link_template.setter
+    def _doc_link_template(self, value: str) -> None:
+        pass
+
+    def _doc_link_url_param_generator(self) -> dict[str, str]:
+        """Generate URL parameters for the documentation link."""
+        return {"estimator_name_lower": "opls"}
 
     def __init__(
         self,
@@ -111,7 +126,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         )
 
         # True-OPLS contract: one predictive component when any orthogonal
-        # filtering is requested (ropls predI=1). n_orthogonal=0 keeps the
+        # filtering is requested. n_orthogonal=0 keeps the
         # unrestricted PLSRegression-equivalence mode.
         if self.n_components != 1 and self.n_orthogonal != 0:
             raise ValueError(

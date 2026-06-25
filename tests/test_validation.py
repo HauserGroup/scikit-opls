@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLS
 from scikit_opls.validation import permutation_test
@@ -55,5 +56,5 @@ def test_permutation_test_n_jobs_is_reproducible():
     kw = dict(n_permutations=8, random_state=3)
     serial = permutation_test(OPLS(n_orthogonal=1), X, y, n_jobs=1, **kw)
     parallel = permutation_test(OPLS(n_orthogonal=1), X, y, n_jobs=2, **kw)
-    np.testing.assert_allclose(serial.permuted_q2, parallel.permuted_q2)
-    np.testing.assert_allclose(serial.permuted_r2y, parallel.permuted_r2y)
+    assert_allclose(serial.permuted_q2, parallel.permuted_q2)
+    assert_allclose(serial.permuted_r2y, parallel.permuted_r2y)

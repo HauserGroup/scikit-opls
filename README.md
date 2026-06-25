@@ -1,5 +1,12 @@
 # scikit-opls
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![CI](https://github.com/HauserGroup/scikit-opls/actions/workflows/ci.yml/badge.svg)](https://github.com/HauserGroup/scikit-opls/actions/workflows/ci.yml)
+[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hausergroup.github.io/scikit-opls/)
+[![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
+[![uv](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/uv/main/assets/badge/v0.json)](https://github.com/astral-sh/uv)
+[![Orcid: Jakob](https://img.shields.io/badge/Jakob-bar?style=flat&logo=orcid&labelColor=white&color=grey)](https://orcid.org/0000-0002-2841-7284)
+
 Orthogonal Projections to Latent Structures (**OPLS** / **OPLS-DA**) with a
 scikit-learn interface.
 
@@ -10,9 +17,9 @@ removes the orthogonal variation with a NIPALS filter and then fits
 on the cleaned `X` as the predictive engine. With `n_orthogonal=0` the model
 reduces *exactly* to `PLSRegression`.
 
-This mirrors the behaviour of the R packages
-[`ropls::opls`](https://bioconductor.org/packages/ropls/) (OPLS / OPLS-DA) and
-uses the orthogonal-scores PLS algorithm of
+This project is inspired by the R
+[`ropls`](https://www.rdocumentation.org/packages/ropls/versions/1.4.2) package
+and uses the orthogonal-scores PLS algorithm of
 [`pls::oscorespls.fit`](https://cran.r-project.org/package=pls) as its engine.
 
 ## Install
@@ -44,16 +51,20 @@ from scikit_opls.inspection import vip
 vip(model)                    # variable importance (predictive), computed on demand
 ```
 
-Let cross-validated Q2 choose the number of orthogonal components
-(like `ropls` `orthoI = NA`) with the `OPLSCV` meta-estimator:
+Let cross-validated Q2 choose the number of orthogonal components with
+`select_orthogonal`, a thin `GridSearchCV` factory with a parsimonious refit:
 
 ```python
-from scikit_opls import OPLSCV
+from scikit_opls import OPLS, select_orthogonal
 
-cv = OPLSCV(n_components=1, cv=7).fit(X, y)
-cv.n_orthogonal_              # chosen number of orthogonal components
-cv.q2_path_                   # out-of-fold Q2 at k = 0, 1, …
+search = select_orthogonal(OPLS(n_components=1), cv=7).fit(X, y)
+search.best_params_["n_orthogonal"]       # chosen count
+search.best_estimator_                    # final OPLS refit on all data
+search.cv_results_["mean_test_score"]     # out-of-fold R2/Q2 path
 ```
+
+For OPLS-DA, use the same helper with classification scoring, for example
+`select_orthogonal(OPLSDA(), scoring="roc_auc")` after importing `OPLSDA`.
 
 ### OPLS-DA (binary classification)
 
@@ -102,13 +113,14 @@ uv run python examples/palmerpenguins_opls_regression.py
 
 ## Parameters
 
-| Parameter      | Meaning                                                            |
-| -------------- | ----------------------------------------------------------------- |
-| `n_components` | Predictive components (classic OPLS uses 1).                      |
-| `n_orthogonal` | Orthogonal components to remove (`int`; use `OPLSCV` to select).  |
-| `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"` (`ropls` `scaleC`).|
+| Parameter      | Meaning                                                                     |
+| -------------- | --------------------------------------------------------------------------- |
+| `n_components` | Predictive components (classic OPLS uses 1).                                |
+| `n_orthogonal` | Orthogonal components to remove (`int`; use `select_orthogonal` to select). |
+| `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"`.                             |
 
-`OPLSCV` adds `cv`, `max_orthogonal` and `q2_tol` for cross-validated selection.
+`select_orthogonal` exposes `cv`, `max_orthogonal`, `tol`, `scoring` and `n_jobs`
+through standard `GridSearchCV`.
 
 ## Development
 
@@ -131,4 +143,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow.
   (O-PLS).* Journal of Chemometrics, 16(3), 119–128.
 - Galindo-Prieto, B., Eriksson, L. & Trygg, J. (2014). *Variable influence on
   projection (VIP) for OPLS models.* Journal of Chemometrics, 28(8), 623–632.
-- Thévenot, E.A. et al. (2015). *ropls* R package.

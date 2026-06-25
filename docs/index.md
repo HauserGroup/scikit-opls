@@ -11,8 +11,8 @@ cleaned `X`. With `n_orthogonal=0` it reduces exactly to `PLSRegression`.
 ## Highlights
 
 - [`OPLS`](api/opls.md) — regressor and supervised transformer.
-- [`OPLSCV`](api/opls_cv.md) — chooses `n_orthogonal` by cross-validated Q2
-  (the `RidgeCV` / `LassoCV` pattern).
+- [Selection](api/selection.md) — chooses `n_orthogonal` with `GridSearchCV`
+  and a parsimonious refit.
 - [`OPLSDA`](api/opls_da.md) — binary classifier composing `OPLS`.
 - [Inspection](api/inspection.md) — on-demand VIP scores and variance metrics.
 - [Plotting](api/plotting.md) — score and S-plot Displays.

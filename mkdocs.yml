@@ -61,7 +61,7 @@ nav:
   - Quickstart: quickstart.md
   - API Reference:
       - OPLS: api/opls.md
-      - OPLSCV: api/opls_cv.md
+      - Selection: api/selection.md
       - OPLS-DA: api/opls_da.md
       - Inspection: api/inspection.md
       - Plotting: api/plotting.md

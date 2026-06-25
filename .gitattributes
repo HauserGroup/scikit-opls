@@ -1,0 +1,6 @@
+# Enforce LF line endings for all text files
+* text=auto eol=lf
+
+# Force python/jupyter settings
+*.py text diff=python
+*.ipynb filter=ipynb

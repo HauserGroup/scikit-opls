@@ -14,6 +14,8 @@ repos:
         args: [--allow-missing-credentials]
       - id: detect-private-key
       - id: check-toml
+      - id: check-case-conflict
+      - id: check-docstring-first
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Keep in sync with the `ruff` pin in the pyproject dev group.
@@ -41,8 +43,16 @@ repos:
         args: [--skip, "*.bib,*.tex,*.ipynb", --ignore-words-list, "nd,ser,ba,fpr"]
         exclude: '\.(tsv|csv|json|txt|lock)$'
 
-  -   repo: https://github.com/asottile/pyupgrade
-      rev: v3.21.2
-      hooks:
-      -   id: pyupgrade
-          args: [--py313-plus]
+  - repo: https://github.com/asottile/pyupgrade
+    rev: v3.21.2
+    hooks:
+      - id: pyupgrade
+        args: [--py313-plus]
+
+
+  - repo: https://github.com/executablebooks/mdformat
+    rev: 0.7.22
+    hooks:
+      - id: mdformat
+        additional_dependencies:
+          - mdformat-gfm

@@ -1,0 +1,21 @@
+{
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "charliermarsh.ruff",
+        "ms-python.python",
+        "ms-python.vscode-pylance",
+        "ms-python.debugpy"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": ".venv/bin/python"
+      }
+    }
+  },
+  "features": {
+    "ghcr.io/astral-sh/setup-uv/uv:latest": {}
+  },
+  "image": "mcr.microsoft.com/devcontainers/python:3.13",
+  "name": "scikit-opls Dev Container",
+  "postCreateCommand": "uv sync --dev && uv run pre-commit install"
+}
