@@ -122,3 +122,23 @@ def test_orthogonal_filter_reproduces_opls_filter():
     assert_allclose(direct.x_filtered, via_opls.x_filtered, atol=1e-12)
     assert_allclose(direct.x_ortho_scores, via_opls.x_ortho_scores, atol=1e-12)
     assert_allclose(direct.x_ortho_loadings, via_opls.x_ortho_loadings, atol=1e-12)
+
+
+def test_orthogonal_filter_normalises_non_unit_direction():
+    """A non-unit predictive direction yields the same result as its unit version."""
+    X, y = _make_data()
+    w = predictive_weight(X, y)
+    scaled = orthogonal_filter(X, 7.0 * w, 2)  # deliberately non-unit
+    unit = orthogonal_filter(X, w, 2)
+    assert_allclose(scaled.x_filtered, unit.x_filtered, atol=1e-12)
+    assert_allclose(np.linalg.norm(scaled.x_predictive_weight), 1.0, atol=1e-12)
+
+
+def test_orthogonal_filter_rejects_zero_direction():
+    """A zero direction is degenerate once components are actually requested."""
+    X, _ = _make_data()
+    with pytest.raises(ValueError, match="non-zero"):
+        orthogonal_filter(X, np.zeros(X.shape[1]), 1)
+    # ...but n_components=0 never touches the direction, so it must stay valid.
+    out = orthogonal_filter(X, np.zeros(X.shape[1]), 0)
+    assert out.n_components == 0

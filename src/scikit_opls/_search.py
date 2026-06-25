@@ -97,6 +97,18 @@ class OPLSCV(RegressorMixin, TransformerMixin, BaseEstimator):
             The fitted estimator.
         """
         self._validate_params()
+        # The search delegates to OPLS(n_orthogonal=k) for k >= 1, which requires a
+        # single predictive component (true-OPLS contract). Reject the incompatible
+        # combination here, up front, rather than letting it surface mid-search from
+        # deep inside cross_val_predict. max_orthogonal=0 disables the search, leaving
+        # plain multi-component PLS, so n_components > 1 is allowed only then.
+        if self.n_components != 1 and self.max_orthogonal != 0:
+            raise ValueError(
+                f"OPLSCV searches over orthogonal components, which requires one "
+                f"predictive component; got n_components={self.n_components} with "
+                f"max_orthogonal={self.max_orthogonal}. Set n_components=1, or set "
+                "max_orthogonal=0 to disable the search (plain multi-component PLS)."
+            )
         X, y = validate_data(
             self, X, y, dtype=np.float64, ensure_min_samples=2, copy=self.copy
         )

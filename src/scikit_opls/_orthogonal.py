@@ -122,6 +122,19 @@ def orthogonal_filter(
     if n_components < 0:
         raise ValueError(f"n_components must be >= 0, got {n_components}")
 
+    # The deflation math below assumes a unit-norm predictive direction. Normalise it
+    # defensively so this block-agnostic primitive is safe to reuse (e.g. for O2PLS)
+    # even when a caller passes an un-normalised direction. The direction is unused
+    # when no components are requested, so only guard/normalise when it matters.
+    if n_components > 0:
+        w_norm = float(np.linalg.norm(w_pred))
+        if w_norm < _TOL:
+            raise ValueError(
+                "predictive_direction must be a non-zero vector when "
+                f"n_components > 0; got one with norm {w_norm:.3e}."
+            )
+        w_pred = w_pred / w_norm
+
     W = np.zeros((n_features, n_components))
     T = np.zeros((n_samples, n_components))
     P = np.zeros((n_features, n_components))

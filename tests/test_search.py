@@ -55,3 +55,18 @@ def test_invalid_max_orthogonal_raises(bad):
     X, y = _regression_data()
     with pytest.raises(ValueError, match="max_orthogonal"):
         OPLSCV(max_orthogonal=bad).fit(X, y)
+
+
+def test_multi_component_search_rejected_upfront():
+    """n_components > 1 with a live search must fail fast, not mid cross-validation."""
+    X, y = _regression_data()
+    with pytest.raises(ValueError, match="one predictive component"):
+        OPLSCV(n_components=2).fit(X, y)
+
+
+def test_multi_component_allowed_when_search_disabled():
+    """max_orthogonal=0 disables the search, so multi-component PLS is permitted."""
+    X, y = _regression_data()
+    model = OPLSCV(n_components=2, max_orthogonal=0).fit(X, y)
+    assert model.n_orthogonal_ == 0
+    assert model.opls_.n_components == 2
