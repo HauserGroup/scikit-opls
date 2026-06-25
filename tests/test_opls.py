@@ -136,3 +136,27 @@ def test_set_output_pandas_columns_named():
     out = model.fit(df, y).transform(df)
     assert isinstance(out, pd.DataFrame)
     assert list(out.columns) == ["opls_pred0"]
+
+
+def test_html_repr_doc_links():
+    from sklearn.utils import estimator_html_repr
+
+    from scikit_opls import OPLS, OPLSDA
+
+    opls = OPLS()
+    opls_da = OPLSDA()
+
+    assert opls._get_doc_link() == "https://hausergroup.github.io/scikit-opls/api/opls/"
+    assert (
+        opls_da._get_doc_link()
+        == "https://hausergroup.github.io/scikit-opls/api/opls_da/"
+    )
+
+    # Verify they are correctly embedded in estimator HTML representation
+    assert "https://hausergroup.github.io/scikit-opls/api/opls/" in estimator_html_repr(
+        opls
+    )
+    assert (
+        "https://hausergroup.github.io/scikit-opls/api/opls_da/"
+        in estimator_html_repr(opls_da)
+    )

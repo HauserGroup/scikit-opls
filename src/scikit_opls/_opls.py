@@ -77,6 +77,20 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         "copy": ["boolean"],
     }
 
+    _doc_link_module = "scikit_opls"
+
+    @property
+    def _doc_link_template(self) -> str:
+        return "https://hausergroup.github.io/scikit-opls/api/{estimator_name_lower}/"
+
+    @_doc_link_template.setter
+    def _doc_link_template(self, value: str) -> None:
+        pass
+
+    def _doc_link_url_param_generator(self) -> dict[str, str]:
+        """Generate URL parameters for the documentation link."""
+        return {"estimator_name_lower": "opls"}
+
     def __init__(
         self,
         n_components: int = 1,
