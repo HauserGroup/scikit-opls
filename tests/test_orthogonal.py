@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from sklearn.utils._testing import assert_allclose
 
 from scikit_opls._orthogonal import (
     apply_orthogonal_filter,
@@ -42,7 +43,7 @@ def test_zero_components_passthrough():
     fit = opls_filter(X, y, 0)
     assert fit.n_components == 0
     assert fit.x_ortho_weights.shape == (X.shape[1], 0)
-    np.testing.assert_allclose(fit.x_filtered, X)
+    assert_allclose(fit.x_filtered, X)
 
 
 def test_deflation_identity():
@@ -50,7 +51,7 @@ def test_deflation_identity():
     X, y = _make_data()
     fit = opls_filter(X, y, 2)
     reconstructed = fit.x_filtered + fit.x_ortho_scores @ fit.x_ortho_loadings.T
-    np.testing.assert_allclose(reconstructed, X, atol=1e-10)
+    assert_allclose(reconstructed, X, atol=1e-10)
 
 
 def test_predictive_weight_orthogonal_to_ortho_weights():
@@ -58,7 +59,7 @@ def test_predictive_weight_orthogonal_to_ortho_weights():
     X, y = _make_data()
     fit = opls_filter(X, y, 3)
     overlaps = fit.x_predictive_weight @ fit.x_ortho_weights
-    np.testing.assert_allclose(overlaps, 0.0, atol=1e-10)
+    assert_allclose(overlaps, 0.0, atol=1e-10)
 
 
 def test_orthogonal_scores_uncorrelated_with_y():
@@ -67,7 +68,7 @@ def test_orthogonal_scores_uncorrelated_with_y():
     yc = y - y.mean()
     fit = opls_filter(X, y, 3)
     projections = yc @ fit.x_ortho_scores
-    np.testing.assert_allclose(projections, 0.0, atol=1e-8)
+    assert_allclose(projections, 0.0, atol=1e-8)
 
 
 def test_apply_filter_replays_fit():
@@ -77,17 +78,20 @@ def test_apply_filter_replays_fit():
     X_filtered, scores = apply_orthogonal_filter(
         X, fit.x_ortho_weights, fit.x_ortho_loadings
     )
-    np.testing.assert_allclose(X_filtered, fit.x_filtered, atol=1e-10)
-    np.testing.assert_allclose(scores, fit.x_ortho_scores, atol=1e-10)
+    assert_allclose(X_filtered, fit.x_filtered, atol=1e-10)
+    assert_allclose(scores, fit.x_ortho_scores, atol=1e-10)
 
 
 def test_truncates_when_no_orthogonal_variation_left():
-    """Requesting more components than available stops early without error."""
+    """Requesting more components than available stops early with a warning."""
+    from sklearn.exceptions import ConvergenceWarning
+
     rng = np.random.default_rng(1)
     y = rng.normal(size=10)
     X = np.outer(y, rng.normal(size=4))  # rank-1, no orthogonal variation
     mean_, scale_ = compute_scaling(X, "center")
-    fit = opls_filter(apply_scaling(X, mean_, scale_), y, 5)
+    with pytest.warns(ConvergenceWarning, match="ran out of variation"):
+        fit = opls_filter(apply_scaling(X, mean_, scale_), y, 5)
     assert fit.n_components < 5
 
 

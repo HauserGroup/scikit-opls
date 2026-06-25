@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLS
 from scikit_opls.metrics import explained_x_variance
@@ -31,14 +32,14 @@ def test_predictive_vip_sum_of_squares_equals_n_features(n_components, n_orthogo
     model = OPLS(n_components=n_components, n_orthogonal=n_orthogonal).fit(X, y)
     assert model.vip_.shape == (X.shape[1],)
     assert np.all(model.vip_ >= 0.0)
-    np.testing.assert_allclose(np.sum(model.vip_**2), X.shape[1], rtol=1e-6)
+    assert_allclose(np.sum(model.vip_**2), X.shape[1], rtol=1e-6)
 
 
 def test_orthogonal_vip_sum_of_squares_equals_n_features():
     X, y = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=3).fit(X, y)
     assert model.n_orthogonal_ >= 1
-    np.testing.assert_allclose(np.sum(model.ortho_vip_**2), X.shape[1], rtol=1e-6)
+    assert_allclose(np.sum(model.ortho_vip_**2), X.shape[1], rtol=1e-6)
 
 
 def test_vip_zero_when_no_components():

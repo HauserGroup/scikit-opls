@@ -5,8 +5,9 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from sklearn.exceptions import NotFittedError
+from sklearn.utils import get_tags
 
-from scikit_opls import OPLS
+from scikit_opls import OPLS, OPLSDA
 
 from .test_opls import _regression_data
 
@@ -65,3 +66,20 @@ def test_more_orthogonal_than_rank_truncates():
     X, y = _regression_data(n_features=5)
     model = OPLS(n_components=1, n_orthogonal=50).fit(X, y)
     assert model.n_orthogonal_ <= 5
+
+
+@pytest.mark.parametrize("est", [OPLS(), OPLSDA()])
+def test_tags_match_intent(est):
+    """Resolved tags should pin the declared capabilities (guards refactors)."""
+    tags = get_tags(est)
+    assert tags.target_tags.required is True
+    assert tags.input_tags.sparse is False
+    assert tags.non_deterministic is False
+
+
+def test_opls_regressor_tag_poor_score():
+    assert get_tags(OPLS()).regressor_tags.poor_score is True
+
+
+def test_opls_da_not_multiclass():
+    assert get_tags(OPLSDA()).classifier_tags.multi_class is False
