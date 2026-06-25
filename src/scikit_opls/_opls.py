@@ -51,7 +51,9 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     cv : int, cross-validation generator or iterable, default=7
         Cross-validation used for Q2 and for ``n_orthogonal="auto"``.
     copy : bool, default=True
-        Whether to copy ``X`` (and ``y``) or perform in-place preprocessing.
+        Passed to scikit-learn input validation; controls whether the input
+        arrays are copied during validation. Preprocessing always allocates new
+        arrays, so this does not enable in-place scaling.
 
     Attributes
     ----------
@@ -67,7 +69,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     x_mean_, x_std_ : ndarray
         Centering/scaling vectors applied to ``X``.
     r2x_, r2x_ortho_, r2y_, rmsee_ : float
-        Training fit summaries. ``q2_`` is set by :meth:`fit` only when computable.
+        Training-set fit summaries. Cross-validated Q2 is not set on the model;
+        compute it explicitly with :meth:`score_q2`.
     """
 
     def __init__(
@@ -153,7 +156,6 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.y_loadings_ = self.pls_.y_loadings_
         self.coef_ = self.pls_.coef_
 
-        self._x_scaled_ref = Xs
         self.r2x_ = explained_x_variance(Xs, self.x_scores_, self.x_loadings_)
         self.r2x_ortho_ = explained_x_variance(
             Xs, self.x_ortho_scores_, self.x_ortho_loadings_

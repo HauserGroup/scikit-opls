@@ -4,14 +4,18 @@ from __future__ import annotations
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
-from sklearn.metrics import r2_score
+from sklearn.metrics import r2_score, root_mean_squared_error
 
 
 def rmsee(y_true: ArrayLike, y_pred: ArrayLike) -> float:
-    """Root mean squared error of estimation (training fit), ropls ``RMSEE``."""
+    """Root mean squared error of estimation (training fit), ropls ``RMSEE``.
+
+    Thin wrapper over :func:`sklearn.metrics.root_mean_squared_error` that keeps
+    the ropls-facing name.
+    """
     y_true = np.asarray(y_true, dtype=np.float64).ravel()
     y_pred = np.asarray(y_pred, dtype=np.float64).ravel()
-    return float(np.sqrt(np.mean((y_true - y_pred) ** 2)))
+    return float(root_mean_squared_error(y_true, y_pred))
 
 
 def r2_y(y_true: ArrayLike, y_pred: ArrayLike) -> float:
