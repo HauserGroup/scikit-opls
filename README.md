@@ -71,14 +71,20 @@ clf.opls_.transform(X)    # predictive scores of the underlying OPLS model
 
 ### Diagnostics
 
+Plotting needs the optional `plot` extra (`pip install scikit-opls[plot]`); it
+follows scikit-learn's Display convention.
+
 ```python
-from scikit_opls.plotting import scores_plot, s_plot
+from scikit_opls.plotting import OPLSScoresDisplay, SPlotDisplay
 from scikit_opls.validation import permutation_test
 
-scores_plot(model, X, y)                       # t_pred vs t_ortho
-s_plot(model, X)                               # covariance vs correlation
+OPLSScoresDisplay.from_estimator(model, X, y)  # t_pred vs t_ortho
+SPlotDisplay.from_estimator(model, X)          # covariance vs correlation
 permutation_test(OPLS(n_orthogonal=2), X, y)   # model significance
 ```
+
+The older `scores_plot(model, X, y)` / `s_plot(model, X)` functions remain as
+thin wrappers.
 
 ### Example datasets
 

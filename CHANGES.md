@@ -29,6 +29,9 @@ and default-value changes will be documented here.
 
 ### Added
 
+- `OPLSScoresDisplay` and `SPlotDisplay` plotting classes following scikit-learn's
+  Display convention (`from_estimator(...)`, `plot(ax=...)`, `ax_` / `figure_`).
+  `scores_plot` / `s_plot` are kept as thin wrappers.
 - `OPLS.get_feature_names_out` (and `OPLSCV` delegation) so
   `set_output(transform="pandas")` yields named predictive-score columns
   (`opls_pred0, …`).
@@ -56,6 +59,9 @@ and default-value changes will be documented here.
 
 ### Changed
 
+- `matplotlib` is now an optional dependency, moved to the `plot` extra
+  (`pip install scikit-opls[plot]`). Only `scikit_opls.plotting` needs it and it
+  is imported lazily.
 - `OPLSDA` discovers classes with `unique_labels`.
 - Numerical tests use `sklearn.utils._testing.assert_allclose`.
 - Pinned the pre-commit `ruff` rev to the dev-group `ruff` version.
