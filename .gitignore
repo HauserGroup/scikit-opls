@@ -596,3 +596,6 @@ TSWLatexianTemp*
 
 # Mac
 .DS_Store
+
+# MkDocs build output
+site/

@@ -1,21 +1,61 @@
-"""Variable Importance in Projection (VIP) for OPLS.
+"""Model inspection for OPLS: VIP scores and explained-variance metrics.
 
-Two flavours following Galindo-Prieto et al. (2014):
+VIP (Variable Importance in Projection) follows Galindo-Prieto et al. (2014):
 
-- predictive VIP, weighting each predictive component by the Y variance it explains
-  (the usual ``ropls`` ``vipVn``);
-- orthogonal VIP, weighting each orthogonal component by the X variance it explains
+- predictive VIP weights each predictive component by the Y variance it explains
+  (``ropls`` ``vipVn``);
+- orthogonal VIP weights each orthogonal component by the X variance it explains
   (``ropls`` ``orthoVipVn``).
 
 Both satisfy ``sum_j VIP_j**2 == n_features`` (mean squared VIP of 1).
+
+VIP is computed on demand here rather than eagerly in ``OPLS.fit``. The
+``vip(model)``/``orthogonal_vip(model)`` functions are the canonical API; they
+accept a fitted :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, or
+:class:`~scikit_opls.OPLSCV` (wrappers are unwrapped automatically).
 """
 
 from __future__ import annotations
 
+from typing import Any
+
 import numpy as np
 from numpy.typing import NDArray
+from sklearn.utils.validation import check_is_fitted
 
 _EPS = np.finfo(np.float64).eps
+
+
+def explained_x_variance(
+    X: NDArray[np.float64],
+    scores: NDArray[np.float64],
+    loadings: NDArray[np.float64],
+) -> float:
+    """Fraction of the (preprocessed) ``X`` sum-of-squares captured by a block.
+
+    Used for both the predictive block (``R2X``) and the orthogonal block
+    (``R2X_ortho``): ``SS(scores @ loadingsᵀ) / SS(X)``.
+
+    Parameters
+    ----------
+    X : ndarray of shape (n_samples, n_features)
+        Preprocessed predictor matrix.
+    scores : ndarray of shape (n_samples, n_components)
+        Block scores.
+    loadings : ndarray of shape (n_features, n_components)
+        Block loadings.
+
+    Returns
+    -------
+    fraction : float
+        Captured fraction in ``[0, 1]``; ``0.0`` if the block is empty or ``X``
+        has zero sum-of-squares.
+    """
+    total = float(np.sum(X**2))
+    if total <= 0.0 or scores.shape[1] == 0:
+        return 0.0
+    approx = scores @ loadings.T
+    return float(np.sum(approx**2) / total)
 
 
 def _weighted_vip(
@@ -74,7 +114,7 @@ def predictive_vip(
     return _weighted_vip(x_weights, ssy)
 
 
-def orthogonal_vip(
+def _orthogonal_vip(
     x_ortho_weights: NDArray[np.float64],
     x_ortho_scores: NDArray[np.float64],
     x_ortho_loadings: NDArray[np.float64],
@@ -97,3 +137,44 @@ def orthogonal_vip(
     """
     ssx = np.sum(x_ortho_scores**2, axis=0) * np.sum(x_ortho_loadings**2, axis=0)
     return _weighted_vip(x_ortho_weights, ssx)
+
+
+def _unwrap(model: Any) -> Any:
+    """Return the inner fitted ``OPLS`` of a DA/CV wrapper, or ``model`` itself."""
+    inner = getattr(model, "opls_", model)
+    check_is_fitted(inner)
+    return inner
+
+
+def vip(model: Any) -> NDArray[np.float64]:
+    """Predictive VIP for a fitted OPLS / OPLSDA / OPLSCV.
+
+    Parameters
+    ----------
+    model : OPLS, OPLSDA or OPLSCV
+        A fitted estimator (DA/CV wrappers are unwrapped automatically).
+
+    Returns
+    -------
+    vip : ndarray of shape (n_features,)
+        Predictive VIP scores.
+    """
+    m = _unwrap(model)
+    return predictive_vip(m.x_weights_, m.x_scores_, m.y_loadings_)
+
+
+def orthogonal_vip(model: Any) -> NDArray[np.float64]:
+    """Orthogonal VIP for a fitted OPLS / OPLSDA / OPLSCV (niche; opt-in).
+
+    Parameters
+    ----------
+    model : OPLS, OPLSDA or OPLSCV
+        A fitted estimator (DA/CV wrappers are unwrapped automatically).
+
+    Returns
+    -------
+    vip : ndarray of shape (n_features,)
+        Orthogonal VIP scores.
+    """
+    m = _unwrap(model)
+    return _orthogonal_vip(m.x_ortho_weights_, m.x_ortho_scores_, m.x_ortho_loadings_)

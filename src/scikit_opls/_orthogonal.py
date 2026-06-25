@@ -48,16 +48,20 @@ class OrthogonalComponents:
 
 
 def predictive_weight(
-    X: NDArray[np.float64], y: NDArray[np.float64]
+    X: NDArray[np.float64], Y: NDArray[np.float64]
 ) -> NDArray[np.float64]:
-    """Normalised predictive weight ``w_p = Xᵀy / (yᵀy)`` (then unit-normalised).
+    """Leading joint X–Y direction (unit norm).
+
+    Generalises ``w_p ∝ Xᵀy`` to multivariate ``Y`` via the dominant left singular
+    vector of ``S = Xᵀ Y``. For a single-column ``Y`` this reduces exactly to the
+    normalised ``Xᵀy`` (up to sign), so single-``y`` OPLS is unchanged.
 
     Parameters
     ----------
     X : ndarray of shape (n_samples, n_features)
         Preprocessed predictor matrix.
-    y : ndarray of shape (n_samples,)
-        Centered response.
+    Y : ndarray of shape (n_samples,) or (n_samples, n_targets)
+        Centered response(s).
 
     Returns
     -------
@@ -67,39 +71,42 @@ def predictive_weight(
     Raises
     ------
     ValueError
-        If ``y`` has (near) zero variance, or ``X`` is orthogonal to ``y``.
+        If ``X`` is orthogonal to ``Y`` (the predictive direction is undefined).
     """
-    y = np.asarray(y, dtype=np.float64).ravel()
-    yty = float(y @ y)
-    if yty <= _EPS:
-        raise ValueError(
-            "y has (near) zero variance; cannot compute the predictive direction."
-        )
-    w = X.T @ y / yty
-    norm = float(np.linalg.norm(w))
-    if norm < _TOL:
-        raise ValueError("Predictive weight is degenerate (X is orthogonal to y).")
-    return w / norm
+    Y = np.asarray(Y, dtype=np.float64)
+    if Y.ndim == 1:
+        Y = Y[:, None]
+    S = X.T @ Y  # (n_features, n_targets)
+    if not np.any(np.abs(S) > _TOL):
+        raise ValueError("X is orthogonal to Y; predictive direction is undefined.")
+    u, _, _ = np.linalg.svd(S, full_matrices=False)
+    return u[:, 0]  # already unit norm
 
 
-def opls_filter(
-    X: NDArray[np.float64], y: NDArray[np.float64], n_components: int
+def orthogonal_filter(
+    block: NDArray[np.float64],
+    predictive_direction: NDArray[np.float64],
+    n_components: int,
 ) -> OrthogonalComponents:
-    """Remove ``n_components`` y-orthogonal components from ``X`` (Trygg & Wold).
+    """Remove up to ``n_components`` directions in ``block`` orthogonal to a given one.
+
+    Block-agnostic NIPALS deflation (Trygg & Wold): the same primitive deflates ``X``
+    for OPLS or ``Y`` for O2PLS — the predictive direction is passed in rather than
+    computed from ``y``.
 
     Parameters
     ----------
-    X : ndarray of shape (n_samples, n_features)
-        Preprocessed (centered/scaled) predictor matrix.
-    y : ndarray of shape (n_samples,)
-        Centered, single-column response.
+    block : ndarray of shape (n_samples, n_features)
+        Preprocessed block to deflate.
+    predictive_direction : ndarray of shape (n_features,)
+        Unit-norm direction defining the predictive subspace to preserve.
     n_components : int
         Number of orthogonal components to extract.
 
     Returns
     -------
     components : OrthogonalComponents
-        Fitted orthogonal weights/scores/loadings, the filtered ``X``, the
+        Fitted orthogonal weights/scores/loadings, the filtered block, the
         predictive direction, and the number of components actually extracted.
 
     Notes
@@ -109,13 +116,24 @@ def opls_filter(
     orthogonal weight ``w_o``. The orthogonal score ``t_o = X w_o`` and loading
     ``p_o = Xᵀt_o / (t_oᵀt_o)`` are deflated out: ``X <- X - t_o p_oᵀ``.
     """
-    X = np.asarray(X, dtype=np.float64)
-    y = np.asarray(y, dtype=np.float64).ravel()
+    X = np.asarray(block, dtype=np.float64)
+    w_pred = np.asarray(predictive_direction, dtype=np.float64).ravel()
     n_samples, n_features = X.shape
     if n_components < 0:
         raise ValueError(f"n_components must be >= 0, got {n_components}")
 
-    w_pred = predictive_weight(X, y)
+    # The deflation math below assumes a unit-norm predictive direction. Normalise it
+    # defensively so this block-agnostic primitive is safe to reuse (e.g. for O2PLS)
+    # even when a caller passes an un-normalised direction. The direction is unused
+    # when no components are requested, so only guard/normalise when it matters.
+    if n_components > 0:
+        w_norm = float(np.linalg.norm(w_pred))
+        if w_norm < _TOL:
+            raise ValueError(
+                "predictive_direction must be a non-zero vector when "
+                f"n_components > 0; got one with norm {w_norm:.3e}."
+            )
+        w_pred = w_pred / w_norm
 
     W = np.zeros((n_features, n_components))
     T = np.zeros((n_samples, n_components))
@@ -163,6 +181,35 @@ def opls_filter(
         x_predictive_weight=w_pred,
         n_components=extracted,
     )
+
+
+def opls_filter(
+    X: NDArray[np.float64], Y: NDArray[np.float64], n_components: int
+) -> OrthogonalComponents:
+    """OPLS X-orthogonal filter: predictive direction from ``(X, Y)``, deflate ``X``.
+
+    Parameters
+    ----------
+    X : ndarray of shape (n_samples, n_features)
+        Preprocessed (centered/scaled) predictor matrix.
+    Y : ndarray of shape (n_samples,) or (n_samples, n_targets)
+        Centered response(s).
+    n_components : int
+        Number of orthogonal components to extract.
+
+    Returns
+    -------
+    components : OrthogonalComponents
+        See :func:`orthogonal_filter`.
+    """
+    X = np.asarray(X, dtype=np.float64)
+    # With no orthogonal components requested the predictive direction is unused;
+    # skip its computation so ``n_components=0`` never raises on degenerate (X, Y).
+    if n_components > 0:
+        direction = predictive_weight(X, Y)
+    else:
+        direction = np.zeros(X.shape[1])
+    return orthogonal_filter(X, direction, n_components)
 
 
 def apply_orthogonal_filter(

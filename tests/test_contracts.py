@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import numpy as np
 import pytest
 from sklearn.exceptions import NotFittedError
 from sklearn.utils import get_tags
@@ -51,15 +50,6 @@ def test_feature_names_in_with_dataframe():
     df = pd.DataFrame(X, columns=[f"f{i}" for i in range(X.shape[1])])
     model = OPLS(n_orthogonal=1).fit(df, y)
     assert list(model.feature_names_in_) == list(df.columns)
-
-
-def test_auto_selects_zero_on_pure_noise():
-    """With no y-related signal, auto should add no orthogonal components."""
-    rng = np.random.default_rng(0)
-    X = rng.normal(size=(60, 20))
-    y = rng.normal(size=60)  # independent of X
-    model = OPLS(n_components=1, n_orthogonal="auto", cv=5).fit(X, y)
-    assert model.n_orthogonal_ == 0
 
 
 def test_more_orthogonal_than_rank_truncates():

@@ -5,16 +5,25 @@ description = "Orthogonal PLS (OPLS / OPLS-DA) with a scikit-learn interface"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "matplotlib>=3.11.0",
+    "joblib>=1.4.0",
     "numpy>=2.5.0",
     "pandas>=3.0.3",
     "scikit-learn>=1.9.0",
     "scipy>=1.18.0",
 ]
 
+[project.optional-dependencies]
+# Plotting (scikit_opls.plotting) is the only matplotlib consumer and imports it
+# lazily, so it is an opt-in extra: `pip install scikit-opls[plot]`.
+plot = ["matplotlib>=3.11.0"]
+
 [dependency-groups]
 dev = [
+    "matplotlib>=3.11.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocstrings[python]>=0.26.0",
     "pre-commit>=4.6.0",
+    "pymdown-extensions>=10.0",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
     "pytest-cov>=7.0.0",
