@@ -1,4 +1,4 @@
-"""Column scaling for OPLS, mirroring the ``scaleC`` options of R ``ropls::opls``."""
+"""Column scaling for OPLS."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ def compute_scaling(
     - ``pareto``: mean-centering, divide by ``sqrt(std)``.
     - ``standard``: mean-centering, divide by ``std`` (unit variance).
 
-    Standard deviation uses ``ddof=1`` (sample) to match R/``ropls``. Columns with
+    Standard deviation uses ``ddof=1`` (sample). Columns with
     (near) zero variance get a scale of ``1.0`` to avoid division by zero.
 
     ``mode`` is assumed valid (validated by the estimator's parameter constraints).

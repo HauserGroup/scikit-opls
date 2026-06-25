@@ -2,10 +2,8 @@
 
 VIP (Variable Importance in Projection) follows Galindo-Prieto et al. (2014):
 
-- predictive VIP weights each predictive component by the Y variance it explains
-  (``ropls`` ``vipVn``);
-- orthogonal VIP weights each orthogonal component by the X variance it explains
-  (``ropls`` ``orthoVipVn``).
+- predictive VIP weights each predictive component by the Y variance it explains;
+- orthogonal VIP weights each orthogonal component by the X variance it explains.
 
 Both satisfy ``sum_j VIP_j**2 == n_features`` (mean squared VIP of 1).
 

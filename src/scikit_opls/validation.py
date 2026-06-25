@@ -1,4 +1,4 @@
-"""Permutation testing for OPLS model significance (``ropls`` ``permI``)."""
+"""Permutation testing for OPLS model significance."""
 
 # sklearn.base.clone, check_array and joblib.Parallel are under-typed (Parallel is
 # annotated as returning Optional); suppress the resulting static-checker false

@@ -10,9 +10,9 @@ removes the orthogonal variation with a NIPALS filter and then fits
 on the cleaned `X` as the predictive engine. With `n_orthogonal=0` the model
 reduces *exactly* to `PLSRegression`.
 
-This mirrors the behaviour of the R packages
-[`ropls::opls`](https://bioconductor.org/packages/ropls/) (OPLS / OPLS-DA) and
-uses the orthogonal-scores PLS algorithm of
+This project is inspired by the R
+[`ropls`](https://www.rdocumentation.org/packages/ropls/versions/1.4.2) package
+and uses the orthogonal-scores PLS algorithm of
 [`pls::oscorespls.fit`](https://cran.r-project.org/package=pls) as its engine.
 
 ## Install
@@ -110,7 +110,7 @@ uv run python examples/palmerpenguins_opls_regression.py
 | -------------- | ----------------------------------------------------------------- |
 | `n_components` | Predictive components (classic OPLS uses 1).                      |
 | `n_orthogonal` | Orthogonal components to remove (`int`; use `select_orthogonal` to select). |
-| `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"` (`ropls` `scaleC`).|
+| `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"`.                  |
 
 `select_orthogonal` exposes `cv`, `max_orthogonal`, `tol`, `scoring` and `n_jobs`
 through standard `GridSearchCV`.
@@ -136,4 +136,3 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow.
   (O-PLS).* Journal of Chemometrics, 16(3), 119–128.
 - Galindo-Prieto, B., Eriksson, L. & Trygg, J. (2014). *Variable influence on
   projection (VIP) for OPLS models.* Journal of Chemometrics, 28(8), 623–632.
-- Thévenot, E.A. et al. (2015). *ropls* R package.
