@@ -12,7 +12,27 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+### Changed (breaking, pre-1.0)
+
+- Cross-validated selection of `n_orthogonal` moved out of `OPLS` into a new
+  `OPLSCV` meta-estimator (precedent: `RidgeCV`/`LassoCV`). `OPLS.n_orthogonal`
+  is now a plain `int`; the `"auto"` option and the `cv` parameter are removed
+  from both `OPLS` and `OPLSDA`. Use `OPLSCV(...).fit(X, y)` and read
+  `n_orthogonal_` / `q2_path_`.
+- VIP is no longer computed eagerly in `fit`. `model.vip_` / `model.ortho_vip_`
+  are removed; use `scikit_opls.inspection.vip(model)` /
+  `scikit_opls.inspection.orthogonal_vip(model)` (these unwrap DA/CV wrappers).
+- `vip.py` and `metrics.py` are folded into a new `inspection.py`.
+- `predictive_weight(X, Y)` now uses the leading left singular vector of `XᵀY`,
+  generalising to multivariate `Y`. For single-column `Y` the direction is
+  unchanged (up to sign) and single-`y` OPLS output is bit-for-bit identical.
+
 ### Added
+
+- `OPLSCV` (and `OPLSCV` in the `parametrize_with_checks` compliance suite).
+- `inspection.vip` / `inspection.orthogonal_vip` model-level helpers.
+- `_orthogonal.orthogonal_filter`, a block-agnostic NIPALS deflation primitive
+  shared by `opls_filter` (and a future `O2PLS`).
 
 - Full numpydoc docstrings on all public methods and functions.
 - `OPLS.score` docstring documenting the inherited `RegressorMixin` R² score.
