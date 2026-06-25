@@ -14,14 +14,20 @@ and default-value changes will be documented here.
 
 ### Changed (breaking, pre-1.0)
 
-- Cross-validated selection of `n_orthogonal` moved out of `OPLS` into a new
-  `OPLSCV` meta-estimator (precedent: `RidgeCV`/`LassoCV`). `OPLS.n_orthogonal`
-  is now a plain `int`; the `"auto"` option and the `cv` parameter are removed
-  from both `OPLS` and `OPLSDA`. Use `OPLSCV(...).fit(X, y)` and read
-  `n_orthogonal_` / `q2_path_`.
+- Cross-validated selection of `n_orthogonal` moved out of `OPLS` into
+  `selection.select_orthogonal`, a thin `GridSearchCV` factory with a
+  parsimonious refit. `OPLS.n_orthogonal` is now a plain `int`; the `"auto"`
+  option and the `cv` parameter are removed from both `OPLS` and `OPLSDA`.
+  `OPLSCV` is removed; use `select_orthogonal(OPLS(...)).fit(X, y)` and read
+  `best_params_["n_orthogonal"]`, `best_estimator_`, and
+  `cv_results_["mean_test_score"]`.
+- `OPLSDACV` will not be added. Use
+  `select_orthogonal(OPLSDA(), scoring="roc_auc")` or plain
+  `GridSearchCV(OPLSDA(), {"n_orthogonal": [...]}, scoring="roc_auc")`, which
+  gives stratified folds for classification.
 - VIP is no longer computed eagerly in `fit`. `model.vip_` / `model.ortho_vip_`
   are removed; use `scikit_opls.inspection.vip(model)` /
-  `scikit_opls.inspection.orthogonal_vip(model)` (these unwrap DA/CV wrappers).
+  `scikit_opls.inspection.orthogonal_vip(model)` (these unwrap DA/search wrappers).
 - `vip.py` and `metrics.py` are folded into a new `inspection.py`.
 - `predictive_weight(X, Y)` now uses the leading left singular vector of `XᵀY`,
   generalising to multivariate `Y`. For single-column `Y` the direction is
@@ -34,13 +40,14 @@ and default-value changes will be documented here.
 - `OPLSScoresDisplay` and `SPlotDisplay` plotting classes following scikit-learn's
   Display convention (`from_estimator(...)`, `plot(ax=...)`, `ax_` / `figure_`).
   `scores_plot` / `s_plot` are kept as thin wrappers.
-- `OPLS.get_feature_names_out` (and `OPLSCV` delegation) so
-  `set_output(transform="pandas")` yields named predictive-score columns
+- `OPLS.get_feature_names_out` so `set_output(transform="pandas")` yields named
+  predictive-score columns
   (`opls_pred0, …`).
-- `n_jobs` on `OPLSCV` (parallelises the per-candidate CV folds) and on
-  `validation.permutation_test` (runs the independent permutations in parallel;
-  reproducible regardless of `n_jobs`). `joblib` is now a direct dependency.
-- `OPLSCV` (and `OPLSCV` in the `parametrize_with_checks` compliance suite).
+- `n_jobs` on `validation.permutation_test` (runs the independent permutations in
+  parallel; reproducible regardless of `n_jobs`). `GridSearchCV` provides
+  `n_jobs` for `select_orthogonal`.
+- `selection.select_orthogonal` for `GridSearchCV`-based selection of
+  `n_orthogonal`.
 - `inspection.vip` / `inspection.orthogonal_vip` model-level helpers.
 - `_orthogonal.orthogonal_filter`, a block-agnostic NIPALS deflation primitive
   shared by `opls_filter` (and a future `O2PLS`).

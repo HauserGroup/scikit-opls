@@ -20,24 +20,27 @@ model.r2y_, model.rmsee_      # training-fit summaries
 ## Choosing `n_orthogonal` by cross-validation
 
 ```python
-from scikit_opls import OPLSCV
+from scikit_opls import OPLS, select_orthogonal
 
-cv_model = OPLSCV(n_components=1, cv=7).fit(X, y)
-cv_model.n_orthogonal_   # selected number of orthogonal components
-cv_model.q2_path_        # out-of-fold Q2 at each step
-cv_model.predict(X)      # delegates to the refit final model
+search = select_orthogonal(OPLS(n_components=1), cv=7).fit(X, y)
+search.best_params_["n_orthogonal"]       # selected count
+search.cv_results_["mean_test_score"]     # out-of-fold R2/Q2 path
+search.best_estimator_.predict(X)         # final model refit on all data
 ```
 
 ## Classification (OPLS-DA)
 
 ```python
-from scikit_opls import OPLSDA
+from scikit_opls import OPLSDA, select_orthogonal
 
 y_lab = np.where(X[:, 0] > 0, "case", "ctrl")
 clf = OPLSDA(n_components=1, n_orthogonal=2).fit(X, y_lab)
 clf.predict(X)            # class labels
 clf.predict_proba(X)      # Platt-scaled probabilities
 clf.decision_function(X)  # signed confidence
+
+# Cross-validated OPLS-DA selection uses GridSearchCV's stratified folds.
+select_orthogonal(OPLSDA(), scoring="roc_auc").fit(X, y_lab)
 ```
 
 ## Inspection, plotting and validation

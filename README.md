@@ -44,16 +44,20 @@ from scikit_opls.inspection import vip
 vip(model)                    # variable importance (predictive), computed on demand
 ```
 
-Let cross-validated Q2 choose the number of orthogonal components
-(like `ropls` `orthoI = NA`) with the `OPLSCV` meta-estimator:
+Let cross-validated Q2 choose the number of orthogonal components with
+`select_orthogonal`, a thin `GridSearchCV` factory with a parsimonious refit:
 
 ```python
-from scikit_opls import OPLSCV
+from scikit_opls import OPLS, select_orthogonal
 
-cv = OPLSCV(n_components=1, cv=7).fit(X, y)
-cv.n_orthogonal_              # chosen number of orthogonal components
-cv.q2_path_                   # out-of-fold Q2 at k = 0, 1, …
+search = select_orthogonal(OPLS(n_components=1), cv=7).fit(X, y)
+search.best_params_["n_orthogonal"]       # chosen count
+search.best_estimator_                    # final OPLS refit on all data
+search.cv_results_["mean_test_score"]     # out-of-fold R2/Q2 path
 ```
+
+For OPLS-DA, use the same helper with classification scoring, for example
+`select_orthogonal(OPLSDA(), scoring="roc_auc")` after importing `OPLSDA`.
 
 ### OPLS-DA (binary classification)
 
@@ -105,10 +109,11 @@ uv run python examples/palmerpenguins_opls_regression.py
 | Parameter      | Meaning                                                            |
 | -------------- | ----------------------------------------------------------------- |
 | `n_components` | Predictive components (classic OPLS uses 1).                      |
-| `n_orthogonal` | Orthogonal components to remove (`int`; use `OPLSCV` to select).  |
+| `n_orthogonal` | Orthogonal components to remove (`int`; use `select_orthogonal` to select). |
 | `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"` (`ropls` `scaleC`).|
 
-`OPLSCV` adds `cv`, `max_orthogonal` and `q2_tol` for cross-validated selection.
+`select_orthogonal` exposes `cv`, `max_orthogonal`, `tol`, `scoring` and `n_jobs`
+through standard `GridSearchCV`.
 
 ## Development
 
