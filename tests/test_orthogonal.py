@@ -9,6 +9,7 @@ from sklearn.utils._testing import assert_allclose
 from scikit_opls._orthogonal import (
     apply_orthogonal_filter,
     opls_filter,
+    orthogonal_filter,
     predictive_weight,
 )
 from scikit_opls._preprocessing import apply_scaling, compute_scaling
@@ -96,8 +97,28 @@ def test_truncates_when_no_orthogonal_variation_left():
 
 
 def test_constant_y_raises():
-    """A constant target centers to zeros -> zero-variance guard fires."""
+    """A constant target centers to zeros -> X is orthogonal to Y guard fires."""
     X, _ = _make_data()
     centered_constant = np.zeros(X.shape[0])
-    with pytest.raises(ValueError, match="zero variance"):
+    with pytest.raises(ValueError, match="orthogonal to Y"):
         predictive_weight(X, centered_constant)
+
+
+def test_single_column_y_matches_xty_direction():
+    """For single-column Y, predictive_weight reduces to normalised Xᵀy (up to sign)."""
+    X, y = _make_data()
+    w = predictive_weight(X, y)
+    xty = X.T @ y
+    xty /= np.linalg.norm(xty)
+    # Same direction up to an overall sign.
+    assert_allclose(np.abs(w @ xty), 1.0, atol=1e-10)
+
+
+def test_orthogonal_filter_reproduces_opls_filter():
+    """opls_filter == orthogonal_filter with the predictive direction passed in."""
+    X, y = _make_data()
+    direct = orthogonal_filter(X, predictive_weight(X, y), 2)
+    via_opls = opls_filter(X, y, 2)
+    assert_allclose(direct.x_filtered, via_opls.x_filtered, atol=1e-12)
+    assert_allclose(direct.x_ortho_scores, via_opls.x_ortho_scores, atol=1e-12)
+    assert_allclose(direct.x_ortho_loadings, via_opls.x_ortho_loadings, atol=1e-12)
