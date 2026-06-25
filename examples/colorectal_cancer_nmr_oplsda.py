@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import numpy as np
 import pandas as pd
 from sklearn.metrics import (
@@ -15,14 +13,17 @@ from sklearn.model_selection import train_test_split
 
 from scikit_opls import OPLSDA
 
-DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "colorectal_cancer_nmr.csv"
+DATA_URL = (
+    "https://github.com/HauserGroup/scikit-opls/releases/download/data/"
+    "colorectal_cancer_nmr.csv"
+)
 CLASSES = ["Healthy Control", "Colorectal Cancer"]
 BALANCE_RANDOM_STATE = 2
 
 
 def main() -> None:
     """Fit OPLS-DA and report held-out classification metrics."""
-    data = pd.read_csv(DATA_PATH)
+    data = pd.read_csv(DATA_URL)
     data = data[data["classification"].isin(CLASSES)]
     samples_per_class = data["classification"].value_counts().min()
     data = data.groupby("classification", group_keys=False).sample(

@@ -2,22 +2,23 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-
 import pandas as pd
 from sklearn.metrics import r2_score, root_mean_squared_error
 from sklearn.model_selection import train_test_split
 
 from scikit_opls import OPLS
 
-DATA_PATH = Path(__file__).resolve().parents[1] / "data" / "palmerpenguins.csv"
+DATA_URL = (
+    "https://github.com/HauserGroup/scikit-opls/releases/download/data/"
+    "palmerpenguins.csv"
+)
 FEATURES = ["bill_length_mm", "bill_depth_mm", "flipper_length_mm"]
 TARGET = "body_mass_g"
 
 
 def main() -> None:
     """Fit OPLS and report held-out body-mass regression metrics."""
-    data = pd.read_csv(DATA_PATH).dropna(subset=FEATURES + [TARGET])
+    data = pd.read_csv(DATA_URL).dropna(subset=FEATURES + [TARGET])
 
     X = data[FEATURES].to_numpy(dtype=float)
     y = data[TARGET].to_numpy(dtype=float)
