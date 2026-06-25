@@ -107,3 +107,15 @@ def test_select_orthogonal_works_in_pipeline_and_n_jobs():
 
     pred = pipe.predict(X)
     assert pred.shape == (X.shape[0],)
+
+
+def test_select_orthogonal_rejects_invalid_estimator():
+    from sklearn.cross_decomposition import PLSRegression
+
+    with pytest.raises(ValueError, match="must have an 'n_orthogonal' parameter"):
+        select_orthogonal(PLSRegression())
+
+
+def test_select_orthogonal_rejects_multi_metric_scoring():
+    with pytest.raises(ValueError, match="Multi-metric scoring is not supported"):
+        select_orthogonal(OPLS(), scoring=["r2", "neg_mean_squared_error"])

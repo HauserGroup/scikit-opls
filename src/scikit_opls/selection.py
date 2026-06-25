@@ -62,12 +62,25 @@ def select_orthogonal(
     >>> search.best_params_["n_orthogonal"]                     # doctest: +SKIP
     >>> select_orthogonal(OPLSDA(), scoring="roc_auc").fit(X, y)  # doctest: +SKIP
     """
+    if (
+        not hasattr(estimator, "get_params")
+        or "n_orthogonal" not in estimator.get_params()
+    ):
+        raise ValueError(
+            "estimator must have an 'n_orthogonal' parameter; "
+            f"got {estimator.__class__.__name__} which does not."
+        )
     if max_orthogonal < 0:
         raise ValueError(
             f"max_orthogonal must be >= 0, got max_orthogonal={max_orthogonal}."
         )
     if tol < 0:
         raise ValueError(f"tol must be >= 0, got tol={tol}.")
+    if isinstance(scoring, (list, tuple, set, dict)):
+        raise ValueError(
+            "Multi-metric scoring is not supported in select_orthogonal. "
+            "Please provide a single string or callable for 'scoring'."
+        )
 
     param = "n_orthogonal"
 
