@@ -50,27 +50,21 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
 
     _parameter_constraints: dict = {
         "n_components": [Interval(Integral, 1, None, closed="left")],
-        "n_orthogonal": [
-            Interval(Integral, 0, None, closed="left"),
-            StrOptions({"auto"}),
-        ],
+        "n_orthogonal": [Interval(Integral, 0, None, closed="left")],
         "scale": [StrOptions(set(VALID_SCALING))],
-        "cv": ["cv_object"],
         "copy": ["boolean"],
     }
 
     def __init__(
         self,
         n_components: int = 1,
-        n_orthogonal: int | str = 1,
+        n_orthogonal: int = 1,
         scale: str = "standard",
-        cv: object = 7,
         copy: bool = True,
     ) -> None:
         self.n_components = n_components
         self.n_orthogonal = n_orthogonal
         self.scale = scale
-        self.cv = cv
         self.copy = copy
 
     def fit(self, X: ArrayLike, y: ArrayLike) -> OPLSDA:
@@ -113,7 +107,6 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             n_components=self.n_components,
             n_orthogonal=self.n_orthogonal,
             scale=self.scale,
-            cv=self.cv,
             copy=self.copy,
         ).fit(X, y_dummy)
         self.n_orthogonal_ = self.opls_.n_orthogonal_
