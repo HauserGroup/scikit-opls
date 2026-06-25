@@ -7,23 +7,28 @@ and then fits :class:`sklearn.cross_decomposition.PLSRegression` on the cleaned 
 the predictive engine. With ``n_orthogonal=0`` it reduces exactly to ``PLSRegression``.
 """
 
+# scikit-learn's validate_data / check_cv / clone use sentinel-string parameter
+# defaults that lead static type checkers to flag every downstream array op as a
+# false positive. Suppress those categories here; the test suite and
+# ``check_estimator`` are the real correctness gate.
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportReturnType=false
+
 from __future__ import annotations
 
-import warnings
-from typing import Any
+from numbers import Integral
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
-from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
-from sklearn.exceptions import DataConversionWarning
+from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin, clone
 from sklearn.cross_decomposition import PLSRegression
-from sklearn.model_selection import cross_val_predict
-from sklearn.utils.validation import check_is_fitted
+from sklearn.metrics import r2_score, root_mean_squared_error
+from sklearn.model_selection import check_cv, cross_val_predict
+from sklearn.utils._param_validation import Interval, StrOptions
+from sklearn.utils.validation import check_is_fitted, validate_data
 
 from ._orthogonal import apply_orthogonal_filter, opls_filter
-from ._preprocessing import apply_scaling, check_scaling, compute_scaling
-from ._validation import clone_estimator, resolve_cv, validate_fit, validate_predict
-from .metrics import explained_x_variance, q2_y, r2_y, rmsee
+from ._preprocessing import VALID_SCALING, apply_scaling, compute_scaling
+from .metrics import explained_x_variance
 from .vip import orthogonal_vip, predictive_vip
 
 # Selection rule shared with ropls: keep adding orthogonal components while the
@@ -49,11 +54,9 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     scale : {"none", "center", "pareto", "standard"}, default="standard"
         Column preprocessing applied to ``X`` (matches ``ropls`` ``scaleC``).
     cv : int, cross-validation generator or iterable, default=7
-        Cross-validation used for Q2 and for ``n_orthogonal="auto"``.
+        Cross-validation used for ``n_orthogonal="auto"``.
     copy : bool, default=True
-        Passed to scikit-learn input validation; controls whether the input
-        arrays are copied during validation. Preprocessing always allocates new
-        arrays, so this does not enable in-place scaling.
+        Whether the input arrays are copied during validation.
 
     Attributes
     ----------
@@ -69,9 +72,20 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     x_mean_, x_std_ : ndarray
         Centering/scaling vectors applied to ``X``.
     r2x_, r2x_ortho_, r2y_, rmsee_ : float
-        Training-set fit summaries. Cross-validated Q2 is not set on the model;
-        compute it explicitly with :meth:`score_q2`.
+        Training-set fit summaries. For cross-validated Q2 use
+        :func:`sklearn.model_selection.cross_val_score`.
     """
+
+    _parameter_constraints: dict = {
+        "n_components": [Interval(Integral, 1, None, closed="left")],
+        "n_orthogonal": [
+            Interval(Integral, 0, None, closed="left"),
+            StrOptions({"auto"}),
+        ],
+        "scale": [StrOptions(set(VALID_SCALING))],
+        "cv": ["cv_object"],
+        "copy": ["boolean"],
+    }
 
     def __init__(
         self,
@@ -87,31 +101,17 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.cv = cv
         self.copy = copy
 
-    # ------------------------------------------------------------------ fitting
     def fit(self, X: ArrayLike, y: ArrayLike) -> OPLS:
-        check_scaling(self.scale)
-        self._check_n_components()
-        X, y = validate_fit(self, X, y, copy=self.copy)
-        if y.ndim == 2 and y.shape[-1] == 1:
-            warnings.warn(
-                "A column-vector y was passed when a 1d array was expected. "
-                "Please change the shape of y to (n_samples,).",
-                DataConversionWarning,
-                stacklevel=2,
-            )
-            y = y.ravel()
-        self._y_ndim = y.ndim
-        Y2 = y.reshape(len(y), -1)  # always 2-D: (n,) -> (n, 1)
+        self._validate_params()
+        # multi_output=False ravels a column-vector y (with a DataConversionWarning)
+        # and rejects multi-column y: OPLS is univariate.
+        X, y = validate_data(
+            self, X, y, dtype=np.float64, ensure_min_samples=2, copy=self.copy
+        )
 
-        # Univariate-response contract: OPLS is defined for a single response.
-        if Y2.shape[1] > 1:
-            raise ValueError(
-                "OPLS requires a single response column; got y with "
-                f"{Y2.shape[1]} columns. Multi-output OPLS is not supported."
-            )
-        # True-OPLS predictive-component contract: a single predictive component
-        # when any orthogonal filtering is requested (ropls predI=1 for OPLS).
-        # n_orthogonal=0 keeps the unrestricted PLSRegression-equivalence mode.
+        # True-OPLS contract: one predictive component when any orthogonal
+        # filtering is requested (ropls predI=1). n_orthogonal=0 keeps the
+        # unrestricted PLSRegression-equivalence mode.
         if self.n_components != 1 and self.n_orthogonal != 0:
             raise ValueError(
                 f"OPLS uses one predictive component when orthogonal filtering is "
@@ -119,21 +119,18 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
                 f"n_orthogonal={self.n_orthogonal!r}. Set n_components=1, or use "
                 "n_orthogonal=0 for plain (multi-component) PLS."
             )
-
-        n_ortho = self._resolve_n_orthogonal(X, Y2)
-        max_components = min(X.shape[0], X.shape[1])
-        if self.n_components > max_components:
+        if self.n_components > min(X.shape):
             raise ValueError(
                 f"n_components={self.n_components} exceeds the maximum of "
-                f"min(n_samples, n_features)={max_components}."
+                f"min(n_samples, n_features)={min(X.shape)}."
             )
 
+        n_ortho = self._resolve_n_orthogonal(X, y)
         self.x_mean_, self.x_std_ = compute_scaling(X, self.scale)
         Xs = apply_scaling(X, self.x_mean_, self.x_std_)
 
         if n_ortho > 0:
-            yc = Y2[:, 0] - Y2[:, 0].mean()
-            ofit = opls_filter(Xs, yc, n_ortho)
+            ofit = opls_filter(Xs, y - y.mean(), n_ortho)
             X_filtered = ofit.x_filtered
             self.x_ortho_weights_ = ofit.x_ortho_weights
             self.x_ortho_loadings_ = ofit.x_ortho_loadings
@@ -147,7 +144,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             self.n_orthogonal_ = 0
 
         self.pls_ = PLSRegression(n_components=self.n_components, scale=False)
-        self.pls_.fit(X_filtered, Y2)
+        self.pls_.fit(X_filtered, y)
 
         # Surface the predictive model parameters from the engine.
         self.x_weights_ = self.pls_.x_weights_
@@ -156,123 +153,76 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.y_loadings_ = self.pls_.y_loadings_
         self.coef_ = self.pls_.coef_
 
+        y_fit = self.pls_.predict(X_filtered)
         self.r2x_ = explained_x_variance(Xs, self.x_scores_, self.x_loadings_)
         self.r2x_ortho_ = explained_x_variance(
             Xs, self.x_ortho_scores_, self.x_ortho_loadings_
         )
-        y_fit = self.pls_.predict(X_filtered)
-        self.r2y_ = r2_y(Y2, y_fit)
-        self.rmsee_ = rmsee(Y2, y_fit)
-
+        self.r2y_ = float(r2_score(y, y_fit))
+        self.rmsee_ = float(root_mean_squared_error(y, y_fit))
         self.vip_ = predictive_vip(self.x_weights_, self.x_scores_, self.y_loadings_)
         self.ortho_vip_ = orthogonal_vip(
             self.x_ortho_weights_, self.x_ortho_scores_, self.x_ortho_loadings_
         )
         return self
 
-    # ---------------------------------------------------------------- predict/transform
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
         """Predict ``y`` for new samples."""
         check_is_fitted(self)
-        Xs = self._filter_new(X)
-        pred = self.pls_.predict(Xs)
-        if self._y_ndim == 1:
-            pred = np.asarray(pred).ravel()
-        return pred
+        X_filtered, _ = self._filter(X)
+        return self.pls_.predict(X_filtered).ravel()
 
     def transform(self, X: ArrayLike) -> NDArray[np.float64]:
         """Project samples onto the predictive components."""
         check_is_fitted(self)
-        Xs = self._filter_new(X)
-        return np.asarray(self.pls_.transform(Xs), dtype=np.float64)
+        X_filtered, _ = self._filter(X)
+        return self.pls_.transform(X_filtered)
 
     def transform_orthogonal(self, X: ArrayLike) -> NDArray[np.float64]:
         """Project samples onto the orthogonal components."""
         check_is_fitted(self)
-        Xv = validate_predict(self, X)
-        Xs = apply_scaling(Xv, self.x_mean_, self.x_std_)
-        _, scores = apply_orthogonal_filter(
+        return self._filter(X)[1]
+
+    def _filter(self, X: ArrayLike) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Preprocess and orthogonal-filter new ``X`` exactly as at fit time.
+
+        Returns the filtered ``X`` and the orthogonal scores.
+        """
+        X = validate_data(self, X, reset=False, dtype=np.float64)
+        Xs = apply_scaling(X, self.x_mean_, self.x_std_)
+        return apply_orthogonal_filter(
             Xs, self.x_ortho_weights_, self.x_ortho_loadings_
         )
-        return scores
 
-    def _filter_new(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Preprocess + orthogonal-filter new ``X`` exactly as at fit time."""
-        Xv = validate_predict(self, X)
-        Xs = apply_scaling(Xv, self.x_mean_, self.x_std_)
-        X_filtered, _ = apply_orthogonal_filter(
-            Xs, self.x_ortho_weights_, self.x_ortho_loadings_
-        )
-        return X_filtered
-
-    # ------------------------------------------------------------ validation
-    def _check_n_components(self) -> None:
-        nc = self.n_components
-        if isinstance(nc, (bool, np.bool_)) or not isinstance(nc, (int, np.integer)):
-            raise ValueError(f"n_components must be a positive int, got {nc!r}")
-        if nc < 1:
-            raise ValueError(f"n_components must be >= 1, got {nc}")
-
-    # ------------------------------------------------------------ n_orthogonal
     def _resolve_n_orthogonal(
-        self, X: NDArray[np.float64], Y2: NDArray[np.float64]
+        self, X: NDArray[np.float64], y: NDArray[np.float64]
     ) -> int:
-        if isinstance(self.n_orthogonal, str):
-            if self.n_orthogonal != "auto":
-                raise ValueError(
-                    f"n_orthogonal must be a non-negative int or 'auto', "
-                    f"got {self.n_orthogonal!r}"
-                )
-            return self._auto_select_orthogonal(X, Y2)
-        if isinstance(self.n_orthogonal, (bool, np.bool_)) or not isinstance(
-            self.n_orthogonal, (int, np.integer)
-        ):
-            raise ValueError(
-                f"n_orthogonal must be a non-negative int or 'auto', "
-                f"got {self.n_orthogonal!r}"
-            )
-        if self.n_orthogonal < 0:
-            raise ValueError(f"n_orthogonal must be >= 0, got {self.n_orthogonal}")
+        if self.n_orthogonal == "auto":
+            return self._auto_select_orthogonal(X, y)
         return int(self.n_orthogonal)
 
     def _auto_select_orthogonal(
-        self, X: NDArray[np.float64], Y2: NDArray[np.float64]
+        self, X: NDArray[np.float64], y: NDArray[np.float64]
     ) -> int:
         """Add orthogonal components while cross-validated Q2 keeps improving."""
-        if Y2.shape[1] > 1:
-            raise ValueError("n_orthogonal='auto' requires a single response.")
-        y = Y2[:, 0]
-        cv = resolve_cv(self.cv)
-        cap = min(_MAX_AUTO_ORTHO, X.shape[1] - 1, X.shape[0] - 2)
-        cap = max(cap, 0)
+        cv = check_cv(self.cv)
+        cap = max(min(_MAX_AUTO_ORTHO, X.shape[1] - 1, X.shape[0] - 2), 0)
 
         best_k = 0
         prev_q2 = self._cv_q2(X, y, 0, cv)
         for k in range(1, cap + 1):
             q2 = self._cv_q2(X, y, k, cv)
-            if q2 - prev_q2 > _Q2_IMPROVEMENT_TOL:
-                best_k = k
-                prev_q2 = q2
-            else:
+            if q2 - prev_q2 <= _Q2_IMPROVEMENT_TOL:
                 break
+            best_k, prev_q2 = k, q2
         return best_k
 
     def _cv_q2(
-        self, X: NDArray[np.float64], y: NDArray[np.float64], k: int, cv: Any
+        self, X: NDArray[np.float64], y: NDArray[np.float64], k: int, cv
     ) -> float:
         """Out-of-fold Q2 for a clone configured with ``n_orthogonal=k``."""
-        model = clone_estimator(self).set_params(n_orthogonal=k, cv=cv)
-        y_cv = np.asarray(cross_val_predict(model, X, y, cv=cv))
-        return q2_y(y, y_cv)
-
-    # --------------------------------------------------------------------- misc
-    def score_q2(self, X: ArrayLike, y: ArrayLike) -> float:
-        """Cross-validated Q2 of this configuration on ``(X, y)``."""
-        Xa = np.asarray(X, dtype=np.float64)
-        ya = np.asarray(y, dtype=np.float64).ravel()
-        cv = resolve_cv(self.cv)
-        y_cv = np.asarray(cross_val_predict(clone_estimator(self), Xa, ya, cv=cv))
-        return q2_y(ya, y_cv)
+        model = clone(self).set_params(n_orthogonal=k, cv=cv)
+        return float(r2_score(y, cross_val_predict(model, X, y, cv=cv)))
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()

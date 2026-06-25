@@ -7,23 +7,26 @@ metabolomics. The estimator wraps an internal :class:`~scikit_opls.OPLS`
 encoding plus Platt-scaled probabilities.
 """
 
+# See _opls.py: scikit-learn's validate_data is under-typed; suppress the
+# resulting static-checker false positives.
+# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
+
 from __future__ import annotations
 
-import warnings
+from numbers import Integral
 from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.exceptions import DataConversionWarning
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelEncoder
+from sklearn.utils._param_validation import Interval, StrOptions
 from sklearn.utils.multiclass import check_classification_targets, type_of_target
-from sklearn.utils.validation import check_is_fitted
+from sklearn.utils.validation import check_is_fitted, validate_data
 
 from ._opls import OPLS
-from ._preprocessing import check_scaling
-from ._validation import validate_fit_labels
+from ._preprocessing import VALID_SCALING
 
 
 class OPLSDA(ClassifierMixin, BaseEstimator):
@@ -41,6 +44,17 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         The fitted underlying OPLS regressor (against a -1/+1 dummy response).
     """
 
+    _parameter_constraints: dict = {
+        "n_components": [Interval(Integral, 1, None, closed="left")],
+        "n_orthogonal": [
+            Interval(Integral, 0, None, closed="left"),
+            StrOptions({"auto"}),
+        ],
+        "scale": [StrOptions(set(VALID_SCALING))],
+        "cv": ["cv_object"],
+        "copy": ["boolean"],
+    }
+
     def __init__(
         self,
         n_components: int = 1,
@@ -56,16 +70,11 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         self.copy = copy
 
     def fit(self, X: ArrayLike, y: ArrayLike) -> OPLSDA:
-        check_scaling(self.scale)
-        X, y = validate_fit_labels(self, X, y, copy=self.copy)
-        if y.ndim == 2 and y.shape[-1] == 1:
-            warnings.warn(
-                "A column-vector y was passed when a 1d array was expected. "
-                "Please change the shape of y to (n_samples,).",
-                DataConversionWarning,
-                stacklevel=2,
-            )
-            y = y.ravel()
+        self._validate_params()
+        # validate_data ravels a column-vector y and rejects multi-column y.
+        X, y = validate_data(
+            self, X, y, dtype=np.float64, ensure_min_samples=2, copy=self.copy
+        )
         check_classification_targets(y)
         y_type = type_of_target(y, input_name="y")
 

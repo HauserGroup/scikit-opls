@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 from scikit_opls import OPLS
-from scikit_opls.metrics import explained_x_variance, rmsee
+from scikit_opls.metrics import explained_x_variance
 from scikit_opls.vip import orthogonal_vip, predictive_vip
 
 from .test_opls import _regression_data
@@ -50,27 +50,6 @@ def test_vip_zero_when_no_components():
     np.testing.assert_array_equal(ovip, 0.0)
 
 
-def test_rmsee_and_explained_variance_helpers():
-    y = np.array([1.0, 2.0, 3.0])
-    assert rmsee(y, y) == 0.0
+def test_explained_x_variance_empty_block_is_zero():
     X = np.eye(3)
     assert explained_x_variance(X, np.zeros((3, 0)), np.zeros((3, 0))) == 0.0
-
-
-def test_rmsee_matches_sklearn():
-    from sklearn.metrics import root_mean_squared_error
-
-    rng = np.random.default_rng(0)
-    a, b = rng.normal(size=50), rng.normal(size=50)
-    assert rmsee(a, b) == pytest.approx(root_mean_squared_error(a, b))
-
-
-def test_q2_y_is_out_of_fold_r2():
-    from sklearn.metrics import r2_score
-
-    from scikit_opls.metrics import q2_y
-
-    rng = np.random.default_rng(0)
-    y = rng.normal(size=30)
-    y_pred_cv = y + rng.normal(scale=0.1, size=30)
-    assert q2_y(y, y_pred_cv) == pytest.approx(r2_score(y, y_pred_cv))

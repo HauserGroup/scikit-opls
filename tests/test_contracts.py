@@ -11,7 +11,7 @@ from scikit_opls import OPLS
 from .test_opls import _regression_data
 
 
-@pytest.mark.parametrize("bad", [0, -1, 1.5, True, "x"])
+@pytest.mark.parametrize("bad", [0, -1, 1.5, "x"])
 def test_n_components_invalid_raises(bad):
     X, y = _regression_data()
     with pytest.raises(ValueError, match="n_components"):

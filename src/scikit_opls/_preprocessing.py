@@ -10,12 +10,6 @@ VALID_SCALING = ("none", "center", "pareto", "standard")
 _EPS = np.finfo(np.float64).eps
 
 
-def check_scaling(mode: str) -> None:
-    """Raise ``ValueError`` if ``mode`` is not a recognised scaling option."""
-    if mode not in VALID_SCALING:
-        raise ValueError(f"scale must be one of {VALID_SCALING}, got {mode!r}")
-
-
 def compute_scaling(
     X: NDArray[np.float64], mode: str
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
@@ -28,8 +22,9 @@ def compute_scaling(
 
     Standard deviation uses ``ddof=1`` (sample) to match R/``ropls``. Columns with
     (near) zero variance get a scale of ``1.0`` to avoid division by zero.
+
+    ``mode`` is assumed valid (validated by the estimator's parameter constraints).
     """
-    check_scaling(mode)
     X = np.asarray(X, dtype=np.float64)
     n_features = X.shape[1]
 
