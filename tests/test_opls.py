@@ -116,3 +116,23 @@ def test_clone_and_params():
     model = OPLS(n_components=2, n_orthogonal=3, scale="pareto")
     cloned = clone(model)
     assert cloned.get_params() == model.get_params()
+
+
+@pytest.mark.parametrize("n_components", [1, 2])
+def test_feature_names_out_are_components(n_components):
+    X, y = _regression_data()
+    model = OPLS(n_components=n_components, n_orthogonal=0).fit(X, y)
+    names = model.get_feature_names_out()
+    expected = [f"opls_pred{i}" for i in range(n_components)]
+    assert list(names) == expected
+    assert model.transform(X).shape[1] == len(names)
+
+
+def test_set_output_pandas_columns_named():
+    pd = pytest.importorskip("pandas")
+    X, y = _regression_data(n_features=6)
+    df = pd.DataFrame(X, columns=[f"f{i}" for i in range(X.shape[1])])
+    model = OPLS(n_components=1, n_orthogonal=2).set_output(transform="pandas")
+    out = model.fit(df, y).transform(df)
+    assert isinstance(out, pd.DataFrame)
+    assert list(out.columns) == ["opls_pred0"]

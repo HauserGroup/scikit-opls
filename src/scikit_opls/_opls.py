@@ -23,7 +23,11 @@ from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.metrics import r2_score, root_mean_squared_error
 from sklearn.utils._param_validation import Interval, StrOptions
-from sklearn.utils.validation import check_is_fitted, validate_data
+from sklearn.utils.validation import (
+    _check_feature_names_in,
+    check_is_fitted,
+    validate_data,
+)
 
 from ._orthogonal import apply_orthogonal_filter, opls_filter
 from ._preprocessing import VALID_SCALING, apply_scaling, compute_scaling
@@ -135,6 +139,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
         self.pls_ = PLSRegression(n_components=self.n_components, scale=False)
         self.pls_.fit(X_filtered, y)
+        # transform() returns the predictive scores: one output column per component.
+        self._n_features_out = self.n_components
 
         # Surface the predictive model parameters from the engine.
         self.x_weights_ = self.pls_.x_weights_
@@ -204,6 +210,32 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self)
         return self._filter(X)[1]
+
+    def get_feature_names_out(self, input_features=None) -> NDArray[np.object_]:
+        """Output feature names for :meth:`transform` (the predictive scores).
+
+        ``transform`` reduces ``X`` to ``n_components`` predictive scores, so the
+        output columns are components, not input features. They are named
+        ``opls_pred0, opls_pred1, …`` (the ``ClassNamePrefixFeaturesOutMixin``
+        convention), independent of the input feature names. ``transform_orthogonal``
+        is outside the ``set_output`` contract and has no names here.
+
+        Parameters
+        ----------
+        input_features : array-like of str or None, default=None
+            Input feature names; only validated for length against
+            ``n_features_in_`` (the output names do not depend on them).
+
+        Returns
+        -------
+        feature_names_out : ndarray of str of shape (n_components,)
+            Names of the predictive-score columns.
+        """
+        check_is_fitted(self, "_n_features_out")
+        _check_feature_names_in(self, input_features)
+        return np.asarray(
+            [f"opls_pred{i}" for i in range(self._n_features_out)], dtype=object
+        )
 
     def score(self, X: ArrayLike, y: ArrayLike, sample_weight=None) -> float:
         """Coefficient of determination R² of the prediction.

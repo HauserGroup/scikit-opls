@@ -161,6 +161,11 @@ class OPLSCV(RegressorMixin, TransformerMixin, BaseEstimator):
         check_is_fitted(self)
         return self.opls_.transform_orthogonal(X)
 
+    def get_feature_names_out(self, input_features=None) -> NDArray[np.object_]:
+        """Output feature names of the selected final model's :meth:`transform`."""
+        check_is_fitted(self)
+        return self.opls_.get_feature_names_out(input_features)
+
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
         tags.regressor_tags.poor_score = True
