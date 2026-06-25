@@ -45,6 +45,11 @@ class OPLSCV(RegressorMixin, TransformerMixin, BaseEstimator):
         Minimum out-of-fold Q2 improvement required to keep an extra component.
     copy : bool, default=True
         Whether the input arrays are copied during validation.
+    n_jobs : int or None, default=None
+        Number of jobs for the cross-validation of each candidate ``n_orthogonal``
+        (passed to :func:`~sklearn.model_selection.cross_val_predict`). ``None``
+        means 1; ``-1`` uses all processors. The forward search itself is
+        sequential (it stops early), so parallelism is over the CV folds.
 
     Attributes
     ----------
@@ -63,6 +68,7 @@ class OPLSCV(RegressorMixin, TransformerMixin, BaseEstimator):
         "max_orthogonal": [Interval(Integral, 0, None, closed="left")],
         "q2_tol": [Interval(Real, 0, None, closed="left")],
         "copy": ["boolean"],
+        "n_jobs": [Integral, None],
     }
 
     def __init__(
@@ -73,6 +79,7 @@ class OPLSCV(RegressorMixin, TransformerMixin, BaseEstimator):
         max_orthogonal: int = 9,
         q2_tol: float = 0.01,
         copy: bool = True,
+        n_jobs: int | None = None,
     ) -> None:
         self.n_components = n_components
         self.scale = scale
@@ -80,6 +87,7 @@ class OPLSCV(RegressorMixin, TransformerMixin, BaseEstimator):
         self.max_orthogonal = max_orthogonal
         self.q2_tol = q2_tol
         self.copy = copy
+        self.n_jobs = n_jobs
 
     def fit(self, X: ArrayLike, y: ArrayLike) -> OPLSCV:
         """Select ``n_orthogonal`` by cross-validated Q2, then refit on all data.
@@ -144,7 +152,8 @@ class OPLSCV(RegressorMixin, TransformerMixin, BaseEstimator):
             scale=self.scale,
             copy=self.copy,
         )
-        return float(r2_score(y, cross_val_predict(est, X, y, cv=cv)))
+        y_pred = cross_val_predict(est, X, y, cv=cv, n_jobs=self.n_jobs)
+        return float(r2_score(y, y_pred))
 
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
         """Predict ``y`` with the selected final model."""

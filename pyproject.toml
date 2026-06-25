@@ -5,6 +5,7 @@ description = "Orthogonal PLS (OPLS / OPLS-DA) with a scikit-learn interface"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "joblib>=1.4.0",
     "matplotlib>=3.11.0",
     "numpy>=2.5.0",
     "pandas>=3.0.3",

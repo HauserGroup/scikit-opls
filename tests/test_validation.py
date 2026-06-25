@@ -47,3 +47,13 @@ def test_permutation_test_mismatched_lengths_raise():
     X, y = _regression_data(seed=8)
     with pytest.raises(ValueError):
         permutation_test(OPLS(n_orthogonal=1), X, y[:-1])
+
+
+def test_permutation_test_n_jobs_is_reproducible():
+    """Parallel execution must match serial: permutations are drawn up front."""
+    X, y = _regression_data(seed=9)
+    kw = dict(n_permutations=8, random_state=3)
+    serial = permutation_test(OPLS(n_orthogonal=1), X, y, n_jobs=1, **kw)
+    parallel = permutation_test(OPLS(n_orthogonal=1), X, y, n_jobs=2, **kw)
+    np.testing.assert_allclose(serial.permuted_q2, parallel.permuted_q2)
+    np.testing.assert_allclose(serial.permuted_r2y, parallel.permuted_r2y)

@@ -70,3 +70,12 @@ def test_multi_component_allowed_when_search_disabled():
     model = OPLSCV(n_components=2, max_orthogonal=0).fit(X, y)
     assert model.n_orthogonal_ == 0
     assert model.opls_.n_components == 2
+
+
+def test_n_jobs_does_not_change_selection():
+    """Parallel fold evaluation must select the same model as serial."""
+    X, y = _regression_data(n_ortho=2, amp=8.0, seed=1)
+    serial = OPLSCV(n_components=1, cv=5, n_jobs=1).fit(X, y)
+    parallel = OPLSCV(n_components=1, cv=5, n_jobs=2).fit(X, y)
+    assert serial.n_orthogonal_ == parallel.n_orthogonal_
+    np.testing.assert_allclose(serial.q2_path_, parallel.q2_path_)
