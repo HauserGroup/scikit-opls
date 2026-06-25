@@ -7,10 +7,12 @@ The cleaned ``X`` is then handed to a standard PLS engine for the predictive mod
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
+from sklearn.exceptions import ConvergenceWarning
 
 _EPS = np.finfo(np.float64).eps
 _TOL = np.sqrt(_EPS)
@@ -48,7 +50,25 @@ class OrthogonalComponents:
 def predictive_weight(
     X: NDArray[np.float64], y: NDArray[np.float64]
 ) -> NDArray[np.float64]:
-    """Normalised predictive weight ``w_p = Xᵀy / (yᵀy)`` (then unit-normalised)."""
+    """Normalised predictive weight ``w_p = Xᵀy / (yᵀy)`` (then unit-normalised).
+
+    Parameters
+    ----------
+    X : ndarray of shape (n_samples, n_features)
+        Preprocessed predictor matrix.
+    y : ndarray of shape (n_samples,)
+        Centered response.
+
+    Returns
+    -------
+    w_p : ndarray of shape (n_features,)
+        Unit-normalised predictive direction.
+
+    Raises
+    ------
+    ValueError
+        If ``y`` has (near) zero variance, or ``X`` is orthogonal to ``y``.
+    """
     y = np.asarray(y, dtype=np.float64).ravel()
     yty = float(y @ y)
     if yty <= _EPS:
@@ -75,6 +95,12 @@ def opls_filter(
         Centered, single-column response.
     n_components : int
         Number of orthogonal components to extract.
+
+    Returns
+    -------
+    components : OrthogonalComponents
+        Fitted orthogonal weights/scores/loadings, the filtered ``X``, the
+        predictive direction, and the number of components actually extracted.
 
     Notes
     -----
@@ -120,6 +146,15 @@ def opls_filter(
         P[:, i] = p_o
         extracted += 1
 
+    if extracted < n_components:
+        warnings.warn(
+            f"Orthogonal filter ran out of variation after {extracted} of "
+            f"{n_components} requested components; X has no further orthogonal "
+            "structure. Using the components extracted so far.",
+            ConvergenceWarning,
+            stacklevel=2,
+        )
+
     return OrthogonalComponents(
         x_ortho_weights=W[:, :extracted],
         x_ortho_scores=T[:, :extracted],
@@ -137,7 +172,21 @@ def apply_orthogonal_filter(
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Replay a fitted orthogonal filter on new data.
 
-    Returns the filtered ``X`` and the orthogonal scores ``(n_samples, n_components)``.
+    Parameters
+    ----------
+    X : ndarray of shape (n_samples, n_features)
+        Preprocessed predictor matrix.
+    x_ortho_weights : ndarray of shape (n_features, n_components)
+        Orthogonal weights from :func:`opls_filter`.
+    x_ortho_loadings : ndarray of shape (n_features, n_components)
+        Orthogonal loadings from :func:`opls_filter`.
+
+    Returns
+    -------
+    X_filtered : ndarray of shape (n_samples, n_features)
+        ``X`` with the fitted orthogonal variation removed.
+    x_ortho_scores : ndarray of shape (n_samples, n_components)
+        Orthogonal scores of the new samples.
     """
     X = np.asarray(X, dtype=np.float64).copy()
     n_components = x_ortho_weights.shape[1]

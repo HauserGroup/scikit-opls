@@ -1,11 +1,16 @@
 """Diagnostic plots for OPLS models. ``matplotlib`` is imported lazily."""
 
+# check_array is under-typed (its dtype kwarg); suppress the resulting
+# static-checker false positives.
+# pyright: reportArgumentType=false
+
 from __future__ import annotations
 
 from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike
+from sklearn.utils.validation import check_array
 
 from ._preprocessing import apply_scaling
 
@@ -18,10 +23,27 @@ def scores_plot(
     """Scatter the first predictive score against the first orthogonal score.
 
     Works for both :class:`~scikit_opls.OPLS` and :class:`~scikit_opls.OPLSDA`.
-    Points are coloured by ``y`` when provided. Returns the matplotlib ``Axes``.
+    Points are coloured by ``y`` when provided.
+
+    Parameters
+    ----------
+    model : OPLS or OPLSDA
+        A fitted estimator.
+    X : array-like of shape (n_samples, n_features)
+        Samples to project.
+    y : array-like of shape (n_samples,), default=None
+        Optional labels used to colour the points.
+    ax : matplotlib Axes, default=None
+        Target axes; a new figure/axes is created when ``None``.
+
+    Returns
+    -------
+    ax : matplotlib Axes
+        The axes the scatter was drawn on.
     """
     import matplotlib.pyplot as plt
 
+    X = check_array(X, dtype=np.float64)
     base = getattr(model, "opls_", model)
     t_pred = np.asarray(base.transform(X))[:, 0]
     t_ortho = np.asarray(base.transform_orthogonal(X))
@@ -47,13 +69,27 @@ def scores_plot(
 def s_plot(model: Any, X: ArrayLike, ax: Any = None) -> Any:
     """S-plot: covariance vs correlation of each feature with the predictive score.
 
-    Accepts an :class:`~scikit_opls.OPLS` or :class:`~scikit_opls.OPLSDA`. Returns
-    the matplotlib ``Axes``.
+    Accepts an :class:`~scikit_opls.OPLS` or :class:`~scikit_opls.OPLSDA`.
+
+    Parameters
+    ----------
+    model : OPLS or OPLSDA
+        A fitted estimator.
+    X : array-like of shape (n_samples, n_features)
+        Samples to project.
+    ax : matplotlib Axes, default=None
+        Target axes; a new figure/axes is created when ``None``.
+
+    Returns
+    -------
+    ax : matplotlib Axes
+        The axes the scatter was drawn on.
     """
     import matplotlib.pyplot as plt
 
+    X = check_array(X, dtype=np.float64)
     base = getattr(model, "opls_", model)
-    Xs = apply_scaling(np.asarray(X, dtype=np.float64), base.x_mean_, base.x_std_)
+    Xs = apply_scaling(X, base.x_mean_, base.x_std_)
     Xs = Xs - Xs.mean(axis=0)
 
     t = np.asarray(base.transform(X))[:, 0]

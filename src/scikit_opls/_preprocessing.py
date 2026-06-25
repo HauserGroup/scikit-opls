@@ -24,6 +24,20 @@ def compute_scaling(
     (near) zero variance get a scale of ``1.0`` to avoid division by zero.
 
     ``mode`` is assumed valid (validated by the estimator's parameter constraints).
+
+    Parameters
+    ----------
+    X : ndarray of shape (n_samples, n_features)
+        Predictor matrix.
+    mode : {"none", "center", "pareto", "standard"}
+        Scaling mode.
+
+    Returns
+    -------
+    mean_ : ndarray of shape (n_features,)
+        Per-column centering vector.
+    scale_ : ndarray of shape (n_features,)
+        Per-column scaling vector.
     """
     X = np.asarray(X, dtype=np.float64)
     n_features = X.shape[1]
@@ -49,6 +63,21 @@ def compute_scaling(
 def apply_scaling(
     X: NDArray[np.float64], mean_: NDArray[np.float64], scale_: NDArray[np.float64]
 ) -> NDArray[np.float64]:
-    """Apply a previously computed centering/scaling to ``X``."""
+    """Apply a previously computed centering/scaling to ``X``.
+
+    Parameters
+    ----------
+    X : ndarray of shape (n_samples, n_features)
+        Predictor matrix.
+    mean_ : ndarray of shape (n_features,)
+        Centering vector from :func:`compute_scaling`.
+    scale_ : ndarray of shape (n_features,)
+        Scaling vector from :func:`compute_scaling`.
+
+    Returns
+    -------
+    X_scaled : ndarray of shape (n_samples, n_features)
+        ``(X - mean_) / scale_``.
+    """
     X = np.asarray(X, dtype=np.float64)
     return (X - mean_) / scale_

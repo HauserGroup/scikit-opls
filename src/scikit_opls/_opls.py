@@ -102,6 +102,20 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.copy = copy
 
     def fit(self, X: ArrayLike, y: ArrayLike) -> OPLS:
+        """Fit the OPLS model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training predictors.
+        y : array-like of shape (n_samples,)
+            Target values. Required: ``OPLS`` is a supervised transformer.
+
+        Returns
+        -------
+        self : OPLS
+            The fitted estimator.
+        """
         self._validate_params()
         # multi_output=False ravels a column-vector y (with a DataConversionWarning)
         # and rejects multi-column y: OPLS is univariate.
@@ -167,21 +181,79 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return self
 
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Predict ``y`` for new samples."""
+        """Predict ``y`` for new samples.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to predict.
+
+        Returns
+        -------
+        y_pred : ndarray of shape (n_samples,)
+            Predicted target values.
+        """
         check_is_fitted(self)
         X_filtered, _ = self._filter(X)
         return self.pls_.predict(X_filtered).ravel()
 
     def transform(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Project samples onto the predictive components."""
+        """Project samples onto the predictive components.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to project (orthogonal-filtered first, as at fit time).
+
+        Returns
+        -------
+        x_scores : ndarray of shape (n_samples, n_components)
+            Predictive scores.
+        """
         check_is_fitted(self)
         X_filtered, _ = self._filter(X)
         return self.pls_.transform(X_filtered)
 
     def transform_orthogonal(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Project samples onto the orthogonal components."""
+        """Project samples onto the orthogonal components.
+
+        This is a non-standard method (outside the ``set_output`` contract).
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to project.
+
+        Returns
+        -------
+        x_ortho_scores : ndarray of shape (n_samples, n_orthogonal_)
+            Orthogonal scores.
+        """
         check_is_fitted(self)
         return self._filter(X)[1]
+
+    def score(self, X: ArrayLike, y: ArrayLike, sample_weight=None) -> float:
+        """Coefficient of determination R² of the prediction.
+
+        Inherited from :class:`~sklearn.base.RegressorMixin` (``OPLS`` is also a
+        :class:`~sklearn.base.TransformerMixin`; the regression ``score`` applies,
+        not a transformer score).
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Test samples.
+        y : array-like of shape (n_samples,)
+            True target values for ``X``.
+        sample_weight : array-like of shape (n_samples,), default=None
+            Sample weights.
+
+        Returns
+        -------
+        score : float
+            R² of ``self.predict(X)`` against ``y``.
+        """
+        return super().score(X, y, sample_weight)
 
     def _filter(self, X: ArrayLike) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """Preprocess and orthogonal-filter new ``X`` exactly as at fit time.
@@ -227,4 +299,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
         tags.regressor_tags.poor_score = True
+        # OPLS is a supervised transformer: fit requires y.
+        tags.target_tags.required = True
+        # The NIPALS orthogonal filter densifies; sparse input is unsupported.
+        tags.input_tags.sparse = False
+        # Deterministic for a fixed (non-shuffled) cv.
+        tags.non_deterministic = False
         return tags
