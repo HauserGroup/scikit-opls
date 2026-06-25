@@ -55,8 +55,8 @@ def permutation_test(
 ) -> PermutationResult:
     """Assess significance of an :class:`~scikit_opls.OPLS` model by permuting ``y``.
 
-    The estimator must expose ``r2y_`` after fitting and a ``cv`` attribute
-    (both provided by :class:`~scikit_opls.OPLS`).
+    The estimator must expose ``r2y_`` after fitting. A ``cv`` attribute, if
+    present, drives the out-of-fold Q2 (otherwise a 5-fold default is used).
 
     Parameters
     ----------

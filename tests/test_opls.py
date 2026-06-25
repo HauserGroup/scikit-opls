@@ -99,13 +99,6 @@ def test_round_trip_prediction():
     assert model.score(X, y) > 0.9  # R2 via RegressorMixin
 
 
-def test_auto_selects_orthogonal_components():
-    X, y = _regression_data(n_ortho=2, amp=8.0, seed=1)
-    model = OPLS(n_components=1, n_orthogonal="auto", cv=5).fit(X, y)
-    assert isinstance(model.n_orthogonal_, int)
-    assert 1 <= model.n_orthogonal_ <= 10
-
-
 def test_invalid_scale_raises():
     X, y = _regression_data()
     with pytest.raises(ValueError, match="scale"):
@@ -120,6 +113,6 @@ def test_invalid_n_orthogonal_raises(bad):
 
 
 def test_clone_and_params():
-    model = OPLS(n_components=2, n_orthogonal=3, scale="pareto", cv=4)
+    model = OPLS(n_components=2, n_orthogonal=3, scale="pareto")
     cloned = clone(model)
     assert cloned.get_params() == model.get_params()

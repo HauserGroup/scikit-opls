@@ -14,7 +14,7 @@ from .test_opls import _regression_data
 def test_permutation_test_detects_real_signal():
     X, y = _regression_data(seed=5)
     result = permutation_test(
-        OPLS(n_components=1, n_orthogonal=2, cv=5),
+        OPLS(n_components=1, n_orthogonal=2),
         X,
         y,
         n_permutations=15,
@@ -30,7 +30,7 @@ def test_permutation_test_detects_real_signal():
 def test_permutation_pvalues_in_unit_interval():
     X, y = _regression_data(seed=6)
     result = permutation_test(
-        OPLS(n_orthogonal=1, cv=4), X, y, n_permutations=10, random_state=1
+        OPLS(n_orthogonal=1), X, y, n_permutations=10, random_state=1
     )
     assert 0.0 < result.r2y_p_value <= 1.0
     assert 0.0 < result.q2_p_value <= 1.0
@@ -40,10 +40,10 @@ def test_permutation_pvalues_in_unit_interval():
 def test_permutation_test_rejects_non_positive_n_permutations(bad):
     X, y = _regression_data(seed=7)
     with pytest.raises(ValueError, match="n_permutations"):
-        permutation_test(OPLS(n_orthogonal=1, cv=4), X, y, n_permutations=bad)
+        permutation_test(OPLS(n_orthogonal=1), X, y, n_permutations=bad)
 
 
 def test_permutation_test_mismatched_lengths_raise():
     X, y = _regression_data(seed=8)
     with pytest.raises(ValueError):
-        permutation_test(OPLS(n_orthogonal=1, cv=4), X, y[:-1])
+        permutation_test(OPLS(n_orthogonal=1), X, y[:-1])

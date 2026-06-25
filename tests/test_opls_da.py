@@ -77,12 +77,6 @@ def test_non_binary_raises():
         OPLSDA().fit(X, y)
 
 
-def test_auto_orthogonal_runs():
-    X, y = _classification_data(amp=8.0, seed=2)
-    model = OPLSDA(n_components=1, n_orthogonal="auto", cv=5).fit(X, y)
-    assert isinstance(model.n_orthogonal_, int)
-
-
 def test_clone_and_params():
-    model = OPLSDA(n_components=1, n_orthogonal=3, scale="pareto", cv=4)
+    model = OPLSDA(n_components=1, n_orthogonal=3, scale="pareto")
     assert clone(model).get_params() == model.get_params()
