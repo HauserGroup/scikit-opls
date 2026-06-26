@@ -18,6 +18,7 @@ from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+from sklearn.utils._optional_dependencies import check_matplotlib_support
 from sklearn.utils.validation import check_array
 
 from ._preprocessing import apply_scaling
@@ -73,6 +74,8 @@ class OPLSScoresDisplay:
         The axes drawn on (set by :meth:`plot`).
     figure_ : matplotlib Figure
         The parent figure (set by :meth:`plot`).
+    scatter_ : matplotlib PathCollection or list of PathCollection
+        The scatter plot artist(s) (set by :meth:`plot`).
     """
 
     def __init__(
@@ -140,18 +143,21 @@ class OPLSScoresDisplay:
         display : OPLSScoresDisplay
             ``self``, with ``ax_`` / ``figure_`` populated.
         """
+        check_matplotlib_support("OPLSScoresDisplay.plot")
         import matplotlib.pyplot as plt
 
         if ax is None:
             _, ax = plt.subplots()
         if self.y is None:
-            ax.scatter(self.t_predictive, self.t_orthogonal)
+            self.scatter_ = ax.scatter(self.t_predictive, self.t_orthogonal)
         else:
+            self.scatter_ = []
             for label in np.unique(self.y):
                 mask = self.y == label
-                ax.scatter(
+                sc = ax.scatter(
                     self.t_predictive[mask], self.t_orthogonal[mask], label=str(label)
                 )
+                self.scatter_.append(sc)
             ax.legend()
         ax.axhline(0.0, color="grey", linewidth=0.8)
         ax.axvline(0.0, color="grey", linewidth=0.8)
@@ -187,6 +193,8 @@ class SPlotDisplay:
         The axes drawn on (set by :meth:`plot`).
     figure_ : matplotlib Figure
         The parent figure (set by :meth:`plot`).
+    scatter_ : matplotlib PathCollection
+        The scatter plot artist (set by :meth:`plot`).
     """
 
     def __init__(
@@ -263,11 +271,12 @@ class SPlotDisplay:
         display : SPlotDisplay
             ``self``, with ``ax_`` / ``figure_`` populated.
         """
+        check_matplotlib_support("SPlotDisplay.plot")
         import matplotlib.pyplot as plt
 
         if ax is None:
             _, ax = plt.subplots()
-        ax.scatter(self.covariance, self.correlation)
+        self.scatter_ = ax.scatter(self.covariance, self.correlation)
         ax.axhline(0.0, color="grey", linewidth=0.8)
         ax.axvline(0.0, color="grey", linewidth=0.8)
         ax.set_xlabel("Covariance p")

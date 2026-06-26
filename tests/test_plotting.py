@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
-import matplotlib
+import pytest
+
+# Skip this module if matplotlib is not installed
+pytest.importorskip("matplotlib")
+
+import matplotlib  # noqa: E402
 
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
-import pytest
 from matplotlib.axes import Axes  # noqa: E402
 from sklearn.model_selection import GridSearchCV  # noqa: E402
 
@@ -58,6 +62,8 @@ def test_s_plot_regression_and_classification():
 
 
 def test_scores_display_from_estimator():
+    from matplotlib.collections import PathCollection
+
     X, y = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
     disp = OPLSScoresDisplay.from_estimator(model, X, y)
@@ -65,19 +71,27 @@ def test_scores_display_from_estimator():
     assert isinstance(disp.ax_, Axes)
     assert disp.figure_ is disp.ax_.figure
     assert disp.t_predictive.shape == (X.shape[0],)
+    assert isinstance(disp.scatter_, list)
+    assert all(isinstance(sc, PathCollection) for sc in disp.scatter_)
     plt.close("all")
 
 
 def test_scores_display_replots_on_given_axes():
+    from matplotlib.collections import PathCollection
+
     X, y = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
     disp = OPLSScoresDisplay.from_estimator(model, X)
     _, ax = plt.subplots()
-    assert disp.plot(ax=ax).ax_ is ax
+    res = disp.plot(ax=ax)
+    assert res.ax_ is ax
+    assert isinstance(res.scatter_, PathCollection)
     plt.close("all")
 
 
 def test_splot_display_from_estimator_with_cv():
+    from matplotlib.collections import PathCollection
+
     X, y = _regression_data()
     model = GridSearchCV(
         OPLS(n_components=1), {"n_orthogonal": [0, 1, 2, 3]}, cv=4
@@ -87,6 +101,7 @@ def test_splot_display_from_estimator_with_cv():
     assert disp.covariance.shape == (X.shape[1],)
     assert disp.correlation.shape == (X.shape[1],)
     assert isinstance(disp.ax_, Axes)
+    assert isinstance(disp.scatter_, PathCollection)
     plt.close("all")
 
 
