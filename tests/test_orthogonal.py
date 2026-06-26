@@ -101,6 +101,17 @@ def test_apply_filter_replays_fit():
     assert_allclose(scores, fit.x_ortho_scores, atol=1e-10)
 
 
+def test_apply_orthogonal_filter_zero_components_passthrough():
+    X, _ = _make_data()
+    weights = np.zeros((X.shape[1], 0))
+    loadings = np.zeros((X.shape[1], 0))
+
+    X_filtered, scores = apply_orthogonal_filter(X, weights, loadings)
+
+    assert_allclose(X_filtered, X)
+    assert scores.shape == (X.shape[0], 0)
+
+
 def test_truncates_when_no_orthogonal_variation_left():
     """Requesting more components than available stops early with a warning."""
     from sklearn.exceptions import ConvergenceWarning
@@ -152,6 +163,17 @@ def test_multivariate_y_predictive_weight_is_unit_direction():
     w = predictive_weight(X, Y)
 
     assert w.shape == (X.shape[1],)
+    assert_allclose(np.linalg.norm(w), 1.0, atol=1e-12)
+
+
+def test_predictive_weight_multivariate_matches_svd_x_side_direction():
+    X, y = _make_data()
+    Y = np.column_stack([y, 0.5 * y + np.roll(y, 1)])
+
+    w = predictive_weight(X, Y)
+    u, _, _ = np.linalg.svd(X.T @ Y, full_matrices=False)
+
+    assert_allclose(abs(w @ u[:, 0]), 1.0, atol=1e-10)
     assert_allclose(np.linalg.norm(w), 1.0, atol=1e-12)
 
 

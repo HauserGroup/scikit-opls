@@ -90,7 +90,7 @@ def test_invalid_scale_raises():
         OPLS(scale="bogus").fit(X, y)
 
 
-@pytest.mark.parametrize("bad", [-1, 1.5, True, "nope"])
+@pytest.mark.parametrize("bad", [-1, 1.5, True, False, "nope"])
 def test_invalid_n_orthogonal_raises(bad):
     X, y = _regression_data()
     with pytest.raises(ValueError, match="n_orthogonal"):
@@ -112,6 +112,35 @@ def test_feature_names_out_are_components(n_components):
     expected = [f"opls_pred{i}" for i in range(n_components)]
     assert list(names) == expected
     assert model.transform(X).shape[1] == len(names)
+
+
+def test_get_feature_names_out_validates_input_features():
+    X, y = _regression_data(n_features=4)
+    model = OPLS(n_components=2, n_orthogonal=0).fit(X, y)
+
+    assert list(model.get_feature_names_out(["a", "b", "c", "d"])) == [
+        "opls_pred0",
+        "opls_pred1",
+    ]
+    with pytest.raises(ValueError):
+        model.get_feature_names_out(["a", "b"])
+
+
+@pytest.mark.parametrize("method", ["predict", "transform", "transform_orthogonal"])
+def test_methods_reject_wrong_number_of_features(method):
+    X, y = _regression_data(n_features=6)
+    model = OPLS(n_orthogonal=1).fit(X, y)
+
+    with pytest.raises(ValueError, match="features"):
+        getattr(model, method)(X[:, :5])
+
+
+def test_opls_rejects_sparse_input():
+    sparse = pytest.importorskip("scipy.sparse")
+    X, y = _regression_data()
+
+    with pytest.raises(TypeError, match="Sparse data"):
+        OPLS().fit(sparse.csr_matrix(X), y)
 
 
 def test_set_output_pandas_columns_named():

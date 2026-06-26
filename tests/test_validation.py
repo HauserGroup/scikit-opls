@@ -104,6 +104,10 @@ def test_safe_r2_score_flattens_and_validates_shape():
         _safe_r2_score(np.array([1.0, 2.0]), np.array([1.0, 2.0, 3.0]))
 
 
+def test_safe_r2_score_constant_target_returns_nan():
+    assert np.isnan(_safe_r2_score(np.ones(5), np.arange(5.0)))
+
+
 def test_permutation_test_grid_search():
     from sklearn.model_selection import GridSearchCV
 
@@ -130,6 +134,7 @@ def test_permutation_test_randomized_search():
     result = permutation_test(search, X, y, n_permutations=5, random_state=42)
 
     assert result.r2y > 0.0
+    assert result.permuted_r2y.shape == (5,)
     assert result.permuted_q2.shape == (5,)
 
 

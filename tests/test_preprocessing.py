@@ -110,6 +110,15 @@ def test_has_nonzero_variation_scale_and_offset_invariant():
     assert not _has_nonzero_variation(np.array([]))  # empty
 
 
+def test_has_nonzero_variation_axis0_any_column_varies():
+    X = np.ones((5, 3))
+    assert not _has_nonzero_variation(X, axis=0)
+
+    X[:, 1] = np.arange(5)
+
+    assert _has_nonzero_variation(X, axis=0)
+
+
 def test_fit_robust_to_tiny_scale_and_large_offset():
     X, y = _regression_data()
     # Old absolute-floor guard rejected both of these; the magnitude-relative floor
