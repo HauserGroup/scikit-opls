@@ -47,12 +47,13 @@ repos:
     rev: v3.21.2
     hooks:
       - id: pyupgrade
-        args: [--py313-plus]
+        args: [--py312-plus]
 
 
   - repo: https://github.com/executablebooks/mdformat
     rev: 0.7.22
     hooks:
       - id: mdformat
+        exclude: ^docs/changelog\.md$
         additional_dependencies:
           - mdformat-gfm

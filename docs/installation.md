@@ -1,6 +1,6 @@
 # Installation
 
-scikit-opls requires Python 3.13+.
+scikit-opls requires Python 3.12+.
 
 ```bash
 pip install scikit-opls

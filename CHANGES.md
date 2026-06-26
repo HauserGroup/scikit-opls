@@ -12,31 +12,43 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+### Changed
+
+- Lowered the supported Python floor from 3.13 to **3.12**
+  (`requires-python = ">=3.12"`); CI now tests 3.12 and 3.13, and lint/type
+  checks target 3.12. Development still happens on 3.13 (`.python-version`).
+  No API or behaviour change.
+
 ### Changed (breaking, pre-1.0)
 
-- Cross-validated selection of `n_orthogonal` moved out of `OPLS` into
-  `selection.select_orthogonal`, a thin `GridSearchCV` factory with a
-  parsimonious refit. `OPLS.n_orthogonal` is now a plain `int`; the `"auto"`
-  option and the `cv` parameter are removed from both `OPLS` and `OPLSDA`.
-  `OPLSCV` is removed; use `select_orthogonal(OPLS(...)).fit(X, y)` and read
+- Cross-validated selection of `n_orthogonal` is now done with scikit-learn's
+  `GridSearchCV` directly — there is no bespoke selection API. `OPLS.n_orthogonal`
+  is a plain `int`; the `"auto"` option and the `cv` parameter are removed from
+  both `OPLS` and `OPLSDA`, and the `OPLSCV` estimator and the
+  `selection.select_orthogonal` factory are both removed. Use
+  `GridSearchCV(OPLS(...), {"n_orthogonal": [...]}).fit(X, y)` and read
   `best_params_["n_orthogonal"]`, `best_estimator_`, and
-  `cv_results_["mean_test_score"]`.
+  `cv_results_["mean_test_score"]`. For a parsimony bias, pass a `refit` callable
+  (recipe in the README / quickstart).
 - `OPLSDACV` will not be added. Use
-  `select_orthogonal(OPLSDA(), scoring="roc_auc")` or plain
   `GridSearchCV(OPLSDA(), {"n_orthogonal": [...]}, scoring="roc_auc")`, which
   gives stratified folds for classification.
-- VIP is no longer computed eagerly in `fit`. `model.vip_` / `model.ortho_vip_`
-  are removed; use `scikit_opls.inspection.vip(model)` /
-  `scikit_opls.inspection.orthogonal_vip(model)` (these unwrap DA/search wrappers).
-- `vip.py` and `metrics.py` are folded into a new `inspection.py`.
+- VIP is now exposed as lazy `OPLS.vip_` / `OPLS.ortho_vip_` properties (and on
+  `OPLSDA`, delegating to the inner OPLS), following scikit-learn's
+  `feature_importances_` convention — computed on access, not eagerly in `fit`.
+  The public `scikit_opls.inspection` module and its `vip(model)` /
+  `orthogonal_vip(model)` functions are **removed**; the stateless math moved to a
+  private `_inspection` module. Feature selection is supported via
+  `SelectFromModel(OPLS(), importance_getter="vip_", threshold=1.0)` (the VIP > 1
+  rule), composable in a `Pipeline` / `GridSearchCV`.
 - `predictive_weight(X, Y)` now uses the leading left singular vector of `XᵀY`,
   generalising to multivariate `Y`. For single-column `Y` the direction is
   unchanged (up to sign) and single-`y` OPLS output is bit-for-bit identical.
 
 ### Added
 
-- MkDocs documentation site (Material + mkdocstrings, numpy docstring style) with
-  a `mkdocs build --strict` CI gate and a `gh-deploy` workflow.
+- Zensical documentation site (`zensical.toml`, mkdocstrings, numpy docstring style)
+  with a `zensical build` CI gate and a GitHub Pages (Actions) deploy workflow.
 
 - `OPLSScoresDisplay` and `SPlotDisplay` plotting classes following scikit-learn's
   Display convention (`from_estimator(...)`, `plot(ax=...)`, `ax_` / `figure_`).
@@ -47,13 +59,8 @@ and default-value changes will be documented here.
   (`opls_pred0, …`).
 
 - `n_jobs` on `validation.permutation_test` (runs the independent permutations in
-  parallel; reproducible regardless of `n_jobs`). `GridSearchCV` provides
-  `n_jobs` for `select_orthogonal`.
-
-- `selection.select_orthogonal` for `GridSearchCV`-based selection of
-  `n_orthogonal`.
-
-- `inspection.vip` / `inspection.orthogonal_vip` model-level helpers.
+  parallel; reproducible regardless of `n_jobs`). Cross-validated `n_orthogonal`
+  selection inherits `n_jobs` from `GridSearchCV`.
 
 - `_orthogonal.orthogonal_filter`, a block-agnostic NIPALS deflation primitive
   shared by `opls_filter` (and a future `O2PLS`).

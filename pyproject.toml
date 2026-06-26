@@ -3,7 +3,7 @@ name = "scikit-opls"
 version = "0.1.0"
 description = "Orthogonal PLS (OPLS / OPLS-DA) with a scikit-learn interface"
 readme = "README.md"
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 dependencies = [
     "joblib>=1.4.0",
     "numpy>=2.5.0",
@@ -29,14 +29,13 @@ dev = [
     "matplotlib>=3.11.0",
     "mdformat>=1.0.0",
     "mdformat-gfm>=1.0.0",
-    "mkdocs-material>=9.5.0",
     "mkdocstrings[python]>=0.26.0",
     "pre-commit>=4.6.0",
-    "pymdown-extensions>=10.0",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
     "pytest-cov>=7.0.0",
     "ruff>=0.15.19",
+    "zensical>=0.0.46",
 ]
 
 [build-system]
@@ -49,6 +48,9 @@ packages = ["src/scikit_opls"]
 [tool.ruff]
 # scratch/ is out of scope (see CLAUDE.md) and never linted.
 extend-exclude = ["scratch"]
+# Lint/format against the support floor, not the local 3.13 interpreter, so
+# pyupgrade-style fixes never introduce 3.13-only syntax.
+target-version = "py312"
 
 [tool.ruff.lint]
 # Encode the scikit-learn coding guidelines explicitly rather than relying on
@@ -85,3 +87,8 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "raise NotImplementedError",
 ]
+
+[tool.pyright]
+# Type-check against the support floor. We develop on 3.13 (see .python-version)
+# but the package supports 3.12+, so pin the analysis to catch 3.13-only APIs.
+pythonVersion = "3.12"
