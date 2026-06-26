@@ -57,5 +57,5 @@ jobs:
           python-version: "3.13"
           enable-cache: true
       - run: uv sync --dev
-      # --strict fails on broken refs / missing docstrings (the doc-build gate).
-      - run: uv run mkdocs build --strict
+      # The docs build is the gate: it fails on broken refs / config errors.
+      - run: uv run zensical build --clean

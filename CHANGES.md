@@ -35,8 +35,8 @@ and default-value changes will be documented here.
 
 ### Added
 
-- MkDocs documentation site (Material + mkdocstrings, numpy docstring style) with
-  a `mkdocs build --strict` CI gate and a `gh-deploy` workflow.
+- Zensical documentation site (`zensical.toml`, mkdocstrings, numpy docstring style)
+  with a `zensical build` CI gate and a GitHub Pages (Actions) deploy workflow.
 
 - `OPLSScoresDisplay` and `SPlotDisplay` plotting classes following scikit-learn's
   Display convention (`from_estimator(...)`, `plot(ax=...)`, `ax_` / `figure_`).
