@@ -47,6 +47,14 @@ def explained_x_variance(
         has zero sum-of-squares. Can slightly exceed 1.0 due to numerical
         floating-point noise.
     """
+    if X.ndim != 2 or scores.ndim != 2 or loadings.ndim != 2:
+        raise ValueError("X, scores and loadings must all be 2D arrays.")
+    if scores.shape[0] != X.shape[0]:
+        raise ValueError("scores must have one row per sample of X.")
+    if loadings.shape[0] != X.shape[1]:
+        raise ValueError("loadings must have one row per feature of X.")
+    if scores.shape[1] != loadings.shape[1]:
+        raise ValueError("scores and loadings must have the same number of components.")
     total = float(np.sum(X**2))
     if total <= 0.0 or scores.shape[1] == 0:
         return 0.0
@@ -71,10 +79,20 @@ def _weighted_vip(
     vip : ndarray of shape (n_features,)
         VIP scores; all-zero when there are no components or zero total variance.
     """
+    if weights.ndim != 2:
+        raise ValueError(f"weights must be 2D, got shape {weights.shape}.")
     n_features, n_components = weights.shape
+    ss = np.asarray(ss_per_component, dtype=np.float64)
+    if ss.shape != (n_components,):
+        raise ValueError(
+            f"ss_per_component must have shape ({n_components},), got {ss.shape}."
+        )
+    if not np.all(np.isfinite(weights)):
+        raise ValueError("weights must be finite.")
+    if not np.all(np.isfinite(ss)):
+        raise ValueError("ss_per_component must be finite.")
     if n_components == 0:
         return np.zeros(n_features)
-    ss = np.asarray(ss_per_component, dtype=np.float64)
     total = float(ss.sum())
     if total <= 0.0:
         return np.zeros(n_features)

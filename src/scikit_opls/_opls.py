@@ -86,7 +86,11 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     x_mean_, x_std_ : ndarray
         Centering/scaling vectors applied to ``X``.
     r2x_, r2x_ortho_, r2y_, rmsee_ : float
-        Training-set fit summaries. For cross-validated Q2 use
+        Training-set fit summaries. ``r2x_`` is the predictive-block reconstruction
+        fraction of the preprocessed ``X``; ``r2x_ortho_`` is the orthogonal-block
+        fraction. These are diagnostic summaries, **not** a guaranteed exact additive
+        partition — do not assume ``r2x_ + r2x_ortho_`` equals the total explained
+        ``X`` variance. For cross-validated Q2 use
         :func:`sklearn.model_selection.cross_val_score`.
         Note: ``r2x_`` is computed from the predictive PLS scores/loadings
         on the filtered ``X`` block. It does not include the removed
@@ -228,6 +232,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         )
         self.r2y_ = float(r2_score(y, y_fit))
         self.rmsee_ = float(root_mean_squared_error(y, y_fit))
+        # Drop any lazily-cached VIP from a previous fit so it cannot go stale
+        # (e.g. wrong length after refitting on a different number of features).
+        for _attr in ("_vip_", "_ortho_vip_"):
+            self.__dict__.pop(_attr, None)
         return self
 
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:

@@ -35,6 +35,34 @@ def test_vip_not_computed_eagerly():
     assert "ortho_vip_" not in model.__dict__
 
 
+def test_vip_cache_cleared_on_refit():
+    """A cached vip_ from a prior fit must not survive a refit on different data."""
+    X1, y1 = _regression_data()
+    model = OPLS(n_components=1, n_orthogonal=2).fit(X1, y1)
+    v1 = model.vip_.copy()
+    assert v1.shape == (X1.shape[1],)
+
+    # Refit on fewer features: stale cache would keep the old length/values.
+    n_half = X1.shape[1] // 2
+    X2 = X1[:, :n_half]
+    model.fit(X2, y1)
+    assert "_vip_" not in model.__dict__  # cache dropped by fit
+    v2 = model.vip_
+    assert v2.shape == (n_half,)
+    assert not np.array_equal(v1, v2)
+
+
+def test_weighted_vip_rejects_bad_shapes_and_nonfinite():
+    with pytest.raises(ValueError, match="weights must be 2D"):
+        _weighted_vip(np.zeros(4), np.zeros(1))
+    with pytest.raises(ValueError, match="ss_per_component must have shape"):
+        _weighted_vip(np.zeros((4, 2)), np.zeros(3))
+    with pytest.raises(ValueError, match="weights must be finite"):
+        _weighted_vip(np.full((4, 2), np.nan), np.ones(2))
+    with pytest.raises(ValueError, match="ss_per_component must be finite"):
+        _weighted_vip(np.zeros((4, 2)), np.array([np.inf, 1.0]))
+
+
 def test_vip_unfitted_raises():
     with pytest.raises(NotFittedError):
         OPLS().vip_
@@ -116,3 +144,15 @@ def test_vip_zero_when_no_components():
 def test_explained_x_variance_empty_block_is_zero():
     X = np.eye(3)
     assert explained_x_variance(X, np.zeros((3, 0)), np.zeros((3, 0))) == 0.0
+
+
+def test_explained_x_variance_shape_guards():
+    X = np.eye(4)  # (4, 4)
+    with pytest.raises(ValueError, match="must all be 2D"):
+        explained_x_variance(X, np.zeros(4), np.zeros((4, 1)))
+    with pytest.raises(ValueError, match="one row per sample"):
+        explained_x_variance(X, np.zeros((3, 1)), np.zeros((4, 1)))
+    with pytest.raises(ValueError, match="one row per feature"):
+        explained_x_variance(X, np.zeros((4, 1)), np.zeros((3, 1)))
+    with pytest.raises(ValueError, match="same number of components"):
+        explained_x_variance(X, np.zeros((4, 2)), np.zeros((4, 1)))
