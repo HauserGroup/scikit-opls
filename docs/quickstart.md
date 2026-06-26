@@ -97,5 +97,10 @@ SPlotDisplay.from_estimator(model, X, component=0)
 permutation_test(OPLS(n_orthogonal=2), X, y)
 ```
 
-!!! warning "Pipeline support in plotting"
-Diagnostic plotting displays (`OPLSScoresDisplay`, `SPlotDisplay`) support `OPLS`, `OPLSDA`, and fitted search meta-estimators (e.g. `GridSearchCV`) wrapping them. They do not support scikit-learn `Pipeline` objects and will raise a `TypeError` if passed. Always pass the `OPLS`, `OPLSDA`, or search meta-estimator directly to the plotting displays.
+!!! note "Pipeline support in plotting"
+Diagnostic plotting displays support `OPLS`, `OPLSDA`, pipelines ending in one,
+and fitted search meta-estimators exposing `best_estimator_` around either shape.
+When passing a pipeline, pass raw `X` as expected by the pipeline. When passing the
+final OPLS step directly, pass the already transformed matrix. For pipeline
+S-plots, points are in the transformed feature space received by the final OPLS
+step.

@@ -14,8 +14,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 from matplotlib.axes import Axes  # noqa: E402
+from sklearn.compose import ColumnTransformer  # noqa: E402
 from sklearn.exceptions import NotFittedError  # noqa: E402
+from sklearn.feature_selection import VarianceThreshold  # noqa: E402
 from sklearn.model_selection import GridSearchCV  # noqa: E402
+from sklearn.pipeline import Pipeline  # noqa: E402
+from sklearn.preprocessing import StandardScaler  # noqa: E402
 
 from scikit_opls import OPLS, OPLSDA  # noqa: E402
 from scikit_opls.plotting import (  # noqa: E402
@@ -162,12 +166,137 @@ def test_splot_display_nan_correlation():
     assert not np.isnan(disp.correlation[1:]).any()
 
 
-def test_plotting_pipeline_raises_type_error():
-    from sklearn.pipeline import Pipeline
+def test_plotting_pipeline_ending_in_opls():
+    X, y = _regression_data()
+    pipe = Pipeline(
+        [
+            ("scale", StandardScaler()),
+            ("opls", OPLS(n_components=1, n_orthogonal=1)),
+        ]
+    ).fit(X, y)
+
+    scores = OPLSScoresDisplay.from_estimator(pipe, X)
+    splot = SPlotDisplay.from_estimator(pipe, X)
+
+    assert scores.t_predictive.shape == (X.shape[0],)
+    assert splot.covariance.shape == (X.shape[1],)
+    plt.close("all")
+
+
+def test_plotting_pipeline_ending_in_oplsda():
+    X, y = _classification_data()
+    pipe = Pipeline(
+        [
+            ("scale", StandardScaler()),
+            ("oplsda", OPLSDA(n_components=1, n_orthogonal=1)),
+        ]
+    ).fit(X, y)
+
+    scores = OPLSScoresDisplay.from_estimator(pipe, X, y=y)
+    splot = SPlotDisplay.from_estimator(pipe, X)
+
+    assert scores.y is not None
+    assert scores.t_predictive.shape == (X.shape[0],)
+    assert splot.covariance.shape == (X.shape[1],)
+    plt.close("all")
+
+
+def test_splot_pipeline_feature_space_matches_transformed_features():
+    X, y = _regression_data()
+    X = X.copy()
+    X[:, 0] = 1.0
+    pipe = Pipeline(
+        [
+            ("select", VarianceThreshold()),
+            ("opls", OPLS(n_components=1, n_orthogonal=1)),
+        ]
+    ).fit(X, y)
+
+    disp = SPlotDisplay.from_estimator(pipe, X)
+
+    assert disp.covariance.shape[0] == pipe[:-1].transform(X).shape[1]
+    assert disp.correlation.shape == disp.covariance.shape
+    plt.close("all")
+
+
+def test_scores_display_search_wrapper_around_pipeline():
+    X, y = _regression_data()
+    search = GridSearchCV(
+        Pipeline(
+            [
+                ("scale", StandardScaler()),
+                ("opls", OPLS(n_components=1)),
+            ]
+        ),
+        {"opls__n_orthogonal": [0, 1]},
+        cv=3,
+    ).fit(X, y)
+
+    disp = OPLSScoresDisplay.from_estimator(search, X)
+
+    assert isinstance(disp, OPLSScoresDisplay)
+    assert disp.t_predictive.shape == (X.shape[0],)
+    plt.close("all")
+
+
+def test_plotting_pipeline_with_dataframe_column_transformer():
+    pd = pytest.importorskip("pandas")
 
     X, y = _regression_data()
-    pipe = Pipeline([("opls", OPLS(n_components=1, n_orthogonal=1))]).fit(X, y)
+    columns = [f"f{i}" for i in range(X.shape[1])]
+    df = pd.DataFrame(X, columns=columns)
+    df["group"] = np.where(y > 0.0, "hi", "lo")
+    pipe = Pipeline(
+        [
+            (
+                "ct",
+                ColumnTransformer(
+                    [("num", StandardScaler(), columns)],
+                    remainder="drop",
+                ),
+            ),
+            ("opls", OPLS(n_components=1, n_orthogonal=1)),
+        ]
+    ).fit(df, y)
+
+    disp = OPLSScoresDisplay.from_estimator(pipe, df)
+
+    assert disp.t_predictive.shape == (df.shape[0],)
+    plt.close("all")
+
+
+def test_plotting_rejects_unsupported_pipeline_shapes():
+    X, y = _regression_data()
+
+    final_search = Pipeline(
+        [
+            ("scale", StandardScaler()),
+            (
+                "search",
+                GridSearchCV(OPLS(n_components=1), {"n_orthogonal": [0, 1]}, cv=3),
+            ),
+        ]
+    ).fit(X, y)
     with pytest.raises(TypeError, match="estimator must be"):
+        SPlotDisplay.from_estimator(final_search, X)
+
+    non_opls_final = Pipeline(
+        [("scale1", StandardScaler()), ("scale2", StandardScaler())]
+    ).fit(X, y)
+    with pytest.raises(TypeError, match="estimator must be"):
+        SPlotDisplay.from_estimator(non_opls_final, X)
+
+
+def test_plotting_unfitted_pipeline_raises_not_fitted():
+    X, _ = _regression_data()
+    pipe = Pipeline(
+        [
+            ("scale", StandardScaler()),
+            ("opls", OPLS(n_components=1, n_orthogonal=1)),
+        ]
+    )
+
+    with pytest.raises(NotFittedError):
         SPlotDisplay.from_estimator(pipe, X)
 
 

@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from sklearn.base import BaseEstimator
+from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_array, check_is_fitted
 
 from scikit_opls._opls import OPLS
@@ -56,17 +57,24 @@ def _validate_component_index(value: object, name: str) -> int:
 
 
 def _unwrap_estimator_and_data(
-    estimator: BaseEstimator, X: NDArray[np.float64]
+    estimator: BaseEstimator, X: ArrayLike, *, ensure_min_samples: int = 1
 ) -> tuple[OPLS, NDArray[np.float64]]:
-    """Unwrap search/meta-estimator wrappers, returning fitted base model and X.
+    """Unwrap wrappers, returning fitted base model and the X seen by that model.
 
-    Accepts ``OPLS``/``OPLSDA`` or a search meta-estimator (e.g. ``GridSearchCV``)
-    wrapping them — a ``Pipeline`` raises a clean ``TypeError``. TODO: if pipeline
-    plotting is ever added, the callers' ``check_array(..., dtype=float64)`` must be
-    dropped so the pipeline's own preprocessing (and any DataFrame column names) runs
-    first, before this unwrap.
+    Accepts ``OPLS``/``OPLSDA``, a pipeline ending in one, or a fitted search
+    meta-estimator exposing ``best_estimator_`` around either shape.
     """
     inner = getattr(estimator, "best_estimator_", estimator)
+
+    if isinstance(inner, Pipeline):
+        check_is_fitted(inner)
+        if len(inner.steps) == 0:
+            raise TypeError("Pipeline must contain at least one step.")
+        final_estimator = inner.steps[-1][1]
+        upstream = inner[:-1]
+        if len(upstream.steps) > 0:
+            X = upstream.transform(X)
+        inner = final_estimator
 
     if isinstance(inner, OPLSDA):
         check_is_fitted(inner)
@@ -75,22 +83,22 @@ def _unwrap_estimator_and_data(
         base = inner
     else:
         raise TypeError(
-            "estimator must be an OPLS, OPLSDA, or a search meta-estimator "
-            "(e.g. GridSearchCV) wrapping them."
+            "estimator must be a fitted OPLS, OPLSDA, Pipeline ending in one, "
+            "or a fitted search meta-estimator wrapping one."
         )
 
     if not isinstance(base, OPLS):
         raise TypeError("estimator.opls_ must be a fitted OPLS instance.")
     check_is_fitted(base)
-    return base, X
+    return base, check_array(X, dtype=np.float64, ensure_min_samples=ensure_min_samples)
 
 
 class OPLSScoresDisplay:
     """Predictive vs orthogonal score scatter for an OPLS-family model.
 
-    Works for :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` and a fitted
-    search meta-estimator (e.g. :class:`~sklearn.model_selection.GridSearchCV`)
-    wrapping one. Construct with :meth:`from_estimator`.
+    Works for :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, a pipeline
+    ending in one, or a fitted search meta-estimator exposing ``best_estimator_``
+    around either shape. Construct with :meth:`from_estimator`.
 
     Parameters
     ----------
@@ -153,8 +161,10 @@ class OPLSScoresDisplay:
 
         Parameters
         ----------
-        estimator : OPLS, OPLSDA or search meta-estimator
-            A fitted estimator.
+        estimator : OPLS, OPLSDA, Pipeline or search meta-estimator
+            A fitted estimator. When passing a pipeline, pass raw ``X`` as expected
+            by that pipeline. When passing the final OPLS-family step directly, pass
+            the already transformed matrix seen by that step.
         X : array-like of shape (n_samples, n_features)
             Samples to project.
         y : array-like of shape (n_samples,), default=None
@@ -177,14 +187,13 @@ class OPLSScoresDisplay:
         orthogonal_component = _validate_component_index(
             orthogonal_component, "orthogonal_component"
         )
-        X_arr = check_array(X, dtype=np.float64)
+        base, X_trans = _unwrap_estimator_and_data(estimator, X)
         if y is None:
             y_arr = None
         else:
             y_arr = np.asarray(y).ravel()
-            if y_arr.shape[0] != X_arr.shape[0]:
+            if y_arr.shape[0] != X_trans.shape[0]:
                 raise ValueError("y must have the same length as X.")
-        base, X_trans = _unwrap_estimator_and_data(estimator, X_arr)
 
         # Bound against the *fitted* score dimensions (robust to orthogonal
         # truncation; independent of constructor parameters).
@@ -273,9 +282,14 @@ class SPlotDisplay:
         is provided, the covariance and correlation are computed after centering that
         subset by its own mean.
 
-    Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` or a fitted
-    search meta-estimator (e.g. :class:`~sklearn.model_selection.GridSearchCV`)
-    wrapping one. Construct with :meth:`from_estimator`.
+        When ``estimator`` is a pipeline, the S-plot is computed in the feature
+        space received by the final OPLS-family step after upstream transformations.
+        Points may therefore represent transformed features rather than original
+        input columns.
+
+    Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, a pipeline
+    ending in one, or a fitted search meta-estimator exposing ``best_estimator_``
+    around either shape. Construct with :meth:`from_estimator`.
 
     Parameters
     ----------
@@ -322,8 +336,10 @@ class SPlotDisplay:
 
         Parameters
         ----------
-        estimator : OPLS, OPLSDA or search meta-estimator
-            A fitted estimator.
+        estimator : OPLS, OPLSDA, Pipeline or search meta-estimator
+            A fitted estimator. When passing a pipeline, pass raw ``X`` as expected
+            by that pipeline. When passing the final OPLS-family step directly, pass
+            the already transformed matrix seen by that step.
         X : array-like of shape (n_samples, n_features)
             Samples to project.
         component : int, default=0
@@ -337,8 +353,7 @@ class SPlotDisplay:
             The plotted display, with ``ax_`` / ``figure_`` set.
         """
         component = _validate_component_index(component, "component")
-        X = check_array(X, dtype=np.float64, ensure_min_samples=2)
-        base, X_trans = _unwrap_estimator_and_data(estimator, X)
+        base, X_trans = _unwrap_estimator_and_data(estimator, X, ensure_min_samples=2)
 
         n_pred = base.x_scores_.shape[1]
         if component >= n_pred:
