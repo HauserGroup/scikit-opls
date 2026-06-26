@@ -21,6 +21,9 @@ and default-value changes will be documented here.
 
 ### Changed (breaking, pre-1.0)
 
+- Renamed the fitted attribute `rmsee_` to `rmse_` (uncorrected training root mean
+  squared error). The old name implied a degrees-of-freedom-corrected calibration
+  error, which it never computed; no alias is kept (pre-1.0).
 - Removed `OPLSDA`'s `probability` parameter and its in-sample Platt calibration
   (`predict_proba`, `raw_score`). `OPLSDA` is now a clean score classifier:
   `decision_function` returns the raw signed OPLS regression output and `predict`

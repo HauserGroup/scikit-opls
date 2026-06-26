@@ -83,8 +83,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         The fitted predictive engine.
     x_mean_, x_std_ : ndarray
         Centering/scaling vectors applied to ``X``.
-    r2x_, r2x_ortho_, r2y_, rmsee_ : float
-        Training-set fit summaries. ``r2x_`` is computed from the predictive PLS
+    r2x_, r2x_ortho_, r2y_, rmse_ : float
+        Training-set fit summaries. ``rmse_`` is the uncorrected training root mean
+        squared error (no degrees-of-freedom correction). ``r2x_`` is computed from
+        the predictive PLS
         scores/loadings on the filtered ``X`` block, relative to the preprocessed
         original ``X``. ``r2x_ortho_`` is computed from the removed orthogonal
         scores/loadings. These are diagnostic summaries, not a guaranteed exact
@@ -126,7 +128,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     r2x_: float
     r2x_ortho_: float
     r2y_: float
-    rmsee_: float
+    rmse_: float
     _n_features_out: int
 
     _parameter_constraints: dict = {
@@ -233,7 +235,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Xs, self.x_ortho_scores_, self.x_ortho_loadings_
         )
         self.r2y_ = float(r2_score(y, y_fit))
-        self.rmsee_ = float(root_mean_squared_error(y, y_fit))
+        self.rmse_ = float(root_mean_squared_error(y, y_fit))
         return self
 
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
