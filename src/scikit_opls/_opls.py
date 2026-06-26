@@ -36,9 +36,9 @@ from sklearn.utils.validation import (
     validate_data,
 )
 
-from ._inspection import explained_x_variance, orthogonal_vip, predictive_vip
-from ._orthogonal import apply_orthogonal_filter, opls_filter
-from ._preprocessing import (
+from scikit_opls._inspection import explained_x_variance, orthogonal_vip, predictive_vip
+from scikit_opls._orthogonal import apply_orthogonal_filter, opls_filter
+from scikit_opls._preprocessing import (
     VALID_SCALING,
     _has_nonzero_variation,
     apply_scaling,

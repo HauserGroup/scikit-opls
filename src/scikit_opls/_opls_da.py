@@ -31,8 +31,8 @@ from sklearn.utils.multiclass import (
 )
 from sklearn.utils.validation import check_is_fitted, validate_data
 
-from ._opls import OPLS
-from ._preprocessing import VALID_SCALING, _has_nonzero_variation
+from scikit_opls._opls import OPLS
+from scikit_opls._preprocessing import VALID_SCALING, _has_nonzero_variation
 
 
 class OPLSDA(ClassifierMixin, BaseEstimator):

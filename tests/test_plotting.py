@@ -141,39 +141,13 @@ def test_splot_display_nan_correlation():
     assert not np.isnan(disp.correlation[1:]).any()
 
 
-def test_plotting_pipeline_unwrapping():
+def test_plotting_pipeline_raises_type_error():
     from sklearn.pipeline import Pipeline
 
     X, y = _regression_data()
     pipe = Pipeline([("opls", OPLS(n_components=1, n_orthogonal=1))]).fit(X, y)
-    disp = SPlotDisplay.from_estimator(pipe, X)
-    assert isinstance(disp, SPlotDisplay)
-
-    # Nested pipeline under GridSearchCV
-    gs = GridSearchCV(pipe, {"opls__n_orthogonal": [0, 1]}, cv=3).fit(X, y)
-    disp2 = SPlotDisplay.from_estimator(gs, X)
-    assert isinstance(disp2, SPlotDisplay)
-
-
-def test_plotting_pipeline_with_transforms():
-    from sklearn.pipeline import Pipeline
-    from sklearn.preprocessing import StandardScaler
-
-    X, y = _regression_data(n_features=6)
-
-    # Preprocessing step scales X, OPLS step gets the scaled X.
-    pipe = Pipeline(
-        [
-            ("scale", StandardScaler()),
-            ("opls", OPLS(n_components=1, n_orthogonal=1)),
-        ]
-    ).fit(X, y)
-
-    # from_estimator should successfully process X through standard scaler
-    # before performing the OPLS calculations for SPlotDisplay.
-    disp = SPlotDisplay.from_estimator(pipe, X)
-    assert isinstance(disp, SPlotDisplay)
-    assert disp.covariance.shape == (6,)
+    with pytest.raises(TypeError, match="estimator must be"):
+        SPlotDisplay.from_estimator(pipe, X)
 
 
 def test_import_without_matplotlib(monkeypatch):

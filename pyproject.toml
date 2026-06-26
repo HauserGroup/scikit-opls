@@ -70,9 +70,9 @@ convention = "numpy"
 "src/scikit_opls/__init__.py" = ["D104"]
 
 [tool.ruff.lint.isort]
-# Intra-package imports are deliberately relative (e.g. `from ._opls import OPLS`),
-# the common convention for an installable third-party package. Ruff's isort
-# enforces ordering; `known-first-party` keeps the package grouped correctly.
+# Intra-package imports are absolute (e.g. `from scikit_opls._opls import OPLS`),
+# per the scikit-learn developer guide. `known-first-party` keeps the package
+# grouped correctly and Ruff's isort enforces ordering.
 known-first-party = ["scikit_opls"]
 
 [tool.coverage.run]

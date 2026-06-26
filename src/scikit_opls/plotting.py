@@ -22,8 +22,8 @@ from sklearn.base import BaseEstimator
 from sklearn.utils._optional_dependencies import check_matplotlib_support
 from sklearn.utils.validation import check_array
 
-from ._opls import OPLS
-from ._preprocessing import apply_scaling
+from scikit_opls._opls import OPLS
+from scikit_opls._preprocessing import apply_scaling
 
 if TYPE_CHECKING:
     import matplotlib.axes
@@ -36,24 +36,8 @@ _EPS = np.finfo(np.float64).eps
 def _unwrap_estimator_and_data(
     estimator: BaseEstimator, X: ArrayLike
 ) -> tuple[OPLS, NDArray[np.float64]]:
-    """Unwrap pipeline/search wrappers, returning base model and transformed X."""
+    """Unwrap search/meta-estimator wrappers, returning base model and transformed X."""
     inner = getattr(estimator, "best_estimator_", estimator)
-    if hasattr(inner, "steps") and hasattr(inner, "named_steps"):
-        opls_idx = -1
-        steps = getattr(inner, "steps")
-        for idx, (_, step) in enumerate(steps):
-            unwrapped_step = getattr(step, "best_estimator_", step)
-            if hasattr(unwrapped_step, "transform_orthogonal") or hasattr(
-                unwrapped_step, "opls_"
-            ):
-                opls_idx = idx
-                break
-        if opls_idx != -1:
-            X_trans = X
-            for i in range(opls_idx):
-                transform_fn = getattr(steps[i][1], "transform")
-                X_trans = transform_fn(X_trans)
-            return _unwrap_estimator_and_data(steps[opls_idx][1], X_trans)
 
     if hasattr(inner, "opls_"):
         opls_attr = getattr(inner, "opls_")
@@ -63,7 +47,7 @@ def _unwrap_estimator_and_data(
     if isinstance(inner, OPLS):
         return inner, np.asarray(X, dtype=np.float64)
 
-    raise TypeError("estimator must be an OPLS, OPLSDA, or a pipeline containing them.")
+    raise TypeError("estimator must be an OPLS, OPLSDA, or GridSearchCV wrapping them.")
 
 
 class OPLSScoresDisplay:
