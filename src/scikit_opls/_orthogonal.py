@@ -14,9 +14,6 @@ import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from sklearn.exceptions import ConvergenceWarning
 
-_EPS = np.finfo(np.float64).eps
-_TOL = np.sqrt(_EPS)
-
 
 @dataclass
 class OrthogonalComponents:

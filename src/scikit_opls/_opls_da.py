@@ -148,7 +148,9 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
                     "OPLSDA produced constant raw scores; "
                     "classification/calibration is undefined."
                 )
-            self._platt = LogisticRegression().fit(raw, y_encoded)
+            # max_iter raised from the default 100: near-separable 1-D raw scores can
+            # otherwise emit a ConvergenceWarning on small datasets.
+            self._platt = LogisticRegression(max_iter=1000).fit(raw, y_encoded)
         return self
 
     def _raw_scores(self, X: ArrayLike) -> NDArray[np.float64]:
