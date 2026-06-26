@@ -108,6 +108,12 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     Classic OPLS uses ``n_components=1``; ``n_orthogonal=0`` reduces to ordinary
     ``PLSRegression``, and ``n_components>1`` is orthogonal-filtered multi-component
     PLS (interpret score plots / S-plots component-wise).
+
+    Constant and near-constant columns are retained rather than removed, preserving
+    alignment with the input feature matrix, feature names, VIP arrays and
+    ``coef_filtered_``. To drop them, prepend
+    :class:`~sklearn.feature_selection.VarianceThreshold` in a
+    :class:`~sklearn.pipeline.Pipeline`.
     """
 
     n_features_in_: int
@@ -314,11 +320,13 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
     @property
     def vip_(self) -> NDArray[np.float64]:
-        """Predictive VIP per feature (Galindo-Prieto 2014); ndarray (n_features,).
+        """Predictive VIP per feature; ndarray (n_features,).
 
-        Variable Importance in Projection of the predictive block, normalised so
+        Standard PLS Variable Importance in Projection computed from the predictive
+        model fitted on the orthogonally filtered ``X``, normalised so
         ``sum(vip_**2) == n_features``. Computed lazily on first access from the
-        fitted weights.
+        fitted weights. Defined in the style of Galindo-Prieto et al. (2014); not
+        intended to reproduce ropls VIP values exactly.
         """
         check_is_fitted(self)
         if not hasattr(self, "_vip_"):
