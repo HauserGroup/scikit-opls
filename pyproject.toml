@@ -7,7 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "joblib>=1.4.0",
     "numpy>=2.5.0",
-    "pandas>=3.0.3",
     "scikit-learn>=1.9.0",
     "scipy>=1.18.0",
 ]
@@ -30,6 +29,7 @@ dev = [
     "mdformat>=1.0.0",
     "mdformat-gfm>=1.0.0",
     "mkdocstrings[python]>=0.26.0",
+    "pandas>=3.0.3",
     "pandas-stubs>=3.0.3.260530",
     "pre-commit>=4.6.0",
     "pyright>=1.1.411",
