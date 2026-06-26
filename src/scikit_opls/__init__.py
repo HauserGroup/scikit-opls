@@ -1,7 +1,4 @@
-"""Scikit-OPLS: Orthogonal Projection to Latent Structures (OPLS) for scikit-learn.
-
-This package provides OPLS and OPLS-DA algorithms compatible with the scikit-learn API.
-"""
+"""Scikit-OPLS: Orthogonal Projections to Latent Structures for scikit-learn."""
 
 from scikit_opls._opls import OPLS
 from scikit_opls._opls_da import OPLSDA

@@ -44,8 +44,9 @@ def explained_x_variance(
     -------
     fraction : float
         Captured nominal fraction; ``0.0`` if the block is empty or ``X``
-        has zero sum-of-squares. Can slightly exceed 1.0 due to numerical
-        floating-point noise.
+        has zero sum-of-squares. Can exceed 1.0 if the supplied scores/loadings do
+        not form an orthogonal sum-of-squares decomposition; callers should treat
+        it as a diagnostic summary.
     """
     if X.ndim != 2 or scores.ndim != 2 or loadings.ndim != 2:
         raise ValueError("X, scores and loadings must all be 2D arrays.")
@@ -92,10 +93,10 @@ def _weighted_vip(
     if not np.all(np.isfinite(ss)):
         raise ValueError("ss_per_component must be finite.")
     if n_components == 0:
-        return np.zeros(n_features)
+        return np.zeros(n_features, dtype=np.float64)
     total = float(ss.sum())
     if total <= 0.0:
-        return np.zeros(n_features)
+        return np.zeros(n_features, dtype=np.float64)
     norms = np.linalg.norm(weights, axis=0, keepdims=True)
     unit = weights / np.where(norms < _EPS, 1.0, norms)
     contributions = (unit**2) @ ss
@@ -123,8 +124,34 @@ def predictive_vip(
     vip : ndarray of shape (n_features,)
         Predictive VIP scores.
     """
-    y_loadings = np.atleast_2d(y_loadings)
-    ssy = np.sum(y_loadings**2, axis=0) * np.sum(x_scores**2, axis=0)
+    if x_weights.ndim != 2:
+        raise ValueError(f"x_weights must be 2D, got shape {x_weights.shape}.")
+    if x_scores.ndim != 2:
+        raise ValueError(f"x_scores must be 2D, got shape {x_scores.shape}.")
+
+    _, n_components = x_weights.shape
+    if x_scores.shape[1] != n_components:
+        raise ValueError(
+            "x_scores must have the same number of components as x_weights."
+        )
+
+    y_loadings = np.asarray(y_loadings, dtype=np.float64)
+    if y_loadings.ndim == 1:
+        if y_loadings.shape != (n_components,):
+            raise ValueError(
+                f"y_loadings must have shape ({n_components},), got {y_loadings.shape}."
+            )
+        y_loadings_2d = y_loadings.reshape(1, -1)
+    elif y_loadings.ndim == 2:
+        if y_loadings.shape[1] != n_components:
+            raise ValueError(
+                "y_loadings must have one column per predictive component."
+            )
+        y_loadings_2d = y_loadings
+    else:
+        raise ValueError(f"y_loadings must be 1D or 2D, got shape {y_loadings.shape}.")
+
+    ssy = np.sum(y_loadings_2d**2, axis=0) * np.sum(x_scores**2, axis=0)
     return _weighted_vip(x_weights, ssy)
 
 
@@ -149,5 +176,29 @@ def orthogonal_vip(
     vip : ndarray of shape (n_features,)
         Orthogonal VIP scores.
     """
+    if x_ortho_weights.ndim != 2:
+        raise ValueError(
+            f"x_ortho_weights must be 2D, got shape {x_ortho_weights.shape}."
+        )
+    if x_ortho_scores.ndim != 2:
+        raise ValueError(
+            f"x_ortho_scores must be 2D, got shape {x_ortho_scores.shape}."
+        )
+    if x_ortho_loadings.ndim != 2:
+        raise ValueError(
+            f"x_ortho_loadings must be 2D, got shape {x_ortho_loadings.shape}."
+        )
+
+    n_features, n_components = x_ortho_weights.shape
+    if x_ortho_scores.shape[1] != n_components:
+        raise ValueError(
+            "x_ortho_scores must have the same number of components as x_ortho_weights."
+        )
+    if x_ortho_loadings.shape != (n_features, n_components):
+        raise ValueError(
+            "x_ortho_loadings must have shape "
+            f"({n_features}, {n_components}), got {x_ortho_loadings.shape}."
+        )
+
     ssx = np.sum(x_ortho_scores**2, axis=0) * np.sum(x_ortho_loadings**2, axis=0)
     return _weighted_vip(x_ortho_weights, ssx)

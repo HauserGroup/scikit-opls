@@ -13,12 +13,16 @@ def _has_nonzero_variation(
     *,
     axis: int | None = None,
 ) -> bool:
-    """Whether ``values`` vary beyond float64 cancellation at their own magnitude.
+    """Whether ``values`` contain resolvable non-constant variation.
 
-    Scale- and offset-invariant: the spread (max abs deviation from the mean) is
-    compared to the float64 precision floor relative to the data magnitude, so it
-    accepts both tiny-scale (``y * 1e-15``) and large-offset (``1e12 + noise``) data
-    while still rejecting a genuinely constant input.
+    The check is scale-aware and offset-aware: variation is compared with the
+    float64 precision floor at the magnitude of the data. This accepts tiny-scale
+    data and large-offset data when their variation is resolvable in float64,
+    while rejecting genuinely constant inputs.
+
+    When ``axis`` is given, the data are centered along that axis before measuring
+    spread, but the function still returns a single boolean indicating whether any
+    residual variation exists.
     """
     arr = np.asarray(values, dtype=np.float64)
     if arr.size == 0:
