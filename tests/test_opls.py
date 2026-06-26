@@ -308,3 +308,29 @@ def test_opls_n_components_exceeds_post_filter_rank_raises():
         ValueError, match="exceeds the numerical rank of X after orthogonal filtering"
     ):
         OPLS(n_components=3, n_orthogonal=1).fit(X, y)
+
+
+def test_filter_transform_matches_predict_path():
+    """predict(X) == pls_.predict(filter_transform(X)), the matrix fed to the engine."""
+    X, y = _regression_data(seed=3)
+    model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
+    Xf = model.filter_transform(X)
+    assert_allclose(model.pls_.predict(Xf).ravel(), model.predict(X), atol=1e-10)
+
+
+def test_filter_transform_zero_orthogonal_is_preprocessed_x():
+    """With n_orthogonal=0 the filter is a no-op: just the preprocessed X."""
+    from scikit_opls._preprocessing import apply_scaling
+
+    X, y = _regression_data(seed=4)
+    model = OPLS(n_components=1, n_orthogonal=0).fit(X, y)
+    expected = apply_scaling(np.asarray(X, dtype=float), model.x_mean_, model.x_std_)
+    assert_allclose(model.filter_transform(X), expected, atol=1e-12)
+
+
+def test_filter_transform_requires_fit():
+    from sklearn.exceptions import NotFittedError
+
+    X, _ = _regression_data(seed=5)
+    with pytest.raises(NotFittedError):
+        OPLS().filter_transform(X)

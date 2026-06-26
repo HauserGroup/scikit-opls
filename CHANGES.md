@@ -56,6 +56,11 @@ and default-value changes will be documented here.
 
 ### Added
 
+- `OPLS.filter_transform(X)` returns the preprocessed, orthogonal-filtered `X`
+  actually passed to the predictive PLS engine (so
+  `pls_.predict(filter_transform(X))` matches `predict(X)`); useful for diagnostics
+  and downstream modelling.
+
 - Zensical documentation site (`zensical.toml`, mkdocstrings, numpy docstring style)
   with a `zensical build` CI gate and a GitHub Pages (Actions) deploy workflow.
 

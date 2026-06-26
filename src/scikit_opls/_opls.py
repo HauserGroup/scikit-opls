@@ -290,6 +290,28 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         check_is_fitted(self)
         return self._filter(X)[1]
 
+    def filter_transform(self, X: ArrayLike) -> NDArray[np.float64]:
+        """Return ``X`` after preprocessing and orthogonal filtering.
+
+        This is the matrix actually passed to the predictive PLS engine, so
+        ``self.pls_.predict(self.filter_transform(X))`` matches ``self.predict(X)``
+        (up to output shape). The result is in the preprocessed, orthogonal-filtered
+        space, **not** on the raw input scale. With ``n_orthogonal=0`` it is just the
+        preprocessed ``X``.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to preprocess and filter.
+
+        Returns
+        -------
+        X_filtered : ndarray of shape (n_samples, n_features)
+            Preprocessed ``X`` with the fitted orthogonal variation removed.
+        """
+        check_is_fitted(self)
+        return self._filter(X)[0]
+
     @property
     def vip_(self) -> NDArray[np.float64]:
         """Predictive VIP per feature (Galindo-Prieto 2014); ndarray (n_features,).
