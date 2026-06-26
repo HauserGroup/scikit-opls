@@ -10,7 +10,7 @@ from sklearn.utils import get_tags
 
 from scikit_opls import OPLS, OPLSDA
 
-from .test_opls import _regression_data
+from ._data import make_regression_data as _regression_data
 
 
 @pytest.mark.parametrize("bad", [0, -1, 1.5, True, False, "x"])

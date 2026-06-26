@@ -200,6 +200,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
                 "reduce n_orthogonal."
             )
 
+        # Validate the numerical rank of the actual matrix passed to PLSRegression.
         rank_filtered = np.linalg.matrix_rank(X_filtered)
         if self.n_components > rank_filtered:
             raise ValueError(

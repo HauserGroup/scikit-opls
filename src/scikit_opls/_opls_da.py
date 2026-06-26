@@ -6,7 +6,8 @@ metabolomics. The estimator wraps an internal :class:`~scikit_opls.OPLS`
 (composition, so the regressor and classifier mixins never collide) and adds class
 encoding. ``decision_function`` exposes the raw signed OPLS regression output, so
 calibrated probabilities are available — cross-fitted, not in-sample — via
-:class:`~sklearn.calibration.CalibratedClassifierCV`.
+:class:`~sklearn.calibration.CalibratedClassifierCV` when each class has enough
+samples for the chosen calibration CV split.
 """
 
 # See _opls.py: scikit-learn's validate_data is under-typed; suppress the
@@ -37,7 +38,8 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
     Parameters mirror :class:`~scikit_opls.OPLS`. ``decision_function`` returns the
     raw signed OPLS regression output (positive favours ``classes_[1]``) and
     ``predict`` returns class labels from its sign. For class probabilities, wrap in
-    :class:`~sklearn.calibration.CalibratedClassifierCV` (cross-fitted, robust).
+    :class:`~sklearn.calibration.CalibratedClassifierCV` (cross-fitted, robust)
+    when each class has enough samples for the chosen calibration CV split.
 
     Attributes
     ----------

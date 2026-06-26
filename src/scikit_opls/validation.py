@@ -77,6 +77,11 @@ class PermutationResult:
 def _fitted_r2y(fitted: BaseEstimator) -> float:
     if hasattr(fitted, "r2y_"):
         return float(getattr(fitted, "r2y_"))
+    if hasattr(fitted, "cv_results_") and not hasattr(fitted, "best_estimator_"):
+        raise TypeError(
+            "Search meta-estimators must use refit=True so permutation_test can "
+            "access best_estimator_."
+        )
     if hasattr(fitted, "best_estimator_"):
         return _fitted_r2y(getattr(fitted, "best_estimator_"))
     raise TypeError(
@@ -172,8 +177,13 @@ def permutation_test(
     X = check_array(X, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64).ravel()
     check_consistent_length(X, y)
-    if len(y) < 2:
-        raise ValueError("permutation_test requires at least 2 samples.")
+    if not np.all(np.isfinite(y)):
+        raise ValueError("y must contain only finite values.")
+    if len(y) < 3:
+        raise ValueError(
+            "permutation_test requires at least 3 samples so each CV training "
+            "fold can contain at least 2 samples."
+        )
 
     if cv is None:
         estimator_cv = getattr(estimator, "cv", None)

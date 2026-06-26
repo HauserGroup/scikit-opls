@@ -19,6 +19,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+from scipy import sparse
 from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
 from sklearn.utils.validation import check_array, check_is_fitted
@@ -64,6 +65,11 @@ def _unwrap_estimator_and_data(
     Accepts ``OPLS``/``OPLSDA``, a pipeline ending in one, or a fitted search
     meta-estimator exposing ``best_estimator_`` around either shape.
     """
+    if hasattr(estimator, "cv_results_") and not hasattr(estimator, "best_estimator_"):
+        raise TypeError(
+            "Search meta-estimators must be fitted with refit=True so plotting "
+            "can use best_estimator_."
+        )
     inner = getattr(estimator, "best_estimator_", estimator)
 
     if isinstance(inner, Pipeline):
@@ -92,6 +98,12 @@ def _unwrap_estimator_and_data(
     if not isinstance(base, OPLS):
         raise TypeError("estimator.opls_ must be a fitted OPLS instance.")
     check_is_fitted(base)
+    if sparse.issparse(X):
+        raise TypeError(
+            "Input to OPLS plotting is sparse, but plotting requires a dense "
+            "matrix. If it came from a Pipeline, add a densifying transformer "
+            "before the final OPLS step."
+        )
     return base, check_array(X, dtype=np.float64, ensure_min_samples=ensure_min_samples)
 
 

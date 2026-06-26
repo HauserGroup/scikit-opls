@@ -89,12 +89,40 @@ def test_permutation_test_n_permutations_type_check():
         permutation_test(OPLS(), X, y, n_permutations=True)
 
 
-def test_permutation_test_requires_at_least_two_samples():
-    X = np.ones((1, 3))
-    y = np.array([1.0])
-
-    with pytest.raises(ValueError, match="at least 2 samples"):
+@pytest.mark.parametrize(
+    ("X", "y"),
+    [
+        (np.ones((1, 3)), np.array([1.0])),
+        (np.array([[0.0, 1.0], [1.0, 0.0]]), np.array([0.0, 1.0])),
+    ],
+)
+def test_permutation_test_requires_at_least_three_samples(X, y):
+    with pytest.raises(ValueError, match="at least 3 samples"):
         permutation_test(OPLS(), X, y, n_permutations=1)
+
+
+def test_permutation_test_rejects_nonfinite_y():
+    X, y = _regression_data()
+    y = y.copy()
+    y[0] = np.nan
+
+    with pytest.raises(ValueError, match="y must contain only finite values"):
+        permutation_test(OPLS(), X, y, n_permutations=1)
+
+
+def test_permutation_test_search_refit_false_raises_clear_error():
+    from sklearn.model_selection import GridSearchCV
+
+    X, y = _regression_data()
+    search = GridSearchCV(
+        OPLS(),
+        {"n_orthogonal": [0, 1]},
+        cv=3,
+        refit=False,
+    )
+
+    with pytest.raises(TypeError, match="refit=True"):
+        permutation_test(search, X, y, n_permutations=1)
 
 
 def test_safe_r2_score_flattens_and_validates_shape():

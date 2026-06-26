@@ -15,7 +15,7 @@ from scikit_opls._inspection import (
     predictive_vip,
 )
 
-from .test_opls import _regression_data
+from ._data import make_regression_data as _regression_data
 
 
 def test_metrics_present_and_sane():
@@ -69,6 +69,8 @@ def test_weighted_vip_rejects_bad_shapes_and_nonfinite():
         _weighted_vip(np.full((4, 2), np.nan), np.ones(2))
     with pytest.raises(ValueError, match="ss_per_component must be finite"):
         _weighted_vip(np.zeros((4, 2)), np.array([np.inf, 1.0]))
+    with pytest.raises(ValueError, match="ss_per_component must be non-negative"):
+        _weighted_vip(np.ones((3, 2)), np.array([1.0, -0.5]))
 
 
 def test_predictive_vip_rejects_bad_shapes():

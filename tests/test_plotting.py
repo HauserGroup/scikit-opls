@@ -14,6 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 from matplotlib.axes import Axes  # noqa: E402
+from scipy import sparse  # noqa: E402
 from sklearn.calibration import CalibratedClassifierCV  # noqa: E402
 from sklearn.compose import ColumnTransformer  # noqa: E402
 from sklearn.exceptions import NotFittedError  # noqa: E402
@@ -21,7 +22,10 @@ from sklearn.feature_selection import VarianceThreshold  # noqa: E402
 from sklearn.model_selection import GridSearchCV  # noqa: E402
 from sklearn.multiclass import OneVsRestClassifier  # noqa: E402
 from sklearn.pipeline import Pipeline  # noqa: E402
-from sklearn.preprocessing import StandardScaler  # noqa: E402
+from sklearn.preprocessing import (
+    FunctionTransformer,  # noqa: E402
+    StandardScaler,  # noqa: E402
+)
 
 from scikit_opls import OPLS, OPLSDA  # noqa: E402
 from scikit_opls.plotting import (  # noqa: E402
@@ -287,6 +291,35 @@ def test_plotting_rejects_unsupported_pipeline_shapes():
     ).fit(X, y)
     with pytest.raises(TypeError, match="estimator must be"):
         SPlotDisplay.from_estimator(non_opls_final, X)
+
+
+def test_plotting_search_refit_false_raises_clear_error():
+    X, y = _regression_data()
+    search = GridSearchCV(
+        OPLS(n_components=1),
+        {"n_orthogonal": [0, 1]},
+        cv=3,
+        refit=False,
+    ).fit(X, y)
+
+    with pytest.raises(TypeError, match="refit=True"):
+        SPlotDisplay.from_estimator(search, X)
+
+
+def test_plotting_rejects_sparse_pipeline_output():
+    X, y = _regression_data()
+    pipe = Pipeline(
+        [
+            ("sparse", FunctionTransformer(sparse.csr_matrix)),
+            ("opls", OPLS(n_components=1, n_orthogonal=0)),
+        ]
+    )
+    # Fit the final estimator on dense data, then force sparse upstream output
+    # only for plotting-time unwrapping.
+    pipe.steps[-1] = ("opls", OPLS(n_components=1, n_orthogonal=0).fit(X, y))
+
+    with pytest.raises(TypeError, match="plotting is sparse"):
+        SPlotDisplay.from_estimator(pipe, X)
 
 
 def test_plotting_rejects_unsupported_meta_classifiers():

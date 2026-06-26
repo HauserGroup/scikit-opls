@@ -10,7 +10,7 @@ from scikit_opls import OPLS
 from scikit_opls._preprocessing import apply_scaling, compute_scaling
 from scikit_opls._utils import _has_nonzero_variation
 
-from .test_opls import _regression_data
+from ._data import make_regression_data as _regression_data
 
 
 @pytest.mark.parametrize("mode", ["none", "center", "pareto", "standard"])
@@ -117,6 +117,11 @@ def test_has_nonzero_variation_axis0_any_column_varies():
     X[:, 1] = np.arange(5)
 
     assert _has_nonzero_variation(X, axis=0)
+
+
+@pytest.mark.parametrize("bad", [np.nan, np.inf])
+def test_has_nonzero_variation_nonfinite_returns_false(bad):
+    assert not _has_nonzero_variation([1.0, bad, 2.0])
 
 
 def test_fit_robust_to_tiny_scale_and_large_offset():

@@ -30,6 +30,14 @@ def test_reduces_to_plsregression(n_components):
     assert_allclose(np.abs(opls.transform(X)), np.abs(pls.transform(X)), atol=1e-9)
 
 
+def test_does_not_expose_raw_coef_alias():
+    X, y = _regression_data()
+    model = OPLS(n_orthogonal=1).fit(X, y)
+
+    assert hasattr(model, "coef_filtered_")
+    assert not hasattr(model, "coef_")
+
+
 def test_predict_shape_matches_y_ndim():
     X, y = _regression_data()
     pred_1d = OPLS(n_orthogonal=1).fit(X, y).predict(X)
@@ -237,6 +245,21 @@ def test_opls_large_offset_small_variation_does_not_raise():
     y = rng.normal(size=30)
     # This should succeed since variance is normal, despite a huge offset
     OPLS(scale="center", n_orthogonal=0).fit(X, y)
+
+
+def test_opls_rank_check_allows_near_collinear_full_rank_data():
+    rng = np.random.default_rng(0)
+    z = rng.normal(size=(30, 1))
+    X = np.hstack(
+        [
+            z,
+            z + 1e-8 * rng.normal(size=(30, 1)),
+            rng.normal(size=(30, 1)),
+        ]
+    )
+    y = rng.normal(size=30)
+
+    OPLS(n_components=2, n_orthogonal=0).fit(X, y)
 
 
 def test_opls_multi_component_fit_and_shapes():

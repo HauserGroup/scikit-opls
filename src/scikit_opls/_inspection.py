@@ -92,6 +92,9 @@ def _weighted_vip(
         raise ValueError("weights must be finite.")
     if not np.all(np.isfinite(ss)):
         raise ValueError("ss_per_component must be finite.")
+    if np.any(ss < -_EPS):
+        raise ValueError("ss_per_component must be non-negative.")
+    ss = np.maximum(ss, 0.0)
     if n_components == 0:
         return np.zeros(n_features, dtype=np.float64)
     total = float(ss.sum())

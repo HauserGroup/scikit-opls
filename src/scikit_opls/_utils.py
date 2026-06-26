@@ -27,6 +27,8 @@ def _has_nonzero_variation(
     arr = np.asarray(values, dtype=np.float64)
     if arr.size == 0:
         return False
+    if not np.all(np.isfinite(arr)):
+        return False
     centered = arr - np.mean(arr, axis=axis, keepdims=True)
     spread = float(np.max(np.abs(centered)))
     scale = float(np.max(np.abs(arr)))

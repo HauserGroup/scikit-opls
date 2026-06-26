@@ -93,7 +93,8 @@ clf.predict(X)            # class labels
 clf.decision_function(X)  # raw signed OPLS regression output
 clf.opls_.transform(X)    # predictive scores of the underlying OPLS model
 
-# Probabilities: wrap in a cross-fitted calibrator (avoids in-sample overconfidence)
+# Probabilities: wrap in a cross-fitted calibrator when each class has enough
+# samples for the chosen calibration CV split.
 from sklearn.calibration import CalibratedClassifierCV
 CalibratedClassifierCV(clf, cv=5).fit(X, y).predict_proba(X)
 ```

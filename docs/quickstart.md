@@ -66,7 +66,8 @@ clf = OPLSDA(n_components=1, n_orthogonal=2).fit(X, y_lab)
 clf.predict(X)            # class labels
 clf.decision_function(X)  # raw signed OPLS regression output
 
-# Probabilities via cross-fitted calibration (avoids in-sample overconfidence):
+# Probabilities via cross-fitted calibration when each class has enough samples
+# for the chosen calibration CV split:
 from sklearn.calibration import CalibratedClassifierCV
 calibrated_clf = CalibratedClassifierCV(clf, cv=5).fit(X, y_lab)
 calibrated_clf.predict_proba(X)

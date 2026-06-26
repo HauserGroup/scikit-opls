@@ -191,9 +191,10 @@ def orthogonal_filter(
     # unused when no components are requested, so only guard/normalise when it matters.
     if n_components > 0:
         w_norm = float(np.linalg.norm(w_pred))
-        if w_norm == 0.0:
+        if w_norm <= np.finfo(np.float64).tiny:
             raise ValueError(
-                "predictive_direction must be a non-zero vector when n_components > 0."
+                "predictive_direction must be numerically non-zero when "
+                "n_components > 0."
             )
         w_pred = w_pred / w_norm
 

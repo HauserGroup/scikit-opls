@@ -217,6 +217,15 @@ def test_orthogonal_filter_rejects_zero_direction():
     assert out.n_components == 0
 
 
+def test_orthogonal_filter_rejects_subnormal_predictive_direction():
+    X, _ = _make_data()
+    direction = np.zeros(X.shape[1])
+    direction[0] = np.finfo(np.float64).tiny
+
+    with pytest.raises(ValueError, match="numerically non-zero"):
+        orthogonal_filter(X, direction, 1)
+
+
 @pytest.mark.parametrize("bad", [1.5, True])
 def test_orthogonal_filter_rejects_non_integer_n_components(bad):
     X, y = _make_data()
