@@ -199,3 +199,35 @@ def test_import_without_matplotlib(monkeypatch):
 
         model = OPLS()
         assert model is not None
+
+
+def test_plotting_multi_component_component_selection():
+    X, y = _regression_data(seed=42)
+    model = OPLS(n_components=3, n_orthogonal=2).fit(X, y)
+
+    # OPLSScoresDisplay can select predictive_component and orthogonal_component
+    disp_scores = OPLSScoresDisplay.from_estimator(
+        model, X, y, predictive_component=1, orthogonal_component=1
+    )
+    assert disp_scores.predictive_component == 1
+    assert disp_scores.orthogonal_component == 1
+    assert disp_scores.ax_.get_xlabel() == "Predictive score t_pred[2]"
+    assert disp_scores.ax_.get_ylabel() == "Orthogonal score t_ortho[2]"
+
+    # OPLSScoresDisplay raises error for out-of-bounds component indices
+    with pytest.raises(ValueError, match="predictive_component=3 is out of bounds"):
+        OPLSScoresDisplay.from_estimator(model, X, predictive_component=3)
+    with pytest.raises(ValueError, match="orthogonal_component=2 is out of bounds"):
+        OPLSScoresDisplay.from_estimator(model, X, orthogonal_component=2)
+
+    # SPlotDisplay can select component
+    disp_splot = SPlotDisplay.from_estimator(model, X, component=1)
+    assert disp_splot.component == 1
+    assert disp_splot.ax_.get_xlabel() == "Covariance p[2]"
+    assert disp_splot.ax_.get_ylabel() == "Correlation p(corr)[2]"
+
+    # SPlotDisplay raises error for out-of-bounds component indices
+    with pytest.raises(ValueError, match="component=3 is out of bounds"):
+        SPlotDisplay.from_estimator(model, X, component=3)
+
+    plt.close("all")

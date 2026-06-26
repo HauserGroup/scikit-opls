@@ -24,13 +24,6 @@ def test_n_components_too_large_raises():
         OPLS(n_components=6, n_orthogonal=0).fit(X, y)
 
 
-def test_multi_component_requires_zero_orthogonal():
-    X, y = _regression_data()
-    with pytest.raises(ValueError, match="one predictive component"):
-        OPLS(n_components=2, n_orthogonal=1).fit(X, y)
-    OPLS(n_components=2, n_orthogonal=0).fit(X, y)  # allowed with no filtering
-
-
 @pytest.mark.parametrize("method", ["predict", "transform", "transform_orthogonal"])
 def test_not_fitted_raises(method):
     X, _ = _regression_data()

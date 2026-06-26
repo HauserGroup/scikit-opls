@@ -207,3 +207,43 @@ def test_opls_large_offset_small_variation_does_not_raise():
     y = rng.normal(size=30)
     # This should succeed since variance is normal, despite a huge offset
     OPLS(scale="center", n_orthogonal=0).fit(X, y)
+
+
+def test_opls_multi_component_fit_and_shapes():
+    X, y = _regression_data(seed=42)
+    model = OPLS(n_components=2, n_orthogonal=1).fit(X, y)
+
+    # transform shape is (n_samples, 2)
+    assert model.transform(X).shape == (X.shape[0], 2)
+    # transform_orthogonal shape is (n_samples, 1)
+    assert model.transform_orthogonal(X).shape == (X.shape[0], 1)
+    # predict shape is (n_samples,)
+    assert model.predict(X).shape == (X.shape[0],)
+    # no NaNs in prediction
+    assert not np.isnan(model.predict(X)).any()
+
+
+def test_opls_multi_component_parity():
+    # OPLS(n_components=2, n_orthogonal=0) parity with
+    # PLSRegression(n_components=2, scale=False) after standard preprocessing.
+    X, y = _regression_data(seed=42)
+
+    opls = OPLS(n_components=2, n_orthogonal=0, scale="pareto").fit(X, y)
+
+    # manual preprocess
+    from scikit_opls._preprocessing import apply_scaling
+
+    Xs = apply_scaling(X, opls.x_mean_, opls.x_std_)
+    pls = PLSRegression(n_components=2, scale=False).fit(Xs, y - y.mean())
+
+    assert_allclose(opls.predict(X), pls.predict(Xs).ravel() + y.mean())
+    assert_allclose(opls.transform(X), pls.transform(Xs))
+
+
+def test_opls_grid_search_over_multi_component():
+    from sklearn.model_selection import GridSearchCV
+
+    X, y = _regression_data(seed=42)
+    param_grid = {"n_components": [1, 2], "n_orthogonal": [0, 1]}
+    gs = GridSearchCV(OPLS(), param_grid, cv=3).fit(X, y)
+    assert gs.best_estimator_ is not None

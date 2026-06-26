@@ -52,12 +52,11 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     Parameters
     ----------
     n_components : int, default=1
-        Number of predictive components. True OPLS uses 1, which is required
-        whenever ``n_orthogonal != 0``. Values > 1 are only allowed with
-        ``n_orthogonal=0`` (plain multi-component PLS extension mode).
+        Number of predictive PLS components fitted on the orthogonally filtered
+        X block.
     n_orthogonal : int, default=1
-        Number of orthogonal (y-uncorrelated) components to remove from ``X``.
-        To choose this by cross-validated Q2, wrap ``OPLS`` in
+        Number of X-orthogonal components removed before fitting the predictive
+        PLS model. To choose this by cross-validated Q2, wrap ``OPLS`` in
         :class:`~sklearn.model_selection.GridSearchCV` over ``n_orthogonal``.
     scale : {"none", "center", "pareto", "standard"}, default="standard"
         Column preprocessing applied to ``X``.
@@ -89,13 +88,33 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     r2x_, r2x_ortho_, r2y_, rmsee_ : float
         Training-set fit summaries. For cross-validated Q2 use
         :func:`sklearn.model_selection.cross_val_score`.
+        Note: ``r2x_`` is computed from the predictive PLS scores/loadings
+        on the filtered ``X`` block. It does not include the removed
+        orthogonal variation.
     vip_, ortho_vip_ : ndarray of shape (n_features,)
         Lazy predictive / orthogonal Variable Importance in Projection scores,
         computed on access (sklearn ``feature_importances_`` convention). For
         non-empty blocks with positive explained variance, each satisfies
         ``sum(vip**2) == n_features``. Empty or degenerate blocks return zeros.
+        For ``n_components > 1``, predictive VIP aggregates across predictive
+        PLS components.
         Use with :class:`~sklearn.feature_selection.SelectFromModel` via
         ``importance_getter="vip_"``.
+
+    Notes
+    -----
+    The estimator has three valid regimes of operation:
+
+    - ``n_components=1, n_orthogonal=0``: One-component PLS baseline.
+    - ``n_components=1, n_orthogonal>0``: Minimal/classic OPLS-style model.
+    - ``n_components>1, n_orthogonal>0``: Orthogonal-filtered multi-component PLS.
+
+    With ``n_components=1``, OPLS gives the simplest decomposition: one predictive
+    score and one or more orthogonal scores. With ``n_components>1``, the estimator
+    becomes an orthogonal-filtered multi-component PLS model. This can be useful
+    when the relation between ``X`` and ``y`` has more than one predictive mode,
+    but score plots and S-plots should be interpreted component-wise rather than
+    as a single predictive axis.
     """
 
     _parameter_constraints: dict = {
@@ -143,16 +162,6 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         if not _has_nonzero_variation(y):
             raise ValueError("OPLS requires a non-constant target y.")
 
-        # True-OPLS contract: one predictive component when any orthogonal
-        # filtering is requested. n_orthogonal=0 keeps the
-        # unrestricted PLSRegression-equivalence mode.
-        if self.n_components != 1 and self.n_orthogonal != 0:
-            raise ValueError(
-                f"OPLS uses one predictive component when orthogonal filtering is "
-                f"requested; got n_components={self.n_components} with "
-                f"n_orthogonal={self.n_orthogonal!r}. Set n_components=1, or use "
-                "n_orthogonal=0 for plain (multi-component) PLS."
-            )
         if self.n_components > min(X.shape):
             raise ValueError(
                 f"n_components={self.n_components} exceeds the maximum of "

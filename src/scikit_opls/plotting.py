@@ -84,10 +84,14 @@ class OPLSScoresDisplay:
         t_predictive: NDArray[np.float64],
         t_orthogonal: NDArray[np.float64],
         y: NDArray | None = None,
+        predictive_component: int = 0,
+        orthogonal_component: int = 0,
     ) -> None:
         self.t_predictive = t_predictive
         self.t_orthogonal = t_orthogonal
         self.y = y
+        self.predictive_component = predictive_component
+        self.orthogonal_component = orthogonal_component
 
     @classmethod
     def from_estimator(
@@ -96,6 +100,8 @@ class OPLSScoresDisplay:
         X: ArrayLike,
         y: ArrayLike | None = None,
         *,
+        predictive_component: int = 0,
+        orthogonal_component: int = 0,
         ax: Any = None,
     ) -> OPLSScoresDisplay:
         """Compute the scores from a fitted ``estimator`` and plot them.
@@ -108,6 +114,10 @@ class OPLSScoresDisplay:
             Samples to project.
         y : array-like of shape (n_samples,), default=None
             Optional labels used to colour the points.
+        predictive_component : int, default=0
+            The index of the predictive PLS component to plot.
+        orthogonal_component : int, default=0
+            The index of the orthogonal component to plot.
         ax : matplotlib Axes, default=None
             Target axes; a new figure/axes is created when ``None``.
 
@@ -120,13 +130,36 @@ class OPLSScoresDisplay:
         if y is not None and len(y) != X.shape[0]:
             raise ValueError("y must have the same length as X.")
         base, X_trans = _unwrap_estimator_and_data(estimator, X)
+
+        if predictive_component >= base.n_components:
+            raise ValueError(
+                f"predictive_component={predictive_component} is out of bounds for "
+                f"estimator with n_components={base.n_components}."
+            )
+        if base.n_orthogonal_ > 0 and orthogonal_component >= base.n_orthogonal_:
+            raise ValueError(
+                f"orthogonal_component={orthogonal_component} is out of bounds for "
+                f"estimator with n_orthogonal_={base.n_orthogonal_}."
+            )
+        if base.n_orthogonal_ == 0 and orthogonal_component > 0:
+            raise ValueError(
+                f"orthogonal_component={orthogonal_component} is out of bounds; "
+                f"estimator was fitted with n_orthogonal=0."
+            )
+
         X_filtered, t_ortho = base._filter(X_trans)
-        t_pred = base.pls_.transform(X_filtered)[:, 0]
-        t_o = t_ortho[:, 0] if t_ortho.shape[1] > 0 else np.zeros_like(t_pred)
+        t_pred = base.pls_.transform(X_filtered)[:, predictive_component]
+        t_o = (
+            t_ortho[:, orthogonal_component]
+            if t_ortho.shape[1] > 0
+            else np.zeros_like(t_pred)
+        )
         display = cls(
             t_predictive=t_pred,
             t_orthogonal=t_o,
             y=None if y is None else np.asarray(y),
+            predictive_component=predictive_component,
+            orthogonal_component=orthogonal_component,
         )
         return display.plot(ax=ax)
 
@@ -161,8 +194,8 @@ class OPLSScoresDisplay:
             ax.legend()
         ax.axhline(0.0, color="grey", linewidth=0.8)
         ax.axvline(0.0, color="grey", linewidth=0.8)
-        ax.set_xlabel("Predictive score t_pred[1]")
-        ax.set_ylabel("Orthogonal score t_ortho[1]")
+        ax.set_xlabel(f"Predictive score t_pred[{self.predictive_component + 1}]")
+        ax.set_ylabel(f"Orthogonal score t_ortho[{self.orthogonal_component + 1}]")
         self.ax_ = ax
         self.figure_ = ax.figure
         return self
@@ -202,13 +235,20 @@ class SPlotDisplay:
         *,
         covariance: NDArray[np.float64],
         correlation: NDArray[np.float64],
+        component: int = 0,
     ) -> None:
         self.covariance = covariance
         self.correlation = correlation
+        self.component = component
 
     @classmethod
     def from_estimator(
-        cls, estimator: Any, X: ArrayLike, *, ax: Any = None
+        cls,
+        estimator: Any,
+        X: ArrayLike,
+        *,
+        component: int = 0,
+        ax: Any = None,
     ) -> SPlotDisplay:
         """Compute the S-plot arrays from a fitted ``estimator`` and plot them.
 
@@ -218,6 +258,8 @@ class SPlotDisplay:
             A fitted estimator.
         X : array-like of shape (n_samples, n_features)
             Samples to project.
+        component : int, default=0
+            The index of the predictive PLS component to plot.
         ax : matplotlib Axes, default=None
             Target axes; a new figure/axes is created when ``None``.
 
@@ -228,10 +270,17 @@ class SPlotDisplay:
         """
         X = check_array(X, dtype=np.float64, ensure_min_samples=2)
         base, X_trans = _unwrap_estimator_and_data(estimator, X)
+
+        if component >= base.n_components:
+            raise ValueError(
+                f"component={component} is out of bounds for estimator with "
+                f"n_components={base.n_components}."
+            )
+
         Xs = apply_scaling(X_trans, base.x_mean_, base.x_std_)
         Xs = Xs - Xs.mean(axis=0)
 
-        t = np.asarray(base.transform(X_trans))[:, 0]
+        t = np.asarray(base.transform(X_trans))[:, component]
         t = t - t.mean()
         n = t.shape[0]
 
@@ -255,7 +304,9 @@ class SPlotDisplay:
                 stacklevel=2,
             )
 
-        display = cls(covariance=covariance, correlation=correlation)
+        display = cls(
+            covariance=covariance, correlation=correlation, component=component
+        )
         return display.plot(ax=ax)
 
     def plot(self, ax: Any = None) -> SPlotDisplay:
@@ -279,8 +330,8 @@ class SPlotDisplay:
         self.scatter_ = ax.scatter(self.covariance, self.correlation)
         ax.axhline(0.0, color="grey", linewidth=0.8)
         ax.axvline(0.0, color="grey", linewidth=0.8)
-        ax.set_xlabel("Covariance p")
-        ax.set_ylabel("Correlation p(corr)")
+        ax.set_xlabel(f"Covariance p[{self.component + 1}]")
+        ax.set_ylabel(f"Correlation p(corr)[{self.component + 1}]")
         self.ax_ = ax
         self.figure_ = ax.figure
         return self
