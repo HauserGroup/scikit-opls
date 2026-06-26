@@ -76,11 +76,10 @@ GridSearchCV(
 ## Inspection, plotting and validation
 
 ```python
-from scikit_opls.inspection import vip
 from scikit_opls.plotting import OPLSScoresDisplay, SPlotDisplay
 from scikit_opls.validation import permutation_test
 
-vip(model)                                     # predictive VIP per feature
+model.vip_                                     # predictive VIP per feature (lazy)
 OPLSScoresDisplay.from_estimator(model, X, y)  # t_pred vs t_ortho
 SPlotDisplay.from_estimator(model, X)          # covariance vs correlation
 permutation_test(OPLS(n_orthogonal=2), X, y)   # model significance

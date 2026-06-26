@@ -26,10 +26,14 @@ and default-value changes will be documented here.
 - `OPLSDACV` will not be added. Use
   `GridSearchCV(OPLSDA(), {"n_orthogonal": [...]}, scoring="roc_auc")`, which
   gives stratified folds for classification.
-- VIP is no longer computed eagerly in `fit`. `model.vip_` / `model.ortho_vip_`
-  are removed; use `scikit_opls.inspection.vip(model)` /
-  `scikit_opls.inspection.orthogonal_vip(model)` (these unwrap DA/search wrappers).
-- `vip.py` and `metrics.py` are folded into a new `inspection.py`.
+- VIP is now exposed as lazy `OPLS.vip_` / `OPLS.ortho_vip_` properties (and on
+  `OPLSDA`, delegating to the inner OPLS), following scikit-learn's
+  `feature_importances_` convention — computed on access, not eagerly in `fit`.
+  The public `scikit_opls.inspection` module and its `vip(model)` /
+  `orthogonal_vip(model)` functions are **removed**; the stateless math moved to a
+  private `_inspection` module. Feature selection is supported via
+  `SelectFromModel(OPLS(), importance_getter="vip_", threshold=1.0)` (the VIP > 1
+  rule), composable in a `Pipeline` / `GridSearchCV`.
 - `predictive_weight(X, Y)` now uses the leading left singular vector of `XᵀY`,
   generalising to multivariate `Y`. For single-column `Y` the direction is
   unchanged (up to sign) and single-`y` OPLS output is bit-for-bit identical.
@@ -50,9 +54,6 @@ and default-value changes will be documented here.
 - `n_jobs` on `validation.permutation_test` (runs the independent permutations in
   parallel; reproducible regardless of `n_jobs`). Cross-validated `n_orthogonal`
   selection inherits `n_jobs` from `GridSearchCV`.
-
-- `inspection.vip` / `inspection.orthogonal_vip` model-level helpers (they unwrap
-  a fitted `GridSearchCV` to its `best_estimator_` automatically).
 
 - `_orthogonal.orthogonal_filter`, a block-agnostic NIPALS deflation primitive
   shared by `opls_filter` (and a future `O2PLS`).

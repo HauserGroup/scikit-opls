@@ -14,7 +14,8 @@ cleaned `X`. With `n_orthogonal=0` it reduces exactly to `PLSRegression`.
 - Cross-validated `n_orthogonal` selection via scikit-learn's `GridSearchCV`
   (see [Quickstart](quickstart.md)).
 - [`OPLSDA`](api/opls_da.md) — binary classifier composing `OPLS`.
-- [Inspection](api/inspection.md) — on-demand VIP scores and variance metrics.
+- Lazy VIP scores on the estimators (`OPLS.vip_` / `ortho_vip_`, also on `OPLSDA`),
+  usable for feature selection via `SelectFromModel(..., importance_getter="vip_")`.
 - [Plotting](api/plotting.md) — score and S-plot Displays.
 - [Validation](api/validation.md) — permutation significance testing.
 

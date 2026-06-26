@@ -46,9 +46,7 @@ model.predict(X)              # predictions
 model.transform(X)            # predictive scores
 model.transform_orthogonal(X) # orthogonal scores
 model.r2x_, model.r2y_        # fit summaries
-
-from scikit_opls.inspection import vip
-vip(model)                    # variable importance (predictive), computed on demand
+model.vip_                    # variable importance (predictive), lazy property
 ```
 
 Let cross-validated Q2 choose the number of orthogonal components with

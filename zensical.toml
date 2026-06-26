@@ -19,7 +19,6 @@ nav = [
     { "API Reference" = [
         { "OPLS" = "api/opls.md" },
         { "OPLS-DA" = "api/opls_da.md" },
-        { "Inspection" = "api/inspection.md" },
         { "Plotting" = "api/plotting.md" },
         { "Validation" = "api/validation.md" },
     ] },
