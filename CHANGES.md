@@ -12,6 +12,13 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+### Changed
+
+- Lowered the supported Python floor from 3.13 to **3.12**
+  (`requires-python = ">=3.12"`); CI now tests 3.12 and 3.13, and lint/type
+  checks target 3.12. Development still happens on 3.13 (`.python-version`).
+  No API or behaviour change.
+
 ### Changed (breaking, pre-1.0)
 
 - Cross-validated selection of `n_orthogonal` is now done with scikit-learn's

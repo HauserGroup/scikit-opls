@@ -12,7 +12,8 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        python-version: ["3.13"]
+        # Test the support floor (3.12) and the dev interpreter (3.13).
+        python-version: ["3.12", "3.13"]
     steps:
       - uses: actions/checkout@v7
 
