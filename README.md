@@ -17,11 +17,6 @@ removes the orthogonal variation with a NIPALS filter and then fits
 on the cleaned `X` as the predictive engine. With `n_orthogonal=0` the model
 reduces *exactly* to `PLSRegression`.
 
-This project is inspired by the R
-[`ropls`](https://www.rdocumentation.org/packages/ropls/versions/1.4.2) package
-and uses the orthogonal-scores PLS algorithm of
-[`pls::oscorespls.fit`](https://cran.r-project.org/package=pls) as its engine.
-
 ## Install
 
 ```bash
@@ -158,6 +153,11 @@ uv run pre-commit run --all-files  # run every hook
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow.
 
 ## References
+
+This project is inspired by the R
+[`ropls`](https://www.rdocumentation.org/packages/ropls/versions/1.4.2) package
+and uses the orthogonal-scores PLS algorithm of
+[`pls::oscorespls.fit`](https://cran.r-project.org/package=pls) as its engine.
 
 - Trygg, J. & Wold, S. (2002). *Orthogonal projections to latent structures
   (O-PLS).* Journal of Chemometrics, 16(3), 119–128.
