@@ -132,3 +132,49 @@ def test_plotting_pipeline_unwrapping():
     gs = GridSearchCV(pipe, {"opls__n_orthogonal": [0, 1]}, cv=3).fit(X, y)
     disp2 = SPlotDisplay.from_estimator(gs, X)
     assert isinstance(disp2, SPlotDisplay)
+
+
+def test_plotting_pipeline_with_transforms():
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    X, y = _regression_data(n_features=6)
+
+    # Preprocessing step scales X, OPLS step gets the scaled X.
+    pipe = Pipeline(
+        [
+            ("scale", StandardScaler()),
+            ("opls", OPLS(n_components=1, n_orthogonal=1)),
+        ]
+    ).fit(X, y)
+
+    # from_estimator should successfully process X through standard scaler
+    # before performing the OPLS calculations for SPlotDisplay.
+    disp = SPlotDisplay.from_estimator(pipe, X)
+    assert isinstance(disp, SPlotDisplay)
+    assert disp.covariance.shape == (6,)
+
+
+def test_import_without_matplotlib(monkeypatch):
+    import importlib
+    import sys
+
+    # Simulate matplotlib not being installed by putting None in sys.modules
+    with monkeypatch.context() as m:
+        m.setitem(sys.modules, "matplotlib", None)
+        m.setitem(sys.modules, "matplotlib.pyplot", None)
+
+        # Check that we can import the package and instantiate OPLS
+        # without bringing in matplotlib or raising ModuleNotFoundError.
+        importlib.invalidate_caches()
+
+        # We reload scikit_opls and plotting to verify no module-level imports fail
+        if "scikit_opls.plotting" in sys.modules:
+            m.delitem(sys.modules, "scikit_opls.plotting")
+        if "scikit_opls" in sys.modules:
+            m.delitem(sys.modules, "scikit_opls")
+
+        from scikit_opls import OPLS
+
+        model = OPLS()
+        assert model is not None

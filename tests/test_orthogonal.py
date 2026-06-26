@@ -178,3 +178,10 @@ def test_orthogonal_filter_shape_checks():
     # features mismatch
     with pytest.raises(ValueError, match="Number of features"):
         apply_orthogonal_filter(X[:, :10], fit.x_ortho_weights, fit.x_ortho_loadings)
+
+
+def test_orthogonal_filter_accepts_array_like():
+    X = [[1.0, 2.0], [3.0, 4.0], [5.0, 7.0]]
+    y = [1.0, 2.0, 3.0]
+    out = opls_filter(X, y, 1)
+    assert out.x_filtered.shape == (3, 2)

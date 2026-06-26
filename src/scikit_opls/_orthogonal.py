@@ -153,9 +153,9 @@ def orthogonal_filter(
     orthogonal weight ``w_o``. The orthogonal score ``t_o = X w_o`` and loading
     ``p_o = Xᵀt_o / (t_oᵀt_o)`` are deflated out: ``X <- X - t_o p_oᵀ``.
     """
-    if block.ndim != 2:
-        raise ValueError(f"block must be 2D, got shape {block.shape}")
     X = np.asarray(block, dtype=np.float64)
+    if X.ndim != 2:
+        raise ValueError(f"block must be 2D, got shape {X.shape}")
     w_pred = np.asarray(predictive_direction, dtype=np.float64).ravel()
     n_samples, n_features = X.shape
     if w_pred.shape != (n_features,):
@@ -182,14 +182,15 @@ def orthogonal_filter(
     P = np.zeros((n_features, n_components))
     X_res = X.copy()
 
-    x_norm_sq = float(np.sum(X**2))
-
     extracted = 0
     for i in range(n_components):
+        res_norm_sq = float(np.sum(X_res**2))
+        if res_norm_sq == 0.0:
+            break
         # w_pred is unit-normalised, so dividing by (w_predᵀ w_pred) is a no-op.
         t = X_res @ w_pred
         tt = float(t @ t)
-        if tt <= 1e-12 * x_norm_sq:
+        if tt <= 1e-12 * res_norm_sq:
             break
         p = X_res.T @ t / tt
         w_o = p - float(w_pred @ p) * w_pred  # part of the loading orthogonal to w_pred
@@ -200,7 +201,7 @@ def orthogonal_filter(
         w_o /= w_norm
         t_o = X_res @ w_o
         too = float(t_o @ t_o)
-        if too <= 1e-12 * x_norm_sq:
+        if too <= 1e-12 * res_norm_sq:
             break
         p_o = X_res.T @ t_o / too
         X_res -= np.outer(t_o, p_o)
@@ -280,28 +281,31 @@ def apply_orthogonal_filter(
     x_ortho_scores : ndarray of shape (n_samples, n_components)
         Orthogonal scores of the new samples.
     """
+    X = np.asarray(X, dtype=np.float64)
+    W = np.asarray(x_ortho_weights, dtype=np.float64)
+    P = np.asarray(x_ortho_loadings, dtype=np.float64)
     if X.ndim != 2:
         raise ValueError(f"X must be 2D, got shape {X.shape}")
-    if x_ortho_weights.ndim != 2 or x_ortho_loadings.ndim != 2:
+    if W.ndim != 2 or P.ndim != 2:
         raise ValueError("x_ortho_weights and x_ortho_loadings must be 2D")
-    if x_ortho_weights.shape != x_ortho_loadings.shape:
+    if W.shape != P.shape:
         raise ValueError(
             f"x_ortho_weights and x_ortho_loadings must have matching shapes, "
-            f"got {x_ortho_weights.shape} and {x_ortho_loadings.shape}"
+            f"got {W.shape} and {P.shape}"
         )
     n_samples, n_features = X.shape
-    if n_features != x_ortho_weights.shape[0]:
+    if n_features != W.shape[0]:
         raise ValueError(
             f"Number of features in X ({n_features}) must match the number of rows "
-            f"in x_ortho_weights ({x_ortho_weights.shape[0]})"
+            f"in x_ortho_weights ({W.shape[0]})"
         )
 
-    X = np.asarray(X, dtype=np.float64).copy()
-    n_components = x_ortho_weights.shape[1]
+    X_copy = X.copy()
+    n_components = W.shape[1]
     T = np.zeros((n_samples, n_components))
     for i in range(n_components):
-        w_o = x_ortho_weights[:, i]
-        t_o = X @ w_o  # weights are unit-normalised at fit time
-        X -= np.outer(t_o, x_ortho_loadings[:, i])
+        w_o = W[:, i]
+        t_o = X_copy @ w_o  # weights are unit-normalised at fit time
+        X_copy -= np.outer(t_o, P[:, i])
         T[:, i] = t_o
-    return X, T
+    return X_copy, T

@@ -53,10 +53,13 @@ class PermutationResult:
 def _fitted_r2y(fitted: Any) -> float:
     if hasattr(fitted, "r2y_"):
         return float(fitted.r2y_)
-    if hasattr(fitted, "best_estimator_") and hasattr(fitted.best_estimator_, "r2y_"):
-        return float(fitted.best_estimator_.r2y_)
+    if hasattr(fitted, "best_estimator_"):
+        return _fitted_r2y(fitted.best_estimator_)
+    if hasattr(fitted, "steps"):
+        return _fitted_r2y(fitted.steps[-1][1])
     raise TypeError(
-        "permutation_test requires a regression estimator exposing r2y_ after fit."
+        "permutation_test requires a regression estimator exposing r2y_ "
+        "directly, via best_estimator_, or on the final Pipeline step."
     )
 
 
@@ -70,13 +73,23 @@ def _permuted_scores(
     return r2y, q2
 
 
+def _contains_classifier(estimator: Any) -> bool:
+    if is_classifier(estimator):
+        return True
+    if hasattr(estimator, "estimator"):
+        return _contains_classifier(estimator.estimator)
+    if hasattr(estimator, "steps"):
+        return any(_contains_classifier(step) for _, step in estimator.steps)
+    return False
+
+
 def permutation_test(
     estimator: Any,
     X: ArrayLike,
     y: ArrayLike,
     n_permutations: int = 20,
     cv: Any = None,
-    random_state: int | None = None,
+    random_state: int | np.random.RandomState | None = None,
     n_jobs: int | None = None,
 ) -> PermutationResult:
     """Assess significance of an OPLS regression model by permuting ``y``.
@@ -113,7 +126,7 @@ def permutation_test(
     result : PermutationResult
         Observed and permuted R2Y/Q2 with empirical p-values.
     """
-    if is_classifier(estimator):
+    if _contains_classifier(estimator):
         raise TypeError(
             "permutation_test is for regression models; "
             "classifiers like OPLSDA are not supported."
@@ -125,17 +138,17 @@ def permutation_test(
     if n_permutations < 1:
         raise ValueError(f"n_permutations must be >= 1, got {n_permutations}")
 
-    fitted = clone(estimator).fit(X, y)
-    observed_r2y = _fitted_r2y(fitted)
-
     X = check_array(X, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64).ravel()
     check_consistent_length(X, y)
 
+    fitted = clone(estimator).fit(X, y)
+    observed_r2y = _fitted_r2y(fitted)
+
     if cv is None:
         estimator_cv = getattr(estimator, "cv", None)
         cv = estimator_cv if estimator_cv is not None else min(5, len(y))
-    cv_checked = check_cv(cv)
+    cv_checked = check_cv(cv, y=y, classifier=False)
 
     rng = check_random_state(random_state)
     observed_q2 = _cross_val_q2(estimator, X, y, cv=cv_checked)

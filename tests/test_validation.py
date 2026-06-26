@@ -98,3 +98,36 @@ def test_permutation_test_cv_defaults_small_dataset():
         OPLS(n_orthogonal=0), X, y, n_permutations=3, random_state=42
     )
     assert result.permuted_q2.shape == (3,)
+
+
+def test_permutation_test_pipeline_opls():
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    X, y = _regression_data(seed=42)
+    pipe = Pipeline(
+        [
+            ("scale", StandardScaler()),
+            ("opls", OPLS(n_orthogonal=0)),
+        ]
+    )
+    result = permutation_test(pipe, X, y, n_permutations=3, random_state=0)
+    assert result.permuted_r2y.shape == (3,)
+
+
+def test_permutation_test_classifier_wrapped_raises():
+    from sklearn.model_selection import GridSearchCV
+    from sklearn.pipeline import Pipeline
+
+    from scikit_opls import OPLSDA
+
+    X, y = _regression_data(seed=42)
+    # 1. Pipeline containing a classifier
+    pipe = Pipeline([("clf", OPLSDA())])
+    with pytest.raises(TypeError, match="classifiers like OPLSDA are not supported"):
+        permutation_test(pipe, X, y)
+
+    # 2. GridSearchCV wrapping a classifier pipeline
+    gs = GridSearchCV(pipe, {"clf__n_components": [1]})
+    with pytest.raises(TypeError, match="classifiers like OPLSDA are not supported"):
+        permutation_test(gs, X, y)

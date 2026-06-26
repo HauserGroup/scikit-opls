@@ -231,3 +231,18 @@ def test_opls_exposes_intercept():
     model = OPLS(n_orthogonal=1).fit(X, y)
     assert hasattr(model, "intercept_")
     assert isinstance(model.intercept_, (float, np.ndarray))
+
+
+def test_opls_constant_nonzero_x_scale_none_raises():
+    X = np.ones((10, 5)) * 5.0
+    y = np.arange(10.0)
+    with pytest.raises(ValueError, match="no non-zero variation"):
+        OPLS(scale="none", n_orthogonal=0).fit(X, y)
+
+
+def test_opls_large_offset_small_variation_does_not_raise():
+    rng = np.random.default_rng(0)
+    X = 1e12 + rng.normal(size=(30, 5))
+    y = rng.normal(size=30)
+    # This should succeed since variance is normal, despite a huge offset
+    OPLS(scale="center", n_orthogonal=0).fit(X, y)

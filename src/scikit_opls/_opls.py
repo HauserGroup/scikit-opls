@@ -172,16 +172,16 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
         self.x_mean_, self.x_std_ = compute_scaling(X, self.scale)
         Xs = apply_scaling(X, self.x_mean_, self.x_std_)
-        xs_norm = float(np.linalg.norm(Xs))
-        x_norm = float(np.linalg.norm(X))
-        if xs_norm <= 1e-12 * x_norm or xs_norm == 0.0:
+        centered_ss = float(np.sum((Xs - Xs.mean(axis=0)) ** 2))
+        scale_ss = float(np.sum(Xs**2))
+        if centered_ss <= 1e-12 * max(scale_ss, 1.0):
             raise ValueError("X has no non-zero variation after preprocessing.")
 
         # opls_filter handles n_orthogonal=0 (pass-through) and truncation itself.
         ofit = opls_filter(Xs, y - y.mean(), self.n_orthogonal)
         X_filtered = ofit.x_filtered
-        x_filtered_norm = float(np.linalg.norm(X_filtered))
-        if x_filtered_norm <= 1e-12 * xs_norm or x_filtered_norm == 0.0:
+        filtered_ss = float(np.sum((X_filtered - X_filtered.mean(axis=0)) ** 2))
+        if filtered_ss <= 1e-12 * max(centered_ss, 1.0):
             raise ValueError(
                 "X has no remaining variation after orthogonal filtering; "
                 "reduce n_orthogonal."
