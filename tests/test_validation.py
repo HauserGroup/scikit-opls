@@ -73,7 +73,7 @@ def test_permutation_test_non_regression_estimator_raises():
 def test_permutation_test_n_permutations_type_check():
     X, y = _regression_data(seed=11)
     with pytest.raises(TypeError, match="must be an integer"):
-        permutation_test(OPLS(), X, y, n_permutations="twenty")
+        permutation_test(OPLS(), X, y, n_permutations="twenty")  # type: ignore
 
 
 def test_permutation_test_grid_search():

@@ -16,7 +16,6 @@ encoding plus Platt-scaled probabilities.
 from __future__ import annotations
 
 from numbers import Integral
-from typing import Any
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
@@ -56,6 +55,14 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         :class:`~sklearn.feature_selection.SelectFromModel` via
         ``importance_getter="vip_"``.
     """
+
+    classes_: NDArray
+    n_features_in_: int
+    feature_names_in_: NDArray[np.str_]
+    opls_: OPLS
+    n_orthogonal_: int
+    _label_encoder: LabelEncoder
+    _platt: LogisticRegression
 
     _parameter_constraints: dict = {
         "n_components": [Interval(Integral, 1, None, closed="left")],
@@ -175,7 +182,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         check_is_fitted(self)
         return np.asarray(self.opls_.predict(X), dtype=np.float64).ravel()
 
-    def predict(self, X: ArrayLike) -> NDArray[Any]:
+    def predict(self, X: ArrayLike) -> NDArray:
         """Predict class labels.
 
         Parameters

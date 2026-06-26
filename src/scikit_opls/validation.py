@@ -8,18 +8,25 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass
 from numbers import Integral
-from typing import Any
 
 import numpy as np
 from joblib import Parallel, delayed
 from numpy.typing import ArrayLike, NDArray
-from sklearn.base import clone, is_classifier
+from sklearn.base import BaseEstimator, clone, is_classifier
 from sklearn.metrics import r2_score
-from sklearn.model_selection import check_cv, cross_val_predict
+from sklearn.model_selection import (
+    BaseCrossValidator,
+    BaseShuffleSplit,
+    check_cv,
+    cross_val_predict,
+)
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_consistent_length
+
+_CVType = int | BaseCrossValidator | BaseShuffleSplit | Iterable | None
 
 
 def _safe_r2_score(y_true: ArrayLike, y_pred: ArrayLike) -> float:
@@ -29,7 +36,9 @@ def _safe_r2_score(y_true: ArrayLike, y_pred: ArrayLike) -> float:
     return float(r2_score(y_true_arr, y_pred))
 
 
-def _cross_val_q2(estimator: Any, X: ArrayLike, y: ArrayLike, cv: Any) -> float:
+def _cross_val_q2(
+    estimator: BaseEstimator, X: ArrayLike, y: ArrayLike, cv: _CVType
+) -> float:
     """Out-of-fold Q2 of ``estimator`` on ``(X, y)`` using the provided ``cv``."""
     y_pred = cross_val_predict(clone(estimator), X, y, cv=cv)
     return _safe_r2_score(y, y_pred)
@@ -57,13 +66,14 @@ class PermutationResult:
     q2_p_value: float
 
 
-def _fitted_r2y(fitted: Any) -> float:
+def _fitted_r2y(fitted: BaseEstimator) -> float:
     if hasattr(fitted, "r2y_"):
-        return float(fitted.r2y_)
+        return float(getattr(fitted, "r2y_"))
     if hasattr(fitted, "best_estimator_"):
-        return _fitted_r2y(fitted.best_estimator_)
+        return _fitted_r2y(getattr(fitted, "best_estimator_"))
     if hasattr(fitted, "steps"):
-        return _fitted_r2y(fitted.steps[-1][1])
+        steps = getattr(fitted, "steps")
+        return _fitted_r2y(steps[-1][1])
     raise TypeError(
         "permutation_test requires a regression estimator exposing r2y_ "
         "directly, via best_estimator_, or on the final Pipeline step."
@@ -71,7 +81,7 @@ def _fitted_r2y(fitted: Any) -> float:
 
 
 def _permuted_scores(
-    estimator: Any, X: ArrayLike, y_perm: ArrayLike, cv: Any
+    estimator: BaseEstimator, X: ArrayLike, y_perm: ArrayLike, cv: _CVType
 ) -> tuple[float, float]:
     """R2Y and out-of-fold Q2 for one permuted target (one parallel task)."""
     fitted = clone(estimator).fit(X, y_perm)
@@ -80,22 +90,23 @@ def _permuted_scores(
     return r2y, q2
 
 
-def _contains_classifier(estimator: Any) -> bool:
+def _contains_classifier(estimator: BaseEstimator) -> bool:
     if is_classifier(estimator):
         return True
     if hasattr(estimator, "estimator"):
-        return _contains_classifier(estimator.estimator)
+        return _contains_classifier(getattr(estimator, "estimator"))
     if hasattr(estimator, "steps"):
-        return any(_contains_classifier(step) for _, step in estimator.steps)
+        steps = getattr(estimator, "steps")
+        return any(_contains_classifier(step) for _, step in steps)
     return False
 
 
 def permutation_test(
-    estimator: Any,
+    estimator: BaseEstimator,
     X: ArrayLike,
     y: ArrayLike,
     n_permutations: int = 20,
-    cv: Any = None,
+    cv: _CVType = None,
     random_state: int | np.random.RandomState | None = None,
     n_jobs: int | None = None,
 ) -> PermutationResult:

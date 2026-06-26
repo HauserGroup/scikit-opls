@@ -87,7 +87,9 @@ def test_select_from_model_uses_vip():
         importance_getter="vip_",
         threshold=1.0,
     ).fit(X, y)
-    n_selected = sel.get_support().sum()
+    support = sel.get_support()
+    assert support is not None
+    n_selected = support.sum()
     assert 0 < n_selected < X.shape[1]
 
     pipe = make_pipeline(

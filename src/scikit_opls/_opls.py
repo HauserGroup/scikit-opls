@@ -117,6 +117,27 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     as a single predictive axis.
     """
 
+    n_features_in_: int
+    feature_names_in_: NDArray[np.str_]
+    n_orthogonal_: int
+    x_mean_: NDArray[np.float64]
+    x_std_: NDArray[np.float64]
+    x_ortho_weights_: NDArray[np.float64]
+    x_ortho_loadings_: NDArray[np.float64]
+    x_ortho_scores_: NDArray[np.float64]
+    x_weights_: NDArray[np.float64]
+    x_loadings_: NDArray[np.float64]
+    x_scores_: NDArray[np.float64]
+    y_loadings_: NDArray[np.float64]
+    coef_filtered_: NDArray[np.float64]
+    intercept_: float | NDArray[np.float64]
+    pls_: PLSRegression
+    r2x_: float
+    r2x_ortho_: float
+    r2y_: float
+    rmsee_: float
+    _n_features_out: int
+
     _parameter_constraints: dict = {
         "n_components": [Interval(Integral, 1, None, closed="left")],
         "n_orthogonal": [Interval(Integral, 0, None, closed="left")],

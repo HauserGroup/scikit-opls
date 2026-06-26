@@ -68,7 +68,9 @@ def test_non_binary_raises():
 
 def test_clone_and_params():
     model = OPLSDA(n_components=1, n_orthogonal=3, scale="pareto")
-    assert clone(model).get_params() == model.get_params()
+    cloned = clone(model)
+    assert isinstance(cloned, OPLSDA)
+    assert cloned.get_params() == model.get_params()
 
 
 def test_opls_da_sample_guards():

@@ -61,8 +61,12 @@ def test_tags_match_intent(est):
 
 
 def test_opls_regressor_tag_poor_score():
-    assert get_tags(OPLS()).regressor_tags.poor_score is True
+    tags = get_tags(OPLS())
+    assert tags.regressor_tags is not None
+    assert tags.regressor_tags.poor_score is True
 
 
 def test_opls_da_not_multiclass():
-    assert get_tags(OPLSDA()).classifier_tags.multi_class is False
+    tags = get_tags(OPLSDA())
+    assert tags.classifier_tags is not None
+    assert tags.classifier_tags.multi_class is False

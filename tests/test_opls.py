@@ -100,6 +100,7 @@ def test_invalid_n_orthogonal_raises(bad):
 def test_clone_and_params():
     model = OPLS(n_components=2, n_orthogonal=3, scale="pareto")
     cloned = clone(model)
+    assert isinstance(cloned, OPLS)
     assert cloned.get_params() == model.get_params()
 
 

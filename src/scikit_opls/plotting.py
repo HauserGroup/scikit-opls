@@ -14,26 +14,34 @@ imported lazily inside :meth:`plot`, so importing this module never requires it.
 
 from __future__ import annotations
 
-from typing import Any
+from typing import TYPE_CHECKING
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
+from sklearn.base import BaseEstimator
 from sklearn.utils._optional_dependencies import check_matplotlib_support
 from sklearn.utils.validation import check_array
 
+from ._opls import OPLS
 from ._preprocessing import apply_scaling
+
+if TYPE_CHECKING:
+    import matplotlib.axes
+    import matplotlib.collections
+    import matplotlib.figure
 
 _EPS = np.finfo(np.float64).eps
 
 
 def _unwrap_estimator_and_data(
-    estimator: Any, X: ArrayLike
-) -> tuple[Any, NDArray[np.float64]]:
+    estimator: BaseEstimator, X: ArrayLike
+) -> tuple[OPLS, NDArray[np.float64]]:
     """Unwrap pipeline/search wrappers, returning base model and transformed X."""
     inner = getattr(estimator, "best_estimator_", estimator)
     if hasattr(inner, "steps") and hasattr(inner, "named_steps"):
         opls_idx = -1
-        for idx, (_, step) in enumerate(inner.steps):
+        steps = getattr(inner, "steps")
+        for idx, (_, step) in enumerate(steps):
             unwrapped_step = getattr(step, "best_estimator_", step)
             if hasattr(unwrapped_step, "transform_orthogonal") or hasattr(
                 unwrapped_step, "opls_"
@@ -43,13 +51,19 @@ def _unwrap_estimator_and_data(
         if opls_idx != -1:
             X_trans = X
             for i in range(opls_idx):
-                X_trans = inner.steps[i][1].transform(X_trans)
-            return _unwrap_estimator_and_data(inner.steps[opls_idx][1], X_trans)
+                transform_fn = getattr(steps[i][1], "transform")
+                X_trans = transform_fn(X_trans)
+            return _unwrap_estimator_and_data(steps[opls_idx][1], X_trans)
 
     if hasattr(inner, "opls_"):
-        return inner.opls_, np.asarray(X, dtype=np.float64)
+        opls_attr = getattr(inner, "opls_")
+        assert isinstance(opls_attr, OPLS)
+        return opls_attr, np.asarray(X, dtype=np.float64)
 
-    return inner, np.asarray(X, dtype=np.float64)
+    if isinstance(inner, OPLS):
+        return inner, np.asarray(X, dtype=np.float64)
+
+    raise TypeError("estimator must be an OPLS, OPLSDA, or a pipeline containing them.")
 
 
 class OPLSScoresDisplay:
@@ -78,6 +92,13 @@ class OPLSScoresDisplay:
         The scatter plot artist(s) (set by :meth:`plot`).
     """
 
+    ax_: matplotlib.axes.Axes
+    figure_: matplotlib.figure.Figure | matplotlib.figure.SubFigure
+    scatter_: (
+        matplotlib.collections.PathCollection
+        | list[matplotlib.collections.PathCollection]
+    )
+
     def __init__(
         self,
         *,
@@ -96,13 +117,13 @@ class OPLSScoresDisplay:
     @classmethod
     def from_estimator(
         cls,
-        estimator: Any,
+        estimator: BaseEstimator,
         X: ArrayLike,
         y: ArrayLike | None = None,
         *,
         predictive_component: int = 0,
         orthogonal_component: int = 0,
-        ax: Any = None,
+        ax: matplotlib.axes.Axes | None = None,
     ) -> OPLSScoresDisplay:
         """Compute the scores from a fitted ``estimator`` and plot them.
 
@@ -126,10 +147,10 @@ class OPLSScoresDisplay:
         display : OPLSScoresDisplay
             The plotted display, with ``ax_`` / ``figure_`` set.
         """
-        X = check_array(X, dtype=np.float64)
-        if y is not None and len(y) != X.shape[0]:
+        X_arr = check_array(X, dtype=np.float64)
+        if y is not None and len(y) != X_arr.shape[0]:
             raise ValueError("y must have the same length as X.")
-        base, X_trans = _unwrap_estimator_and_data(estimator, X)
+        base, X_trans = _unwrap_estimator_and_data(estimator, X_arr)
 
         if predictive_component >= base.n_components:
             raise ValueError(
@@ -148,7 +169,12 @@ class OPLSScoresDisplay:
             )
 
         X_filtered, t_ortho = base._filter(X_trans)
-        t_pred = base.pls_.transform(X_filtered)[:, predictive_component]
+        scores = base.pls_.transform(X_filtered)
+        if isinstance(scores, tuple):
+            t_pred_arr = scores[0]
+        else:
+            t_pred_arr = scores
+        t_pred = t_pred_arr[:, predictive_component]
         t_o = (
             t_ortho[:, orthogonal_component]
             if t_ortho.shape[1] > 0
@@ -163,7 +189,7 @@ class OPLSScoresDisplay:
         )
         return display.plot(ax=ax)
 
-    def plot(self, ax: Any = None) -> OPLSScoresDisplay:
+    def plot(self, ax: matplotlib.axes.Axes | None = None) -> OPLSScoresDisplay:
         """Draw the score scatter on ``ax`` (or a fresh axes).
 
         Parameters
@@ -230,6 +256,10 @@ class SPlotDisplay:
         The scatter plot artist (set by :meth:`plot`).
     """
 
+    ax_: matplotlib.axes.Axes
+    figure_: matplotlib.figure.Figure | matplotlib.figure.SubFigure
+    scatter_: matplotlib.collections.PathCollection
+
     def __init__(
         self,
         *,
@@ -244,11 +274,11 @@ class SPlotDisplay:
     @classmethod
     def from_estimator(
         cls,
-        estimator: Any,
+        estimator: BaseEstimator,
         X: ArrayLike,
         *,
         component: int = 0,
-        ax: Any = None,
+        ax: matplotlib.axes.Axes | None = None,
     ) -> SPlotDisplay:
         """Compute the S-plot arrays from a fitted ``estimator`` and plot them.
 
@@ -309,7 +339,7 @@ class SPlotDisplay:
         )
         return display.plot(ax=ax)
 
-    def plot(self, ax: Any = None) -> SPlotDisplay:
+    def plot(self, ax: matplotlib.axes.Axes | None = None) -> SPlotDisplay:
         """Draw the S-plot scatter on ``ax`` (or a fresh axes).
 
         Parameters

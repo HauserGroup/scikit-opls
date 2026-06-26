@@ -11,7 +11,7 @@ import warnings
 from dataclasses import dataclass
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 from sklearn.exceptions import ConvergenceWarning
 
 _EPS = np.finfo(np.float64).eps
@@ -47,9 +47,7 @@ class OrthogonalComponents:
     n_components: int
 
 
-def predictive_weight(
-    X: NDArray[np.float64], Y: NDArray[np.float64]
-) -> NDArray[np.float64]:
+def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
     """Leading joint X–Y direction (unit norm).
 
     Generalises ``w_p ∝ Xᵀy`` to multivariate ``Y`` via the dominant left singular
@@ -229,9 +227,7 @@ def orthogonal_filter(
     )
 
 
-def opls_filter(
-    X: NDArray[np.float64], Y: NDArray[np.float64], n_components: int
-) -> OrthogonalComponents:
+def opls_filter(X: ArrayLike, Y: ArrayLike, n_components: int) -> OrthogonalComponents:
     """OPLS X-orthogonal filter: predictive direction from ``(X, Y)``, deflate ``X``.
 
     Parameters

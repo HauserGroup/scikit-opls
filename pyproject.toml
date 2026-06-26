@@ -30,6 +30,7 @@ dev = [
     "mdformat>=1.0.0",
     "mdformat-gfm>=1.0.0",
     "mkdocstrings[python]>=0.26.0",
+    "pandas-stubs>=3.0.3.260530",
     "pre-commit>=4.6.0",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
