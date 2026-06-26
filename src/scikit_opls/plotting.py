@@ -27,8 +27,13 @@ _EPS = np.finfo(np.float64).eps
 
 
 def _predictive_engine(model: Any) -> Any:
-    """Return the fitted ``OPLS`` engine, unwrapping DA/search wrappers."""
+    """Return the fitted OPLS engine, unwrapping wrappers and pipelines."""
     inner = getattr(model, "best_estimator_", model)
+    if hasattr(inner, "named_steps"):
+        for step in reversed(inner.named_steps.values()):
+            if hasattr(step, "transform_orthogonal") or hasattr(step, "opls_"):
+                inner = step
+                break
     return getattr(inner, "opls_", inner)
 
 
@@ -199,7 +204,7 @@ class SPlotDisplay:
         display : SPlotDisplay
             The plotted display, with ``ax_`` / ``figure_`` set.
         """
-        X = check_array(X, dtype=np.float64)
+        X = check_array(X, dtype=np.float64, ensure_min_samples=2)
         base = _predictive_engine(estimator)
         Xs = apply_scaling(X, base.x_mean_, base.x_std_)
         Xs = Xs - Xs.mean(axis=0)
@@ -211,7 +216,13 @@ class SPlotDisplay:
         covariance = Xs.T @ t / max(n - 1, 1)
         x_std = Xs.std(axis=0, ddof=1)
         t_std = float(t.std(ddof=1))
-        correlation = covariance / (x_std * t_std + _EPS)
+        if t_std <= 1e-12:
+            raise ValueError("Predictive score has zero variance; S-plot is undefined.")
+
+        denom = x_std * t_std
+        correlation = np.full_like(covariance, np.nan)
+        valid = denom > 1e-12
+        correlation[valid] = covariance[valid] / denom[valid]
         display = cls(covariance=covariance, correlation=correlation)
         return display.plot(ax=ax)
 

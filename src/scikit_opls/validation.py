@@ -15,15 +15,15 @@ from typing import Any
 import numpy as np
 from joblib import Parallel, delayed
 from numpy.typing import ArrayLike, NDArray
-from sklearn.base import clone
+from sklearn.base import clone, is_classifier
 from sklearn.metrics import r2_score
 from sklearn.model_selection import check_cv, cross_val_predict
+from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_consistent_length
 
 
-def _cross_val_q2(estimator: Any, X: ArrayLike, y: ArrayLike) -> float:
-    """Out-of-fold Q2 of ``estimator`` on ``(X, y)`` using its own ``cv``."""
-    cv = check_cv(getattr(estimator, "cv", 5))
+def _cross_val_q2(estimator: Any, X: ArrayLike, y: ArrayLike, cv: Any) -> float:
+    """Out-of-fold Q2 of ``estimator`` on ``(X, y)`` using the provided ``cv``."""
     y_pred = cross_val_predict(clone(estimator), X, y, cv=cv)
     return float(r2_score(y, y_pred))
 
@@ -50,11 +50,23 @@ class PermutationResult:
     q2_p_value: float
 
 
-def _permuted_scores(estimator: Any, X: ArrayLike, y_perm: ArrayLike) -> tuple:
+def _fitted_r2y(fitted: Any) -> float:
+    if hasattr(fitted, "r2y_"):
+        return float(fitted.r2y_)
+    if hasattr(fitted, "best_estimator_") and hasattr(fitted.best_estimator_, "r2y_"):
+        return float(fitted.best_estimator_.r2y_)
+    raise TypeError(
+        "permutation_test requires a regression estimator exposing r2y_ after fit."
+    )
+
+
+def _permuted_scores(
+    estimator: Any, X: ArrayLike, y_perm: ArrayLike, cv: Any
+) -> tuple[float, float]:
     """R2Y and out-of-fold Q2 for one permuted target (one parallel task)."""
     fitted = clone(estimator).fit(X, y_perm)
-    r2y = float(fitted.r2y_)
-    q2 = _cross_val_q2(estimator, X, y_perm)
+    r2y = _fitted_r2y(fitted)
+    q2 = _cross_val_q2(estimator, X, y_perm, cv=cv)
     return r2y, q2
 
 
@@ -63,18 +75,17 @@ def permutation_test(
     X: ArrayLike,
     y: ArrayLike,
     n_permutations: int = 20,
+    cv: Any = None,
     random_state: int | None = None,
     n_jobs: int | None = None,
 ) -> PermutationResult:
     """Assess significance of an OPLS regression model by permuting ``y``.
 
     .. warning::
-        This function is intended for OPLS regression models only. It checks for
-        the presence of the ``r2y_`` attribute on the fitted estimator. Classifiers
+        This function is intended for OPLS regression models only. Classifiers
         like :class:`~scikit_opls.OPLSDA` are not supported.
 
-    The estimator must expose ``r2y_`` after fitting. A ``cv`` attribute, if
-    present, drives the out-of-fold Q2 (otherwise a 5-fold default is used).
+    The estimator must expose ``r2y_`` (or ``best_estimator_.r2y_``) after fitting.
 
     Parameters
     ----------
@@ -86,8 +97,11 @@ def permutation_test(
         Response.
     n_permutations : int, default=20
         Number of label permutations.
-    random_state : int or None, default=None
-        Seed for the permutation RNG.
+    cv : int, cross-validation generator or None, default=None
+        Determines the cross-validation splitting strategy. None uses the
+        estimator's cv parameter if present, or defaults to min(5, n_samples).
+    random_state : int, RandomState instance or None, default=None
+        Determines random number generation for label permutation.
     n_jobs : int or None, default=None
         Number of jobs running the independent permutations in parallel via
         :class:`joblib.Parallel`. ``None`` means 1; ``-1`` uses all processors.
@@ -99,6 +113,11 @@ def permutation_test(
     result : PermutationResult
         Observed and permuted R2Y/Q2 with empirical p-values.
     """
+    if is_classifier(estimator):
+        raise TypeError(
+            "permutation_test is for regression models; "
+            "classifiers like OPLSDA are not supported."
+        )
     if not isinstance(n_permutations, Integral):
         raise TypeError(
             f"n_permutations must be an integer, got {type(n_permutations).__name__}"
@@ -107,24 +126,25 @@ def permutation_test(
         raise ValueError(f"n_permutations must be >= 1, got {n_permutations}")
 
     fitted = clone(estimator).fit(X, y)
-    if not hasattr(fitted, "r2y_"):
-        raise TypeError(
-            "permutation_test requires a regression estimator exposing r2y_ after fit."
-        )
+    observed_r2y = _fitted_r2y(fitted)
 
     X = check_array(X, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64).ravel()
     check_consistent_length(X, y)
-    rng = np.random.default_rng(random_state)
 
-    observed_r2y = float(fitted.r2y_)
-    observed_q2 = _cross_val_q2(estimator, X, y)
+    if cv is None:
+        estimator_cv = getattr(estimator, "cv", None)
+        cv = estimator_cv if estimator_cv is not None else min(5, len(y))
+    cv_checked = check_cv(cv)
+
+    rng = check_random_state(random_state)
+    observed_q2 = _cross_val_q2(estimator, X, y, cv=cv_checked)
 
     # Draw all permutations serially from the RNG so the result is independent of
     # the execution order the parallel backend chooses.
     perms = [rng.permutation(y) for _ in range(n_permutations)]
     scored = Parallel(n_jobs=n_jobs)(
-        delayed(_permuted_scores)(estimator, X, y_perm) for y_perm in perms
+        delayed(_permuted_scores)(estimator, X, y_perm, cv_checked) for y_perm in perms
     )
     permuted_r2y = np.array([r2y for r2y, _ in scored])
     permuted_q2 = np.array([q2 for _, q2 in scored])

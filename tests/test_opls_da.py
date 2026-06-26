@@ -108,3 +108,13 @@ def test_opls_da_raw_score_vs_decision_function():
     np.testing.assert_array_equal(
         model.predict(X), model.classes_[(df > 0).astype(int)]
     )
+
+
+def test_opls_da_constant_raw_scores_raises(monkeypatch):
+    X, y = _classification_data()
+    # Mock _raw_scores to return constant values (all zeros) to trigger the Platt guard
+    monkeypatch.setattr(
+        OPLSDA, "_raw_scores", lambda self, X: np.zeros((X.shape[0], 1))
+    )
+    with pytest.raises(ValueError, match="OPLSDA produced constant raw scores"):
+        OPLSDA().fit(X, y)

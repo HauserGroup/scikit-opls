@@ -144,7 +144,15 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         # Platt scaling: calibrate the raw OPLS score into probabilities. Using the
         # calibrator for predict/decision_function/predict_proba keeps them mutually
         # consistent (argmax(proba) == decision_function > 0 == predict).
-        self._platt = LogisticRegression().fit(self._raw_scores(X), y_encoded)
+        raw = self._raw_scores(X)
+        raw_std = float(np.std(raw, ddof=1)) if len(raw) > 1 else 0.0
+        raw_scale = float(np.mean(np.abs(raw)))
+        if raw_std <= 1e-12 * raw_scale or raw_std == 0.0:
+            raise ValueError(
+                "OPLSDA produced constant raw scores; "
+                "classification/calibration is undefined."
+            )
+        self._platt = LogisticRegression().fit(raw, y_encoded)
         return self
 
     def _raw_scores(self, X: ArrayLike) -> NDArray[np.float64]:

@@ -188,3 +188,46 @@ def test_opls_too_many_components():
     X, y = _regression_data(n_samples=10, n_features=5)
     with pytest.raises(ValueError, match="exceeds the maximum"):
         OPLS(n_components=6, n_orthogonal=0).fit(X, y)
+
+
+def test_opls_constant_y_raises():
+    X, y = _regression_data(seed=42)
+    y_const = np.ones_like(y) * 5.0
+    with pytest.raises(ValueError, match="non-constant target y"):
+        OPLS().fit(X, y_const)
+
+
+def test_opls_constant_x_raises():
+    X, y = _regression_data(seed=42)
+    X_const = np.ones_like(X) * 5.0
+    with pytest.raises(ValueError, match="no non-zero variation"):
+        OPLS(n_orthogonal=0).fit(X_const, y)
+
+
+def test_opls_no_variation_after_filtering_raises(monkeypatch):
+    from scikit_opls._orthogonal import OrthogonalComponents
+
+    X, y = _regression_data(seed=42)
+    # Mock opls_filter to return zero filtered X to trigger the guard
+    dummy_components = OrthogonalComponents(
+        x_ortho_weights=np.zeros((X.shape[1], 0)),
+        x_ortho_scores=np.zeros((X.shape[0], 0)),
+        x_ortho_loadings=np.zeros((X.shape[1], 0)),
+        x_filtered=np.zeros_like(X),
+        x_predictive_weight=np.zeros(X.shape[1]),
+        n_components=0,
+    )
+    monkeypatch.setattr(
+        "scikit_opls._opls.opls_filter", lambda *args, **kwargs: dummy_components
+    )
+    with pytest.raises(
+        ValueError, match="no remaining variation after orthogonal filtering"
+    ):
+        OPLS().fit(X, y)
+
+
+def test_opls_exposes_intercept():
+    X, y = _regression_data(seed=42)
+    model = OPLS(n_orthogonal=1).fit(X, y)
+    assert hasattr(model, "intercept_")
+    assert isinstance(model.intercept_, (float, np.ndarray))

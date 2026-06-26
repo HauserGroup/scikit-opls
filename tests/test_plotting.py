@@ -7,6 +7,8 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
+import numpy as np
+import pytest
 from matplotlib.axes import Axes  # noqa: E402
 from sklearn.model_selection import GridSearchCV  # noqa: E402
 
@@ -89,3 +91,44 @@ def test_scores_display_y_mismatched_length_raises():
     model = OPLS().fit(X, y)
     with pytest.raises(ValueError, match="y must have the same length"):
         OPLSScoresDisplay.from_estimator(model, X, y[:-1])
+
+
+def test_splot_display_ensure_min_samples_raises():
+    X, y = _regression_data()
+    model = OPLS().fit(X, y)
+    with pytest.raises(ValueError, match="minimum of 2"):
+        SPlotDisplay.from_estimator(model, X[:1])
+
+
+def test_splot_display_t_std_zero_variance_raises():
+    X, y = _regression_data()
+    # constant score by predicting constant X
+    model = OPLS().fit(X, y)
+    X_const = np.ones((5, X.shape[1]))
+    with pytest.raises(ValueError, match="zero variance; S-plot is undefined"):
+        SPlotDisplay.from_estimator(model, X_const)
+
+
+def test_splot_display_nan_correlation():
+    X, y = _regression_data()
+    # Add a zero-variance feature to X
+    X_with_const = X.copy()
+    X_with_const[:, 0] = 5.0
+    model = OPLS().fit(X_with_const, y)
+    disp = SPlotDisplay.from_estimator(model, X_with_const)
+    assert np.isnan(disp.correlation[0])
+    assert not np.isnan(disp.correlation[1:]).any()
+
+
+def test_plotting_pipeline_unwrapping():
+    from sklearn.pipeline import Pipeline
+
+    X, y = _regression_data()
+    pipe = Pipeline([("opls", OPLS(n_components=1, n_orthogonal=1))]).fit(X, y)
+    disp = SPlotDisplay.from_estimator(pipe, X)
+    assert isinstance(disp, SPlotDisplay)
+
+    # Nested pipeline under GridSearchCV
+    gs = GridSearchCV(pipe, {"opls__n_orthogonal": [0, 1]}, cv=3).fit(X, y)
+    disp2 = SPlotDisplay.from_estimator(gs, X)
+    assert isinstance(disp2, SPlotDisplay)

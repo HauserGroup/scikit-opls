@@ -57,7 +57,9 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     scale : {"none", "center", "pareto", "standard"}, default="standard"
         Column preprocessing applied to ``X``.
     copy : bool, default=True
-        Whether the input arrays are copied during validation.
+        Whether the input arrays are copied during validation. Note that
+        ``copy=False`` is passed to sklearn input validation; OPLS filtering
+        still allocates working arrays.
 
     Attributes
     ----------
@@ -65,9 +67,16 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         Number of orthogonal components actually used.
     x_ortho_weights_, x_ortho_loadings_, x_ortho_scores_ : ndarray
         Orthogonal weight/loading/score matrices.
-    x_weights_, x_loadings_, x_scores_, y_loadings_, coef_ : ndarray
+    x_weights_, x_loadings_, x_scores_, y_loadings_ : ndarray
         Predictive model parameters taken from the underlying PLS engine (in the
         preprocessed, orthogonal-filtered space).
+    coef_ : ndarray
+        Coefficient matrix taken from the underlying PLS engine. Note: these
+        coefficients act on the preprocessed, orthogonal-filtered space, and
+        cannot be directly multiplied with raw input ``X``.
+    intercept_ : float or ndarray
+        Intercept of the predictive model in the preprocessed, orthogonal-filtered
+        space.
     pls_ : PLSRegression
         The fitted predictive engine.
     x_mean_, x_std_ : ndarray
@@ -77,9 +86,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         :func:`sklearn.model_selection.cross_val_score`.
     vip_, ortho_vip_ : ndarray of shape (n_features,)
         Lazy predictive / orthogonal Variable Importance in Projection scores,
-        computed on access (sklearn ``feature_importances_`` convention). Each
-        satisfies ``sum(vip**2) == n_features``. Use with
-        :class:`~sklearn.feature_selection.SelectFromModel` via
+        computed on access (sklearn ``feature_importances_`` convention). For
+        non-empty blocks with positive explained variance, each satisfies
+        ``sum(vip**2) == n_features``. Empty or degenerate blocks return zeros.
+        Use with :class:`~sklearn.feature_selection.SelectFromModel` via
         ``importance_getter="vip_"``.
     """
 
@@ -139,6 +149,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         X, y = validate_data(
             self, X, y, dtype=np.float64, ensure_min_samples=2, copy=self.copy
         )
+        y_std = float(np.std(y, ddof=1)) if len(y) > 1 else 0.0
+        y_scale = float(np.mean(np.abs(y)))
+        if y_std <= 1e-12 * y_scale or y_std == 0.0:
+            raise ValueError("OPLS requires a non-constant target y.")
 
         # True-OPLS contract: one predictive component when any orthogonal
         # filtering is requested. n_orthogonal=0 keeps the
@@ -158,10 +172,21 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
         self.x_mean_, self.x_std_ = compute_scaling(X, self.scale)
         Xs = apply_scaling(X, self.x_mean_, self.x_std_)
+        xs_norm = float(np.linalg.norm(Xs))
+        x_norm = float(np.linalg.norm(X))
+        if xs_norm <= 1e-12 * x_norm or xs_norm == 0.0:
+            raise ValueError("X has no non-zero variation after preprocessing.")
 
         # opls_filter handles n_orthogonal=0 (pass-through) and truncation itself.
         ofit = opls_filter(Xs, y - y.mean(), self.n_orthogonal)
         X_filtered = ofit.x_filtered
+        x_filtered_norm = float(np.linalg.norm(X_filtered))
+        if x_filtered_norm <= 1e-12 * xs_norm or x_filtered_norm == 0.0:
+            raise ValueError(
+                "X has no remaining variation after orthogonal filtering; "
+                "reduce n_orthogonal."
+            )
+
         self.x_ortho_weights_ = ofit.x_ortho_weights
         self.x_ortho_loadings_ = ofit.x_ortho_loadings
         self.x_ortho_scores_ = ofit.x_ortho_scores
@@ -178,6 +203,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.x_scores_ = self.pls_.x_scores_
         self.y_loadings_ = self.pls_.y_loadings_
         self.coef_ = self.pls_.coef_
+        self.intercept_ = self.pls_.intercept_
 
         y_fit = self.pls_.predict(X_filtered)
         self.r2x_ = explained_x_variance(Xs, self.x_scores_, self.x_loadings_)
