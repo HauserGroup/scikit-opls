@@ -23,3 +23,8 @@ All estimators pass scikit-learn's `check_estimator` compliance suite, support
 `GridSearchCV`.
 
 See [Installation](installation.md) and [Quickstart](quickstart.md) to get going.
+
+<div class="admonition tip">
+  <p class="admonition-title">Getting Started</p>
+  <p>Check out the <a href="quickstart.md">Quickstart</a> guide to see examples of regression, cross-validation, and classification with <code>scikit-opls</code>.</p>
+</div>
