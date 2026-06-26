@@ -98,4 +98,4 @@ permutation_test(OPLS(n_orthogonal=2), X, y)
 ```
 
 !!! warning "Pipeline support in plotting"
-Diagnostic plotting displays (`OPLSScoresDisplay`, `SPlotDisplay`) support `OPLS`, `OPLSDA`, and fitted `GridSearchCV` estimators wrapping them. They do not support scikit-learn `Pipeline` objects and will raise a `TypeError` if passed. Always pass the OPLS, OPLSDA, or GridSearchCV estimator directly to the plotting displays.
+Diagnostic plotting displays (`OPLSScoresDisplay`, `SPlotDisplay`) support `OPLS`, `OPLSDA`, and fitted search meta-estimators (e.g. `GridSearchCV`) wrapping them. They do not support scikit-learn `Pipeline` objects and will raise a `TypeError` if passed. Always pass the `OPLS`, `OPLSDA`, or search meta-estimator directly to the plotting displays.
