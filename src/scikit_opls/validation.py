@@ -180,8 +180,17 @@ def permutation_test(
     permuted_r2y = np.array([r2y for r2y, _ in scored])
     permuted_q2 = np.array([q2 for _, q2 in scored])
 
-    r2y_p = (1 + int(np.sum(permuted_r2y >= observed_r2y))) / (n_permutations + 1)
-    q2_p = (1 + int(np.sum(permuted_q2 >= observed_q2))) / (n_permutations + 1)
+    # An undefined observed metric (NaN) must not masquerade as significant.
+    r2y_p = (
+        np.nan
+        if np.isnan(observed_r2y)
+        else (1 + int(np.sum(permuted_r2y >= observed_r2y))) / (n_permutations + 1)
+    )
+    q2_p = (
+        np.nan
+        if np.isnan(observed_q2)
+        else (1 + int(np.sum(permuted_q2 >= observed_q2))) / (n_permutations + 1)
+    )
     return PermutationResult(
         r2y=observed_r2y,
         q2=observed_q2,

@@ -37,6 +37,17 @@ def test_permutation_pvalues_in_unit_interval():
     assert 0.0 < result.q2_p_value <= 1.0
 
 
+def test_permutation_nan_metric_yields_nan_pvalue(monkeypatch):
+    import scikit_opls.validation as val
+
+    # Force an undefined Q2; the p-value must be NaN, not falsely significant.
+    monkeypatch.setattr(val, "_cross_val_q2", lambda *a, **k: np.nan)
+    X, y = _regression_data(seed=6)
+    result = permutation_test(OPLS(n_orthogonal=1), X, y, n_permutations=5)
+    assert np.isnan(result.q2_p_value)
+    assert not np.isnan(result.r2y_p_value)  # R2Y still defined
+
+
 @pytest.mark.parametrize("bad", [0, -1])
 def test_permutation_test_rejects_non_positive_n_permutations(bad):
     X, y = _regression_data(seed=7)
