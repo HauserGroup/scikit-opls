@@ -4,7 +4,8 @@ OPLS (Trygg & Wold, 2002) splits the variation in ``X`` into a *predictive* part
 correlated with ``y`` and *orthogonal* parts uncorrelated with ``y``. This estimator
 removes the orthogonal variation with a NIPALS filter (:mod:`scikit_opls._orthogonal`)
 and then fits :class:`sklearn.cross_decomposition.PLSRegression` on the cleaned ``X`` as
-the predictive engine. With ``n_orthogonal=0`` it reduces exactly to ``PLSRegression``.
+the predictive engine. With ``n_orthogonal=0``, this becomes ordinary ``PLSRegression``
+after the package's selected X preprocessing.
 """
 
 # scikit-learn's validate_data uses sentinel-string parameter defaults that lead
@@ -133,6 +134,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self._validate_params()
         # multi_output=False ravels a column-vector y (with a DataConversionWarning)
         # and rejects multi-column y: OPLS is univariate.
+        # Note: The internal OSC primitive supports multivariate blocks, but the public
+        # OPLS estimator currently exposes only univariate OPLS regression.
         X, y = validate_data(
             self, X, y, dtype=np.float64, ensure_min_samples=2, copy=self.copy
         )

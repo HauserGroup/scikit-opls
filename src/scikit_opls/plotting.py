@@ -95,6 +95,8 @@ class OPLSScoresDisplay:
             The plotted display, with ``ax_`` / ``figure_`` set.
         """
         X = check_array(X, dtype=np.float64)
+        if y is not None and len(y) != X.shape[0]:
+            raise ValueError("y must have the same length as X.")
         base = _predictive_engine(estimator)
         t_pred = np.asarray(base.transform(X))[:, 0]
         t_ortho = np.asarray(base.transform_orthogonal(X))
@@ -143,6 +145,11 @@ class OPLSScoresDisplay:
 
 class SPlotDisplay:
     """S-plot: covariance vs correlation of each feature with the predictive score.
+
+    .. note::
+        SPlotDisplay is intended for the fitted training data. If a test/new data subset
+        is provided, the covariance and correlation are computed after centering that
+        subset by its own mean.
 
     Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` or a fitted
     :class:`~sklearn.model_selection.GridSearchCV` wrapping one. Construct with
@@ -228,7 +235,7 @@ class SPlotDisplay:
         ax.scatter(self.covariance, self.correlation)
         ax.axhline(0.0, color="grey", linewidth=0.8)
         ax.axvline(0.0, color="grey", linewidth=0.8)
-        ax.set_xlabel("Covariance p(corr)")
+        ax.set_xlabel("Covariance p")
         ax.set_ylabel("Correlation p(corr)")
         self.ax_ = ax
         self.figure_ = ax.figure

@@ -1150,7 +1150,6 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "joblib" },
-    { name = "matplotlib" },
     { name = "numpy" },
     { name = "pandas" },
     { name = "scikit-learn" },
@@ -1179,7 +1178,6 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "joblib", specifier = ">=1.4.0" },
-    { name = "matplotlib", specifier = ">=3.11.0" },
     { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.11.0" },
     { name = "numpy", specifier = ">=2.5.0" },
     { name = "pandas", specifier = ">=3.0.3" },

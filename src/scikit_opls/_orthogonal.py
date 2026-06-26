@@ -73,13 +73,50 @@ def predictive_weight(
     ValueError
         If ``X`` is orthogonal to ``Y`` (the predictive direction is undefined).
     """
+    X = np.asarray(X, dtype=np.float64)
     Y = np.asarray(Y, dtype=np.float64)
-    if Y.ndim == 1:
-        Y = Y[:, None]
+    if X.ndim != 2:
+        raise ValueError(f"X must be 2D, got shape {X.shape}")
+
+    # Special-case univariate Y (1D or 2D with a single column)
+    if Y.ndim == 1 or (Y.ndim == 2 and Y.shape[1] == 1):
+        y = Y.ravel()
+        if len(y) != X.shape[0]:
+            raise ValueError(
+                f"Length of Y ({len(y)}) does not match "
+                f"number of samples in X ({X.shape[0]})."
+            )
+        w = X.T @ y
+        norm_w = float(np.linalg.norm(w))
+        ref = float(np.linalg.norm(X) * np.linalg.norm(y))
+        if norm_w <= 1e-12 * ref or norm_w == 0.0:
+            raise ValueError(
+                "X is numerically orthogonal to Y; predictive direction is undefined."
+            )
+        return w / norm_w
+
+    # Multivariate Y
+    if Y.ndim != 2:
+        raise ValueError(f"Y must be 1D or 2D, got shape {Y.shape}")
+    if Y.shape[0] != X.shape[0]:
+        raise ValueError(
+            f"Number of samples in Y ({Y.shape[0]}) does not "
+            f"match number of samples in X ({X.shape[0]})."
+        )
+
     S = X.T @ Y  # (n_features, n_targets)
-    if not np.any(np.abs(S) > _TOL):
-        raise ValueError("X is orthogonal to Y; predictive direction is undefined.")
-    u, _, _ = np.linalg.svd(S, full_matrices=False)
+    s_norm = float(np.linalg.norm(S))
+    ref = float(np.linalg.norm(X) * np.linalg.norm(Y))
+    if s_norm <= 1e-12 * ref or s_norm == 0.0:
+        raise ValueError(
+            "X is numerically orthogonal to Y; predictive direction is undefined."
+        )
+    try:
+        u, _, _ = np.linalg.svd(S, full_matrices=False)
+    except np.linalg.LinAlgError as exc:
+        raise ValueError(
+            "SVD failed while computing the predictive OPLS direction."
+        ) from exc
     return u[:, 0]  # already unit norm
 
 
@@ -116,9 +153,15 @@ def orthogonal_filter(
     orthogonal weight ``w_o``. The orthogonal score ``t_o = X w_o`` and loading
     ``p_o = Xᵀt_o / (t_oᵀt_o)`` are deflated out: ``X <- X - t_o p_oᵀ``.
     """
+    if block.ndim != 2:
+        raise ValueError(f"block must be 2D, got shape {block.shape}")
     X = np.asarray(block, dtype=np.float64)
     w_pred = np.asarray(predictive_direction, dtype=np.float64).ravel()
     n_samples, n_features = X.shape
+    if w_pred.shape != (n_features,):
+        raise ValueError(
+            f"predictive_direction must have shape ({n_features},), got {w_pred.shape}"
+        )
     if n_components < 0:
         raise ValueError(f"n_components must be >= 0, got {n_components}")
 
@@ -128,10 +171,9 @@ def orthogonal_filter(
     # when no components are requested, so only guard/normalise when it matters.
     if n_components > 0:
         w_norm = float(np.linalg.norm(w_pred))
-        if w_norm < _TOL:
+        if w_norm == 0.0:
             raise ValueError(
-                "predictive_direction must be a non-zero vector when "
-                f"n_components > 0; got one with norm {w_norm:.3e}."
+                "predictive_direction must be a non-zero vector when n_components > 0."
             )
         w_pred = w_pred / w_norm
 
@@ -140,25 +182,28 @@ def orthogonal_filter(
     P = np.zeros((n_features, n_components))
     X_res = X.copy()
 
+    x_norm_sq = float(np.sum(X**2))
+
     extracted = 0
     for i in range(n_components):
         # w_pred is unit-normalised, so dividing by (w_predᵀ w_pred) is a no-op.
         t = X_res @ w_pred
         tt = float(t @ t)
-        if tt < _TOL:
+        if tt <= 1e-12 * x_norm_sq:
             break
         p = X_res.T @ t / tt
         w_o = p - float(w_pred @ p) * w_pred  # part of the loading orthogonal to w_pred
         w_norm = float(np.linalg.norm(w_o))
-        if w_norm < _TOL:
+        p_norm = float(np.linalg.norm(p))
+        if w_norm <= 1e-12 * p_norm or w_norm == 0.0:
             break  # no orthogonal variation left
         w_o /= w_norm
         t_o = X_res @ w_o
         too = float(t_o @ t_o)
-        if too < _TOL:
+        if too <= 1e-12 * x_norm_sq:
             break
         p_o = X_res.T @ t_o / too
-        X_res = X_res - np.outer(t_o, p_o)
+        X_res -= np.outer(t_o, p_o)
         W[:, i] = w_o
         T[:, i] = t_o
         P[:, i] = p_o
@@ -235,12 +280,28 @@ def apply_orthogonal_filter(
     x_ortho_scores : ndarray of shape (n_samples, n_components)
         Orthogonal scores of the new samples.
     """
+    if X.ndim != 2:
+        raise ValueError(f"X must be 2D, got shape {X.shape}")
+    if x_ortho_weights.ndim != 2 or x_ortho_loadings.ndim != 2:
+        raise ValueError("x_ortho_weights and x_ortho_loadings must be 2D")
+    if x_ortho_weights.shape != x_ortho_loadings.shape:
+        raise ValueError(
+            f"x_ortho_weights and x_ortho_loadings must have matching shapes, "
+            f"got {x_ortho_weights.shape} and {x_ortho_loadings.shape}"
+        )
+    n_samples, n_features = X.shape
+    if n_features != x_ortho_weights.shape[0]:
+        raise ValueError(
+            f"Number of features in X ({n_features}) must match the number of rows "
+            f"in x_ortho_weights ({x_ortho_weights.shape[0]})"
+        )
+
     X = np.asarray(X, dtype=np.float64).copy()
     n_components = x_ortho_weights.shape[1]
-    T = np.zeros((X.shape[0], n_components))
+    T = np.zeros((n_samples, n_components))
     for i in range(n_components):
         w_o = x_ortho_weights[:, i]
         t_o = X @ w_o  # weights are unit-normalised at fit time
-        X = X - np.outer(t_o, x_ortho_loadings[:, i])
+        X -= np.outer(t_o, x_ortho_loadings[:, i])
         T[:, i] = t_o
     return X, T

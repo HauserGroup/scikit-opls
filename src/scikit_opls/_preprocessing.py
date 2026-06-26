@@ -53,7 +53,7 @@ def compute_scaling(
         std = X.std(axis=0, ddof=1)
     else:
         std = np.ones(n_features)
-    std = np.where(std < _EPS, 1.0, std)
+    std = np.where(std <= _EPS, 1.0, std)
 
     if mode == "pareto":
         return mean_, np.sqrt(std)

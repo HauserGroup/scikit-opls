@@ -80,3 +80,31 @@ def test_non_binary_raises():
 def test_clone_and_params():
     model = OPLSDA(n_components=1, n_orthogonal=3, scale="pareto")
     assert clone(model).get_params() == model.get_params()
+
+
+def test_opls_da_sample_guards():
+    # 1. Too few samples overall (fewer than 5)
+    rng = np.random.default_rng(0)
+    X_small = rng.normal(size=(4, 30))
+    y_small = np.array(["ctrl", "ctrl", "case", "case"])
+    with pytest.raises(ValueError, match="at least 5 samples overall"):
+        OPLSDA().fit(X_small, y_small)
+
+    # 2. Too few samples per class (fewer than 2 in a class)
+    X_imb = rng.normal(size=(10, 30))
+    y_imbalanced = np.array(["ctrl"] * 9 + ["case"] * 1)
+    with pytest.raises(ValueError, match="at least two samples per class"):
+        OPLSDA().fit(X_imb, y_imbalanced)
+
+
+def test_opls_da_raw_score_vs_decision_function():
+    X, y = _classification_data()
+    model = OPLSDA(n_orthogonal=1).fit(X, y)
+    raw = model.raw_score(X)
+    df = model.decision_function(X)
+    assert raw.shape == (X.shape[0],)
+    assert df.shape == (X.shape[0],)
+    # The sign of decision_function maps to predictions
+    np.testing.assert_array_equal(
+        model.predict(X), model.classes_[(df > 0).astype(int)]
+    )

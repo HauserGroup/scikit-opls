@@ -80,3 +80,12 @@ def test_splot_display_from_estimator_with_cv():
     assert disp.correlation.shape == (X.shape[1],)
     assert isinstance(disp.ax_, Axes)
     plt.close("all")
+
+
+def test_scores_display_y_mismatched_length_raises():
+    import pytest
+
+    X, y = _regression_data()
+    model = OPLS().fit(X, y)
+    with pytest.raises(ValueError, match="y must have the same length"):
+        OPLSScoresDisplay.from_estimator(model, X, y[:-1])

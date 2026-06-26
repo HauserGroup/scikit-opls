@@ -39,8 +39,9 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
     """Binary OPLS Discriminant Analysis.
 
     Parameters mirror :class:`~scikit_opls.OPLS`. ``predict`` returns class labels;
-    ``decision_function`` returns the raw predictive score; ``predict_proba`` returns
-    Platt-scaled probabilities.
+    ``decision_function`` returns the Platt-calibrated logistic decision score;
+    ``raw_score`` returns the raw (uncalibrated) predictive score;
+    ``predict_proba`` returns in-sample Platt-scaled probabilities.
 
     Attributes
     ----------
@@ -122,6 +123,14 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             )
 
         y_encoded = self._label_encoder.transform(y)
+
+        # Guard: At least 2 samples per class, and at least 5 samples overall
+        counts = np.bincount(y_encoded)
+        if np.any(counts < 2):
+            raise ValueError("OPLSDA requires at least two samples per class.")
+        if X.shape[0] < 5:
+            raise ValueError("OPLSDA requires at least 5 samples overall.")
+
         y_dummy = np.where(y_encoded == 1, 1.0, -1.0)
 
         self.opls_ = OPLS(
@@ -141,8 +150,8 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
     def _raw_scores(self, X: ArrayLike) -> NDArray[np.float64]:
         return np.asarray(self.opls_.predict(X), dtype=np.float64).reshape(-1, 1)
 
-    def decision_function(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Signed confidence score; positive favours ``classes_[1]``.
+    def raw_score(self, X: ArrayLike) -> NDArray[np.float64]:
+        """OPLS predictive regression score (uncalibrated).
 
         Parameters
         ----------
@@ -152,7 +161,24 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         Returns
         -------
         scores : ndarray of shape (n_samples,)
-            Signed confidence. ``> 0`` predicts ``classes_[1]``.
+            The raw OPLS predictive score.
+        """
+        check_is_fitted(self)
+        return self._raw_scores(X).ravel()
+
+    def decision_function(self, X: ArrayLike) -> NDArray[np.float64]:
+        """Signed Platt-calibrated confidence score; positive favours ``classes_[1]``.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to score.
+
+        Returns
+        -------
+        scores : ndarray of shape (n_samples,)
+            Signed confidence (calibrated/logistic decision value).
+            ``> 0`` predicts ``classes_[1]``.
         """
         check_is_fitted(self)
         scores = self._platt.decision_function(self._raw_scores(X))
@@ -175,7 +201,14 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         return self.classes_[indices]
 
     def predict_proba(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Platt-scaled class probabilities.
+        """In-sample Platt-scaled class probabilities.
+
+        .. warning::
+            These probabilities are calibrated in-sample on the same training data
+            used to fit the OPLS model, which can lead to overconfidence (especially
+            on small datasets, common in metabolomics). For robust cross-fitted
+            calibration, consider wrapping your estimator in
+            :class:`~sklearn.calibration.CalibratedClassifierCV`.
 
         Parameters
         ----------

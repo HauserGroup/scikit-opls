@@ -160,3 +160,31 @@ def test_html_repr_doc_links():
         "https://hausergroup.github.io/scikit-opls/api/opls_da/"
         in estimator_html_repr(opls_da)
     )
+
+
+def test_opls_n_orthogonal_zero_parity():
+    # Parity with PLSRegression on pre-centered data
+    X, y = _regression_data(seed=42)
+    # pre-center X and y
+    X_centered = X - X.mean(axis=0)
+    y_centered = y - y.mean()
+
+    opls = OPLS(n_components=1, n_orthogonal=0, scale="none").fit(
+        X_centered, y_centered
+    )
+    pls = PLSRegression(n_components=1, scale=False).fit(X_centered, y_centered)
+    assert_allclose(opls.predict(X_centered), pls.predict(X_centered).ravel())
+
+
+def test_opls_zero_variance_columns():
+    # Ensure constant columns don't cause division by zero
+    X, y = _regression_data(seed=42)
+    X[:, 0] = 5.0  # Constant column
+    model = OPLS(n_orthogonal=1).fit(X, y)
+    assert not np.isnan(model.predict(X)).any()
+
+
+def test_opls_too_many_components():
+    X, y = _regression_data(n_samples=10, n_features=5)
+    with pytest.raises(ValueError, match="exceeds the maximum"):
+        OPLS(n_components=6, n_orthogonal=0).fit(X, y)

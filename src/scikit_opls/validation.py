@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from numbers import Integral
 from typing import Any
 
 import numpy as np
@@ -51,7 +52,8 @@ class PermutationResult:
 
 def _permuted_scores(estimator: Any, X: ArrayLike, y_perm: ArrayLike) -> tuple:
     """R2Y and out-of-fold Q2 for one permuted target (one parallel task)."""
-    r2y = float(clone(estimator).fit(X, y_perm).r2y_)
+    fitted = clone(estimator).fit(X, y_perm)
+    r2y = float(fitted.r2y_)
     q2 = _cross_val_q2(estimator, X, y_perm)
     return r2y, q2
 
@@ -64,7 +66,12 @@ def permutation_test(
     random_state: int | None = None,
     n_jobs: int | None = None,
 ) -> PermutationResult:
-    """Assess significance of an :class:`~scikit_opls.OPLS` model by permuting ``y``.
+    """Assess significance of an OPLS regression model by permuting ``y``.
+
+    .. warning::
+        This function is intended for OPLS regression models only. It checks for
+        the presence of the ``r2y_`` attribute on the fitted estimator. Classifiers
+        like :class:`~scikit_opls.OPLSDA` are not supported.
 
     The estimator must expose ``r2y_`` after fitting. A ``cv`` attribute, if
     present, drives the out-of-fold Q2 (otherwise a 5-fold default is used).
@@ -92,14 +99,25 @@ def permutation_test(
     result : PermutationResult
         Observed and permuted R2Y/Q2 with empirical p-values.
     """
+    if not isinstance(n_permutations, Integral):
+        raise TypeError(
+            f"n_permutations must be an integer, got {type(n_permutations).__name__}"
+        )
     if n_permutations < 1:
         raise ValueError(f"n_permutations must be >= 1, got {n_permutations}")
+
+    fitted = clone(estimator).fit(X, y)
+    if not hasattr(fitted, "r2y_"):
+        raise TypeError(
+            "permutation_test requires a regression estimator exposing r2y_ after fit."
+        )
+
     X = check_array(X, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64).ravel()
     check_consistent_length(X, y)
     rng = np.random.default_rng(random_state)
 
-    observed_r2y = float(clone(estimator).fit(X, y).r2y_)
+    observed_r2y = float(fitted.r2y_)
     observed_q2 = _cross_val_q2(estimator, X, y)
 
     # Draw all permutations serially from the RNG so the result is independent of

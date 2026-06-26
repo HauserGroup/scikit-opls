@@ -58,3 +58,19 @@ def test_permutation_test_n_jobs_is_reproducible():
     parallel = permutation_test(OPLS(n_orthogonal=1), X, y, n_jobs=2, **kw)
     assert_allclose(serial.permuted_q2, parallel.permuted_q2)
     assert_allclose(serial.permuted_r2y, parallel.permuted_r2y)
+
+
+def test_permutation_test_non_regression_estimator_raises():
+    from scikit_opls import OPLSDA
+
+    X, y = _regression_data(seed=10)
+    labels = np.where(y > 0.0, "hi", "lo")
+    # OPLSDA doesn't expose r2y_ directly after fit, so it should raise a TypeError
+    with pytest.raises(TypeError, match="requires a regression estimator"):
+        permutation_test(OPLSDA(), X, labels)
+
+
+def test_permutation_test_n_permutations_type_check():
+    X, y = _regression_data(seed=11)
+    with pytest.raises(TypeError, match="must be an integer"):
+        permutation_test(OPLS(), X, y, n_permutations="twenty")

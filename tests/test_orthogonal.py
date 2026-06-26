@@ -142,3 +142,39 @@ def test_orthogonal_filter_rejects_zero_direction():
     # ...but n_components=0 never touches the direction, so it must stay valid.
     out = orthogonal_filter(X, np.zeros(X.shape[1]), 0)
     assert out.n_components == 0
+
+
+def test_relative_tolerances_small_scale():
+    # Make small-scale data: standard OPLS signals multiplied by 1e-15
+    X, y = _make_data()
+    X_small = X * 1e-15
+    y_small = y * 1e-15
+    # With absolute tolerances, OPLS would fail to find components or define weight
+    # but relative tolerances allow it to work normally.
+    fit = opls_filter(X_small, y_small, 2)
+    assert fit.n_components == 2
+    reconstructed = fit.x_filtered + fit.x_ortho_scores @ fit.x_ortho_loadings.T
+    assert_allclose(reconstructed, X_small, atol=1e-25)
+
+
+def test_orthogonal_filter_shape_checks():
+    X, y = _make_data()
+    # 1. 1D block
+    with pytest.raises(ValueError, match="must be 2D"):
+        orthogonal_filter(X.ravel(), np.zeros(X.shape[1]), 1)
+
+    # 2. mismatch predictive_direction
+    with pytest.raises(ValueError, match="predictive_direction must have shape"):
+        orthogonal_filter(X, np.zeros(X.shape[1] + 1), 1)
+
+    # 3. apply_orthogonal_filter shape validation
+    fit = opls_filter(X, y, 2)
+    # X not 2D
+    with pytest.raises(ValueError, match="must be 2D"):
+        apply_orthogonal_filter(X.ravel(), fit.x_ortho_weights, fit.x_ortho_loadings)
+    # weights and loadings shapes mismatch
+    with pytest.raises(ValueError, match="matching shapes"):
+        apply_orthogonal_filter(X, fit.x_ortho_weights, fit.x_ortho_loadings[:, :1])
+    # features mismatch
+    with pytest.raises(ValueError, match="Number of features"):
+        apply_orthogonal_filter(X[:, :10], fit.x_ortho_weights, fit.x_ortho_loadings)

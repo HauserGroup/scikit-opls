@@ -42,8 +42,9 @@ def explained_x_variance(
     Returns
     -------
     fraction : float
-        Captured fraction in ``[0, 1]``; ``0.0`` if the block is empty or ``X``
-        has zero sum-of-squares.
+        Captured nominal fraction; ``0.0`` if the block is empty or ``X``
+        has zero sum-of-squares. Can slightly exceed 1.0 due to numerical
+        floating-point noise.
     """
     total = float(np.sum(X**2))
     if total <= 0.0 or scores.shape[1] == 0:
