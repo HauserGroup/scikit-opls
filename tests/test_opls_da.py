@@ -45,6 +45,19 @@ def test_decision_function_sign_matches_predict():
     np.testing.assert_array_equal(model.predict(X), expected)
 
 
+def test_decision_function_zero_predicts_first_class():
+    class ZeroScoreOPLSDA(OPLSDA):
+        def decision_function(self, X):
+            return np.array([-1.0, 0.0, 1.0])
+
+    model = ZeroScoreOPLSDA()
+    model.classes_ = np.array(["case", "ctrl"])
+
+    np.testing.assert_array_equal(
+        model.predict(np.zeros((3, 1))), np.array(["case", "case", "ctrl"])
+    )
+
+
 def test_scores_available_via_underlying_opls():
     X, y = _classification_data()
     model = OPLSDA(n_components=1, n_orthogonal=2).fit(X, y)
@@ -71,21 +84,30 @@ def test_clone_and_params():
 
 
 def test_opls_da_sample_guards():
-    # 1. Too few samples overall (fewer than 5)
     rng = np.random.default_rng(0)
-    X_small = rng.normal(size=(4, 30))
-    y_small = np.array(["ctrl", "ctrl", "case", "case"])
-    with pytest.raises(ValueError, match="at least 5 samples overall"):
-        OPLSDA().fit(X_small, y_small)
-
-    # 2. Too few samples per class (fewer than 2 in a class)
     X_imb = rng.normal(size=(10, 30))
     y_imbalanced = np.array(["ctrl"] * 9 + ["case"] * 1)
     with pytest.raises(ValueError, match="at least two samples per class"):
         OPLSDA().fit(X_imb, y_imbalanced)
 
 
-def test_decision_function_is_raw_opls_score():
+def test_four_samples_with_two_per_class_is_allowed():
+    X = np.array(
+        [
+            [-2.0, 0.0, 1.0],
+            [-1.0, 1.0, 0.0],
+            [1.0, 0.0, -1.0],
+            [2.0, -1.0, 0.0],
+        ]
+    )
+    y = np.array(["ctrl", "ctrl", "case", "case"])
+
+    model = OPLSDA(n_orthogonal=0).fit(X, y)
+
+    assert model.predict(X).shape == y.shape
+
+
+def test_decision_function_is_raw_opls_regression_output():
     X, y = _classification_data()
     model = OPLSDA(n_orthogonal=1).fit(X, y)
     df = model.decision_function(X)
