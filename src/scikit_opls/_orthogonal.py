@@ -1,18 +1,33 @@
-"""NIPALS orthogonal signal correction, the core of OPLS (Trygg & Wold, 2002).
+"""OSC-style orthogonal filtering for OPLS.
 
-Given a preprocessed ``X`` and a single (centered) response ``y``, this removes the
-variation in ``X`` that is orthogonal to the ``y``-correlated (predictive) direction.
-The cleaned ``X`` is then handed to a standard PLS engine for the predictive model.
+The public OPLS estimator passes a preprocessed ``X`` and a single centered
+response ``y``. The low-level predictive-direction helper also accepts a
+multivariate response block for tests and internal reuse, but OPLS itself is
+univariate.
 """
 
 from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
+from numbers import Integral
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from sklearn.exceptions import ConvergenceWarning
+
+_TOL = 1e-12
+
+
+def _validate_n_components(n_components: int) -> int:
+    if isinstance(n_components, bool) or not isinstance(n_components, Integral):
+        raise TypeError(
+            "n_components must be a non-negative integer, "
+            f"got {type(n_components).__name__}."
+        )
+    if n_components < 0:
+        raise ValueError(f"n_components must be >= 0, got {n_components}.")
+    return int(n_components)
 
 
 @dataclass
@@ -30,7 +45,9 @@ class OrthogonalComponents:
     x_filtered : ndarray of shape (n_samples, n_features)
         ``X`` with the orthogonal variation removed.
     x_predictive_weight : ndarray of shape (n_features,)
-        Normalised predictive weight direction ``w_p`` (proportional to ``Xᵀy``).
+        Normalised predictive weight direction ``w_p`` when computed. For
+        ``opls_filter(..., n_components=0)``, this is a zero vector because the
+        predictive direction is unused.
     n_components : int
         Number of orthogonal components actually extracted (may be smaller than
         requested if ``X`` ran out of orthogonal variation).
@@ -49,7 +66,10 @@ def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
 
     Generalises ``w_p ∝ Xᵀy`` to multivariate ``Y`` via the dominant left singular
     vector of ``S = Xᵀ Y``. For a single-column ``Y`` this reduces exactly to the
-    normalised ``Xᵀy`` (up to sign), so single-``y`` OPLS is unchanged.
+    normalised ``Xᵀy`` (up to sign), so single-``y`` OPLS is unchanged. The public
+    OPLS estimator passes a single centered response; multivariate ``Y`` is
+    accepted here only because the predictive-direction computation is
+    block-agnostic.
 
     Parameters
     ----------
@@ -72,6 +92,10 @@ def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
     Y = np.asarray(Y, dtype=np.float64)
     if X.ndim != 2:
         raise ValueError(f"X must be 2D, got shape {X.shape}")
+    if not np.all(np.isfinite(X)):
+        raise ValueError("X must contain only finite values.")
+    if not np.all(np.isfinite(Y)):
+        raise ValueError("Y must contain only finite values.")
 
     # Special-case univariate Y (1D or 2D with a single column)
     if Y.ndim == 1 or (Y.ndim == 2 and Y.shape[1] == 1):
@@ -84,7 +108,7 @@ def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
         w = X.T @ y
         norm_w = float(np.linalg.norm(w))
         ref = float(np.linalg.norm(X) * np.linalg.norm(y))
-        if norm_w <= 1e-12 * ref or norm_w == 0.0:
+        if norm_w <= _TOL * ref or norm_w == 0.0:
             raise ValueError(
                 "X is numerically orthogonal to Y; predictive direction is undefined."
             )
@@ -102,7 +126,7 @@ def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
     S = X.T @ Y  # (n_features, n_targets)
     s_norm = float(np.linalg.norm(S))
     ref = float(np.linalg.norm(X) * np.linalg.norm(Y))
-    if s_norm <= 1e-12 * ref or s_norm == 0.0:
+    if s_norm <= _TOL * ref or s_norm == 0.0:
         raise ValueError(
             "X is numerically orthogonal to Y; predictive direction is undefined."
         )
@@ -122,8 +146,8 @@ def orthogonal_filter(
 ) -> OrthogonalComponents:
     """Remove up to ``n_components`` directions in ``block`` orthogonal to a given one.
 
-    NIPALS deflation (Trygg & Wold) of one block against a supplied predictive
-    direction (passed in rather than computed from ``y``), as used by OPLS.
+    OSC-style deflation of one block against a supplied predictive direction
+    (passed in rather than computed from ``y``), as used by OPLS.
 
     Parameters
     ----------
@@ -147,6 +171,7 @@ def orthogonal_filter(
     orthogonal weight ``w_o``. The orthogonal score ``t_o = X w_o`` and loading
     ``p_o = Xᵀt_o / (t_oᵀt_o)`` are deflated out: ``X <- X - t_o p_oᵀ``.
     """
+    n_components = _validate_n_components(n_components)
     X = np.asarray(block, dtype=np.float64)
     if X.ndim != 2:
         raise ValueError(f"block must be 2D, got shape {X.shape}")
@@ -156,8 +181,10 @@ def orthogonal_filter(
         raise ValueError(
             f"predictive_direction must have shape ({n_features},), got {w_pred.shape}"
         )
-    if n_components < 0:
-        raise ValueError(f"n_components must be >= 0, got {n_components}")
+    if not np.all(np.isfinite(X)):
+        raise ValueError("block must contain only finite values.")
+    if not np.all(np.isfinite(w_pred)):
+        raise ValueError("predictive_direction must contain only finite values.")
 
     # The deflation math below assumes a unit-norm predictive direction. Normalise it
     # defensively in case a caller passes an un-normalised direction. The direction is
@@ -183,18 +210,18 @@ def orthogonal_filter(
         # w_pred is unit-normalised, so dividing by (w_predᵀ w_pred) is a no-op.
         t = X_res @ w_pred
         tt = float(t @ t)
-        if tt <= 1e-12 * res_norm_sq:
+        if tt <= _TOL * res_norm_sq:
             break
         p = X_res.T @ t / tt
         w_o = p - float(w_pred @ p) * w_pred  # part of the loading orthogonal to w_pred
         w_norm = float(np.linalg.norm(w_o))
         p_norm = float(np.linalg.norm(p))
-        if w_norm <= 1e-12 * p_norm or w_norm == 0.0:
+        if w_norm <= _TOL * p_norm or w_norm == 0.0:
             break  # no orthogonal variation left
         w_o /= w_norm
         t_o = X_res @ w_o
         too = float(t_o @ t_o)
-        if too <= 1e-12 * res_norm_sq:
+        if too <= _TOL * res_norm_sq:
             break
         p_o = X_res.T @ t_o / too
         X_res -= np.outer(t_o, p_o)
@@ -205,9 +232,9 @@ def orthogonal_filter(
 
     if extracted < n_components:
         warnings.warn(
-            f"Orthogonal filter ran out of variation after {extracted} of "
-            f"{n_components} requested components; X has no further orthogonal "
-            "structure. Using the components extracted so far.",
+            "Orthogonal filter ran out of numerically resolvable variation after "
+            f"{extracted} of {n_components} requested components; using the "
+            "components extracted so far.",
             ConvergenceWarning,
             stacklevel=2,
         )
@@ -238,10 +265,18 @@ def opls_filter(X: ArrayLike, Y: ArrayLike, n_components: int) -> OrthogonalComp
     -------
     components : OrthogonalComponents
         See :func:`orthogonal_filter`.
+
+    Notes
+    -----
+    When ``n_components=0``, ``Y`` is not inspected because no predictive direction
+    is needed; the returned predictive weight is a zero vector.
     """
+    n_components = _validate_n_components(n_components)
     X = np.asarray(X, dtype=np.float64)
     if X.ndim != 2:
         raise ValueError(f"X must be a 2D array, got shape {X.shape}.")
+    if not np.all(np.isfinite(X)):
+        raise ValueError("X must contain only finite values.")
     # With no orthogonal components requested the predictive direction is unused;
     # skip its computation so ``n_components=0`` never raises on degenerate (X, Y).
     if n_components > 0:
@@ -292,6 +327,12 @@ def apply_orthogonal_filter(
             f"Number of features in X ({n_features}) must match the number of rows "
             f"in x_ortho_weights ({W.shape[0]})"
         )
+    if not np.all(np.isfinite(X)):
+        raise ValueError("X must contain only finite values.")
+    if not np.all(np.isfinite(W)):
+        raise ValueError("x_ortho_weights must contain only finite values.")
+    if not np.all(np.isfinite(P)):
+        raise ValueError("x_ortho_loadings must contain only finite values.")
 
     X_copy = X.copy()
     n_components = W.shape[1]

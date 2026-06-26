@@ -376,7 +376,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         tags.regressor_tags.poor_score = True
         # OPLS is a supervised transformer: fit requires y.
         tags.target_tags.required = True
-        # The NIPALS orthogonal filter densifies; sparse input is unsupported.
+        # The OSC-style orthogonal filter densifies; sparse input is unsupported.
         tags.input_tags.sparse = False
         # Deterministic for a fixed (non-shuffled) cv.
         tags.non_deterministic = False

@@ -45,6 +45,18 @@ def test_zero_components_passthrough():
     assert fit.n_components == 0
     assert fit.x_ortho_weights.shape == (X.shape[1], 0)
     assert_allclose(fit.x_filtered, X)
+    assert_allclose(fit.x_predictive_weight, np.zeros(X.shape[1]))
+
+
+def test_opls_filter_zero_components_ignores_y_shape():
+    X = np.ones((10, 3))
+    y_bad = np.ones(5)
+
+    fit = opls_filter(X, y_bad, 0)
+
+    assert fit.n_components == 0
+    assert fit.x_predictive_weight.shape == (3,)
+    assert_allclose(fit.x_predictive_weight, 0.0)
 
 
 def test_opls_filter_1d_x_raises_valueerror():
@@ -97,7 +109,7 @@ def test_truncates_when_no_orthogonal_variation_left():
     y = rng.normal(size=10)
     X = np.outer(y, rng.normal(size=4))  # rank-1, no orthogonal variation
     mean_, scale_ = compute_scaling(X, "center")
-    with pytest.warns(ConvergenceWarning, match="ran out of variation"):
+    with pytest.warns(ConvergenceWarning, match="numerically resolvable variation"):
         fit = opls_filter(apply_scaling(X, mean_, scale_), y, 5)
     assert fit.n_components < 5
 
@@ -108,6 +120,19 @@ def test_constant_y_raises():
     centered_constant = np.zeros(X.shape[0])
     with pytest.raises(ValueError, match="orthogonal to Y"):
         predictive_weight(X, centered_constant)
+
+
+def test_predictive_weight_rejects_nonfinite_values():
+    X, y = _make_data()
+    X_bad = X.copy()
+    X_bad[0, 0] = np.nan
+    with pytest.raises(ValueError, match="X must contain only finite values"):
+        predictive_weight(X_bad, y)
+
+    y_bad = y.copy()
+    y_bad[0] = np.inf
+    with pytest.raises(ValueError, match="Y must contain only finite values"):
+        predictive_weight(X, y_bad)
 
 
 def test_single_column_y_matches_xty_direction():
@@ -150,6 +175,40 @@ def test_orthogonal_filter_rejects_zero_direction():
     assert out.n_components == 0
 
 
+@pytest.mark.parametrize("bad", [1.5, True])
+def test_orthogonal_filter_rejects_non_integer_n_components(bad):
+    X, y = _make_data()
+    w = predictive_weight(X, y)
+
+    with pytest.raises(TypeError, match="n_components"):
+        orthogonal_filter(X, w, bad)
+
+
+@pytest.mark.parametrize("bad", [1.5, True])
+def test_opls_filter_rejects_non_integer_n_components(bad):
+    X, y = _make_data()
+
+    with pytest.raises(TypeError, match="n_components"):
+        opls_filter(X, y, bad)
+
+
+def test_orthogonal_filter_rejects_nonfinite_values():
+    X, y = _make_data()
+    w = predictive_weight(X, y)
+
+    X_bad = X.copy()
+    X_bad[0, 0] = np.nan
+    with pytest.raises(ValueError, match="block must contain only finite values"):
+        orthogonal_filter(X_bad, w, 1)
+
+    w_bad = w.copy()
+    w_bad[0] = np.inf
+    with pytest.raises(
+        ValueError, match="predictive_direction must contain only finite values"
+    ):
+        orthogonal_filter(X, w_bad, 1)
+
+
 def test_relative_tolerances_small_scale():
     # Make small-scale data: standard OPLS signals multiplied by 1e-15
     X, y = _make_data()
@@ -184,6 +243,30 @@ def test_orthogonal_filter_shape_checks():
     # features mismatch
     with pytest.raises(ValueError, match="Number of features"):
         apply_orthogonal_filter(X[:, :10], fit.x_ortho_weights, fit.x_ortho_loadings)
+
+
+def test_apply_orthogonal_filter_rejects_nonfinite_values():
+    X, y = _make_data()
+    fit = opls_filter(X, y, 2)
+
+    X_bad = X.copy()
+    X_bad[0, 0] = np.nan
+    with pytest.raises(ValueError, match="X must contain only finite values"):
+        apply_orthogonal_filter(X_bad, fit.x_ortho_weights, fit.x_ortho_loadings)
+
+    weights_bad = fit.x_ortho_weights.copy()
+    weights_bad[0, 0] = np.nan
+    with pytest.raises(
+        ValueError, match="x_ortho_weights must contain only finite values"
+    ):
+        apply_orthogonal_filter(X, weights_bad, fit.x_ortho_loadings)
+
+    loadings_bad = fit.x_ortho_loadings.copy()
+    loadings_bad[0, 0] = np.inf
+    with pytest.raises(
+        ValueError, match="x_ortho_loadings must contain only finite values"
+    ):
+        apply_orthogonal_filter(X, fit.x_ortho_weights, loadings_bad)
 
 
 def test_orthogonal_filter_accepts_array_like():

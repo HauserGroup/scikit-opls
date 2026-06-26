@@ -49,6 +49,40 @@ def test_constant_column_no_division_by_zero(mode):
     assert np.all(np.isfinite(Xs))
 
 
+def test_compute_scaling_rejects_invalid_mode():
+    X = np.ones((3, 2))
+
+    with pytest.raises(ValueError, match="Unknown scaling mode"):
+        compute_scaling(X, "bad")
+
+
+def test_compute_scaling_requires_2d_finite_input():
+    with pytest.raises(ValueError, match="X must be 2D"):
+        compute_scaling([1.0, 2.0, 3.0], "standard")
+
+    X = np.ones((3, 2))
+    X[0, 0] = np.nan
+    with pytest.raises(ValueError, match="finite"):
+        compute_scaling(X, "standard")
+
+
+def test_apply_scaling_rejects_bad_shapes_and_values():
+    X = np.ones((4, 3))
+
+    with pytest.raises(ValueError, match="X must be 2D"):
+        apply_scaling(np.ones(3), np.zeros(3), np.ones(3))
+    with pytest.raises(ValueError, match="mean_ must have shape"):
+        apply_scaling(X, np.zeros(2), np.ones(3))
+    with pytest.raises(ValueError, match="scale_ must have shape"):
+        apply_scaling(X, np.zeros(3), np.ones(2))
+    with pytest.raises(ValueError, match="finite"):
+        apply_scaling(np.array([[1.0, np.inf, 1.0]]), np.zeros(3), np.ones(3))
+    with pytest.raises(ValueError, match="finite"):
+        apply_scaling(X, np.array([0.0, np.nan, 0.0]), np.ones(3))
+    with pytest.raises(ValueError, match="scale_ must not contain zeros"):
+        apply_scaling(X, np.zeros(3), np.array([1.0, 0.0, 1.0]))
+
+
 def test_fit_predict_scaling_consistency():
     """transform() on the training data reproduces the fitted predictive scores."""
     X, y = _regression_data()
