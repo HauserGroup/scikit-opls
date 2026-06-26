@@ -7,7 +7,11 @@ import pytest
 from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLS
-from scikit_opls._preprocessing import apply_scaling, compute_scaling
+from scikit_opls._preprocessing import (
+    _has_nonzero_variation,
+    apply_scaling,
+    compute_scaling,
+)
 
 from .test_opls import _regression_data
 
@@ -53,3 +57,26 @@ def test_fit_predict_scaling_consistency():
     X, y = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
     assert_allclose(model.transform(X), model.x_scores_, atol=1e-8)
+
+
+def test_has_nonzero_variation_scale_and_offset_invariant():
+    rng = np.random.default_rng(0)
+    v = rng.normal(size=50)
+    assert _has_nonzero_variation(v * 1e-15)  # tiny scale, real variation
+    assert _has_nonzero_variation(1e12 + v)  # large offset, real variation
+    assert not _has_nonzero_variation(np.full(50, 3.0))  # genuinely constant
+    assert not _has_nonzero_variation(np.array([]))  # empty
+
+
+def test_fit_robust_to_tiny_scale_and_large_offset():
+    X, y = _regression_data()
+    # Old absolute-floor guard rejected both of these; the magnitude-relative floor
+    # accepts them.
+    OPLS(scale="standard", n_orthogonal=0).fit(X * 1e-15, y * 1e-15)
+    OPLS(n_orthogonal=2).fit(X, 1e12 + y)
+
+
+def test_fit_rejects_constant_target():
+    X, _ = _regression_data()
+    with pytest.raises(ValueError, match="non-constant target"):
+        OPLS().fit(X, np.full(X.shape[0], 7.0))
