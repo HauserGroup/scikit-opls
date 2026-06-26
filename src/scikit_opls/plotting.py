@@ -36,7 +36,13 @@ _EPS = np.finfo(np.float64).eps
 def _unwrap_estimator_and_data(
     estimator: BaseEstimator, X: ArrayLike
 ) -> tuple[OPLS, NDArray[np.float64]]:
-    """Unwrap search/meta-estimator wrappers, returning base model and transformed X."""
+    """Unwrap search/meta-estimator wrappers, returning base model and transformed X.
+
+    Accepts only ``OPLS``/``OPLSDA``/``GridSearchCV`` wrapping them — a ``Pipeline``
+    raises a clean ``TypeError``. TODO: if pipeline plotting is ever added, the callers'
+    ``check_array(..., dtype=float64)`` must be dropped so the pipeline's own
+    preprocessing (and any DataFrame column names) runs first, before this unwrap.
+    """
     inner = getattr(estimator, "best_estimator_", estimator)
 
     if hasattr(inner, "opls_"):
@@ -136,10 +142,12 @@ class OPLSScoresDisplay:
             raise ValueError("y must have the same length as X.")
         base, X_trans = _unwrap_estimator_and_data(estimator, X_arr)
 
-        if predictive_component >= base.n_components:
+        if predictive_component < 0 or orthogonal_component < 0:
+            raise ValueError("component indices must be >= 0.")
+        if predictive_component >= base._n_features_out:
             raise ValueError(
                 f"predictive_component={predictive_component} is out of bounds for "
-                f"estimator with n_components={base.n_components}."
+                f"estimator with n_components={base._n_features_out}."
             )
         if base.n_orthogonal_ > 0 and orthogonal_component >= base.n_orthogonal_:
             raise ValueError(
@@ -285,10 +293,12 @@ class SPlotDisplay:
         X = check_array(X, dtype=np.float64, ensure_min_samples=2)
         base, X_trans = _unwrap_estimator_and_data(estimator, X)
 
-        if component >= base.n_components:
+        if component < 0:
+            raise ValueError("component index must be >= 0.")
+        if component >= base._n_features_out:
             raise ValueError(
                 f"component={component} is out of bounds for estimator with "
-                f"n_components={base.n_components}."
+                f"n_components={base._n_features_out}."
             )
 
         Xs = apply_scaling(X_trans, base.x_mean_, base.x_std_)

@@ -245,6 +245,8 @@ def opls_filter(X: ArrayLike, Y: ArrayLike, n_components: int) -> OrthogonalComp
         See :func:`orthogonal_filter`.
     """
     X = np.asarray(X, dtype=np.float64)
+    if X.ndim != 2:
+        raise ValueError(f"X must be a 2D array, got shape {X.shape}.")
     # With no orthogonal components requested the predictive direction is unused;
     # skip its computation so ``n_components=0`` never raises on degenerate (X, Y).
     if n_components > 0:

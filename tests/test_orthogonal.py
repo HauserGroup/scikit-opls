@@ -47,6 +47,12 @@ def test_zero_components_passthrough():
     assert_allclose(fit.x_filtered, X)
 
 
+def test_opls_filter_1d_x_raises_valueerror():
+    # 1D X must raise a clear ValueError, not an IndexError from X.shape[1].
+    with pytest.raises(ValueError, match="X must be a 2D array"):
+        opls_filter([1.0, 2.0, 3.0], [1.0, 2.0, 3.0], 0)
+
+
 def test_deflation_identity():
     """X == filtered + scores @ loadings.T (exact bookkeeping)."""
     X, y = _make_data()

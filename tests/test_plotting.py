@@ -205,3 +205,15 @@ def test_plotting_multi_component_component_selection():
         SPlotDisplay.from_estimator(model, X, component=3)
 
     plt.close("all")
+
+
+def test_plotting_negative_component_raises():
+    X, y = _regression_data()
+    model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
+    with pytest.raises(ValueError, match="component indices must be >= 0"):
+        OPLSScoresDisplay.from_estimator(model, X, predictive_component=-1)
+    with pytest.raises(ValueError, match="component indices must be >= 0"):
+        OPLSScoresDisplay.from_estimator(model, X, orthogonal_component=-1)
+    with pytest.raises(ValueError, match="component index must be >= 0"):
+        SPlotDisplay.from_estimator(model, X, component=-1)
+    plt.close("all")
