@@ -22,10 +22,17 @@ from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_consistent_length
 
 
+def _safe_r2_score(y_true: ArrayLike, y_pred: ArrayLike) -> float:
+    y_true_arr = np.asarray(y_true)
+    if np.var(y_true_arr, ddof=0) == 0.0:
+        return np.nan
+    return float(r2_score(y_true_arr, y_pred))
+
+
 def _cross_val_q2(estimator: Any, X: ArrayLike, y: ArrayLike, cv: Any) -> float:
     """Out-of-fold Q2 of ``estimator`` on ``(X, y)`` using the provided ``cv``."""
     y_pred = cross_val_predict(clone(estimator), X, y, cv=cv)
-    return float(r2_score(y, y_pred))
+    return _safe_r2_score(y, y_pred)
 
 
 @dataclass

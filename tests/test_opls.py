@@ -11,22 +11,7 @@ from sklearn.utils._testing import assert_allclose
 import scikit_opls
 from scikit_opls import OPLS
 
-
-def _regression_data(n_samples=80, n_features=30, n_ortho=2, amp=6.0, seed=0):
-    """y-correlated signal plus large y-orthogonal structured variation."""
-    rng = np.random.default_rng(seed)
-    y = rng.normal(size=n_samples)
-    y -= y.mean()
-    p_pred = rng.normal(size=n_features)
-    X = np.outer(y, p_pred)
-    for _ in range(n_ortho):
-        t_o = rng.normal(size=n_samples)
-        t_o -= t_o.mean()
-        t_o -= (t_o @ y) / (y @ y) * y  # exactly orthogonal to y
-        p_o = amp * (0.5 * p_pred + rng.normal(size=n_features))
-        X += np.outer(t_o, p_o)
-    X += 0.05 * rng.normal(size=(n_samples, n_features))
-    return X, y
+from ._data import make_regression_data as _regression_data
 
 
 def test_version():
@@ -41,7 +26,7 @@ def test_reduces_to_plsregression(n_components):
     pls = PLSRegression(n_components=n_components, scale=False).fit(X, y)
 
     assert_allclose(opls.predict(X), pls.predict(X).ravel(), atol=1e-9)
-    assert_allclose(opls.coef_, pls.coef_, atol=1e-9)
+    assert_allclose(opls.coef_filtered_, pls.coef_, atol=1e-9)
     assert_allclose(np.abs(opls.transform(X)), np.abs(pls.transform(X)), atol=1e-9)
 
 
@@ -136,30 +121,6 @@ def test_set_output_pandas_columns_named():
     out = model.fit(df, y).transform(df)
     assert isinstance(out, pd.DataFrame)
     assert list(out.columns) == ["opls_pred0"]
-
-
-def test_html_repr_doc_links():
-    from sklearn.utils import estimator_html_repr
-
-    from scikit_opls import OPLS, OPLSDA
-
-    opls = OPLS()
-    opls_da = OPLSDA()
-
-    assert opls._get_doc_link() == "https://hausergroup.github.io/scikit-opls/api/opls/"
-    assert (
-        opls_da._get_doc_link()
-        == "https://hausergroup.github.io/scikit-opls/api/opls_da/"
-    )
-
-    # Verify they are correctly embedded in estimator HTML representation
-    assert "https://hausergroup.github.io/scikit-opls/api/opls/" in estimator_html_repr(
-        opls
-    )
-    assert (
-        "https://hausergroup.github.io/scikit-opls/api/opls_da/"
-        in estimator_html_repr(opls_da)
-    )
 
 
 def test_opls_n_orthogonal_zero_parity():

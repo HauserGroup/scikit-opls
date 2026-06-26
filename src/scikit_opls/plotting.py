@@ -3,7 +3,6 @@
 The public surface follows scikit-learn's *Display* convention: each plot is a
 class with a :meth:`from_estimator` constructor that computes the plotted arrays,
 a :meth:`plot` method that draws them, and stored ``ax_`` / ``figure_`` handles.
-The older :func:`scores_plot` / :func:`s_plot` functions remain as thin wrappers.
 
 ``matplotlib`` is an optional dependency (``pip install scikit-opls[plot]``) and is
 imported lazily inside :meth:`plot`, so importing this module never requires it.
@@ -118,8 +117,8 @@ class OPLSScoresDisplay:
         if y is not None and len(y) != X.shape[0]:
             raise ValueError("y must have the same length as X.")
         base, X_trans = _unwrap_estimator_and_data(estimator, X)
-        t_pred = np.asarray(base.transform(X_trans))[:, 0]
-        t_ortho = np.asarray(base.transform_orthogonal(X_trans))
+        X_filtered, t_ortho = base._filter(X_trans)
+        t_pred = base.pls_.transform(X_filtered)[:, 0]
         t_o = t_ortho[:, 0] if t_ortho.shape[1] > 0 else np.zeros_like(t_pred)
         display = cls(
             t_predictive=t_pred,
@@ -276,53 +275,3 @@ class SPlotDisplay:
         self.ax_ = ax
         self.figure_ = ax.figure
         return self
-
-
-def scores_plot(
-    model: Any, X: ArrayLike, y: ArrayLike | None = None, ax: Any = None
-) -> Any:
-    """Scatter the first predictive score against the first orthogonal score.
-
-    Thin wrapper around :meth:`OPLSScoresDisplay.from_estimator`; prefer that
-    Display API in new code.
-
-    Parameters
-    ----------
-    model : OPLS, OPLSDA or GridSearchCV
-        A fitted estimator.
-    X : array-like of shape (n_samples, n_features)
-        Samples to project.
-    y : array-like of shape (n_samples,), default=None
-        Optional labels used to colour the points.
-    ax : matplotlib Axes, default=None
-        Target axes; a new figure/axes is created when ``None``.
-
-    Returns
-    -------
-    ax : matplotlib Axes
-        The axes the scatter was drawn on.
-    """
-    return OPLSScoresDisplay.from_estimator(model, X, y, ax=ax).ax_
-
-
-def s_plot(model: Any, X: ArrayLike, ax: Any = None) -> Any:
-    """S-plot: covariance vs correlation of each feature with the predictive score.
-
-    Thin wrapper around :meth:`SPlotDisplay.from_estimator`; prefer that Display
-    API in new code.
-
-    Parameters
-    ----------
-    model : OPLS, OPLSDA or GridSearchCV
-        A fitted estimator.
-    X : array-like of shape (n_samples, n_features)
-        Samples to project.
-    ax : matplotlib Axes, default=None
-        Target axes; a new figure/axes is created when ``None``.
-
-    Returns
-    -------
-    ax : matplotlib Axes
-        The axes the scatter was drawn on.
-    """
-    return SPlotDisplay.from_estimator(model, X, ax=ax).ax_

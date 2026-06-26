@@ -9,24 +9,7 @@ from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLSDA
 
-
-def _classification_data(n_per_class=40, n_features=30, n_ortho=2, amp=6.0, seed=0):
-    """Two classes separated along one direction, plus class-orthogonal noise."""
-    rng = np.random.default_rng(seed)
-    n = 2 * n_per_class
-    labels = np.array(["ctrl"] * n_per_class + ["case"] * n_per_class)
-    sign = np.where(labels == "case", 1.0, -1.0)
-
-    p_pred = rng.normal(size=n_features)
-    X = np.outer(sign, p_pred)
-    for _ in range(n_ortho):
-        t_o = rng.normal(size=n)
-        t_o -= t_o.mean()
-        t_o -= (t_o @ sign) / (sign @ sign) * sign  # orthogonal to class
-        p_o = amp * rng.normal(size=n_features)
-        X += np.outer(t_o, p_o)
-    X += 0.1 * rng.normal(size=(n, n_features))
-    return X, labels
+from ._data import make_classification_data as _classification_data
 
 
 def test_separates_classes():
@@ -43,10 +26,16 @@ def test_predict_returns_known_labels():
     assert set(np.unique(preds)).issubset(set(model.classes_))
 
 
-def test_predict_proba_sums_to_one():
+def test_predict_proba_behavior():
     X, y = _classification_data()
+    # By default, probability is False, raising AttributeError on predict_proba
     model = OPLSDA(n_orthogonal=1).fit(X, y)
-    proba = model.predict_proba(X)
+    with pytest.raises(AttributeError, match="has no attribute 'predict_proba'"):
+        model.predict_proba(X)
+
+    # When probability=True, predict_proba is available and sums to 1.0
+    model_prob = OPLSDA(n_orthogonal=1, probability=True).fit(X, y)
+    proba = model_prob.predict_proba(X)
     assert proba.shape == (X.shape[0], 2)
     assert_allclose(proba.sum(axis=1), 1.0, atol=1e-8)
 
@@ -112,9 +101,9 @@ def test_opls_da_raw_score_vs_decision_function():
 
 def test_opls_da_constant_raw_scores_raises(monkeypatch):
     X, y = _classification_data()
-    # Mock _raw_scores to return constant values (all zeros) to trigger the Platt guard
+    # Mock decision_function to return constant values (all zeros) to trigger guard
     monkeypatch.setattr(
-        OPLSDA, "_raw_scores", lambda self, X: np.zeros((X.shape[0], 1))
+        OPLSDA, "decision_function", lambda self, X: np.zeros(X.shape[0])
     )
     with pytest.raises(ValueError, match="OPLSDA produced constant raw scores"):
-        OPLSDA().fit(X, y)
+        OPLSDA(probability=True).fit(X, y)

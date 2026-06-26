@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import numpy as np
-from numpy.typing import NDArray
+from numpy.typing import ArrayLike, NDArray
 
 VALID_SCALING = ("none", "center", "pareto", "standard")
 
@@ -81,3 +81,17 @@ def apply_scaling(
     """
     X = np.asarray(X, dtype=np.float64)
     return (X - mean_) / scale_
+
+
+def _has_nonzero_variation(
+    values: ArrayLike,
+    *,
+    axis: int | None = None,
+    rtol: float = 1e-12,
+) -> bool:
+    """Check if centered sum-of-squares of values is positive relative to its scale."""
+    arr = np.asarray(values, dtype=np.float64)
+    centered = arr - np.mean(arr, axis=axis, keepdims=True)
+    ss = float(np.sum(centered**2))
+    ref = float(np.sum(arr**2))
+    return ss > rtol * max(ref, 1.0)

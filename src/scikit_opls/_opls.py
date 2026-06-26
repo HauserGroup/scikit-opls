@@ -38,7 +38,12 @@ from sklearn.utils.validation import (
 
 from ._inspection import explained_x_variance, orthogonal_vip, predictive_vip
 from ._orthogonal import apply_orthogonal_filter, opls_filter
-from ._preprocessing import VALID_SCALING, apply_scaling, compute_scaling
+from ._preprocessing import (
+    VALID_SCALING,
+    _has_nonzero_variation,
+    apply_scaling,
+    compute_scaling,
+)
 
 
 class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
@@ -70,7 +75,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     x_weights_, x_loadings_, x_scores_, y_loadings_ : ndarray
         Predictive model parameters taken from the underlying PLS engine (in the
         preprocessed, orthogonal-filtered space).
-    coef_ : ndarray
+    coef_filtered_ : ndarray
         Coefficient matrix taken from the underlying PLS engine. Note: these
         coefficients act on the preprocessed, orthogonal-filtered space, and
         cannot be directly multiplied with raw input ``X``.
@@ -99,20 +104,6 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         "scale": [StrOptions(set(VALID_SCALING))],
         "copy": ["boolean"],
     }
-
-    _doc_link_module = "scikit_opls"
-
-    @property
-    def _doc_link_template(self) -> str:
-        return "https://hausergroup.github.io/scikit-opls/api/{estimator_name_lower}/"
-
-    @_doc_link_template.setter
-    def _doc_link_template(self, value: str) -> None:
-        pass
-
-    def _doc_link_url_param_generator(self) -> dict[str, str]:
-        """Generate URL parameters for the documentation link."""
-        return {"estimator_name_lower": "opls"}
 
     def __init__(
         self,
@@ -149,9 +140,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         X, y = validate_data(
             self, X, y, dtype=np.float64, ensure_min_samples=2, copy=self.copy
         )
-        y_std = float(np.std(y, ddof=1)) if len(y) > 1 else 0.0
-        y_scale = float(np.mean(np.abs(y)))
-        if y_std <= 1e-12 * y_scale or y_std == 0.0:
+        if not _has_nonzero_variation(y):
             raise ValueError("OPLS requires a non-constant target y.")
 
         # True-OPLS contract: one predictive component when any orthogonal
@@ -172,16 +161,13 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
         self.x_mean_, self.x_std_ = compute_scaling(X, self.scale)
         Xs = apply_scaling(X, self.x_mean_, self.x_std_)
-        centered_ss = float(np.sum((Xs - Xs.mean(axis=0)) ** 2))
-        scale_ss = float(np.sum(Xs**2))
-        if centered_ss <= 1e-12 * max(scale_ss, 1.0):
+        if not _has_nonzero_variation(Xs, axis=0):
             raise ValueError("X has no non-zero variation after preprocessing.")
 
         # opls_filter handles n_orthogonal=0 (pass-through) and truncation itself.
         ofit = opls_filter(Xs, y - y.mean(), self.n_orthogonal)
         X_filtered = ofit.x_filtered
-        filtered_ss = float(np.sum((X_filtered - X_filtered.mean(axis=0)) ** 2))
-        if filtered_ss <= 1e-12 * max(centered_ss, 1.0):
+        if not _has_nonzero_variation(X_filtered, axis=0):
             raise ValueError(
                 "X has no remaining variation after orthogonal filtering; "
                 "reduce n_orthogonal."
@@ -202,7 +188,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.x_loadings_ = self.pls_.x_loadings_
         self.x_scores_ = self.pls_.x_scores_
         self.y_loadings_ = self.pls_.y_loadings_
-        self.coef_ = self.pls_.coef_
+        self.coef_filtered_ = self.pls_.coef_
         self.intercept_ = self.pls_.intercept_
 
         y_fit = self.pls_.predict(X_filtered)
@@ -274,15 +260,21 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         ``sum(vip_**2) == n_features``. Computed on access from the fitted weights.
         """
         check_is_fitted(self)
-        return predictive_vip(self.x_weights_, self.x_scores_, self.y_loadings_)
+        if not hasattr(self, "_vip_"):
+            self._vip_ = predictive_vip(
+                self.x_weights_, self.x_scores_, self.y_loadings_
+            )
+        return self._vip_
 
     @property
     def ortho_vip_(self) -> NDArray[np.float64]:
         """Orthogonal VIP per feature; ndarray (n_features,)."""
         check_is_fitted(self)
-        return orthogonal_vip(
-            self.x_ortho_weights_, self.x_ortho_scores_, self.x_ortho_loadings_
-        )
+        if not hasattr(self, "_ortho_vip_"):
+            self._ortho_vip_ = orthogonal_vip(
+                self.x_ortho_weights_, self.x_ortho_scores_, self.x_ortho_loadings_
+            )
+        return self._ortho_vip_
 
     def get_feature_names_out(self, input_features=None) -> NDArray[np.object_]:
         """Output feature names for :meth:`transform` (the predictive scores).

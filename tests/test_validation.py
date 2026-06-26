@@ -9,7 +9,7 @@ from sklearn.utils._testing import assert_allclose
 from scikit_opls import OPLS
 from scikit_opls.validation import permutation_test
 
-from .test_opls import _regression_data
+from ._data import make_regression_data as _regression_data
 
 
 def test_permutation_test_detects_real_signal():

@@ -24,6 +24,7 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils._param_validation import Interval, StrOptions
+from sklearn.utils.metaestimators import available_if
 from sklearn.utils.multiclass import (
     check_classification_targets,
     type_of_target,
@@ -32,7 +33,7 @@ from sklearn.utils.multiclass import (
 from sklearn.utils.validation import check_is_fitted, validate_data
 
 from ._opls import OPLS
-from ._preprocessing import VALID_SCALING
+from ._preprocessing import VALID_SCALING, _has_nonzero_variation
 
 
 class OPLSDA(ClassifierMixin, BaseEstimator):
@@ -61,21 +62,8 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         "n_orthogonal": [Interval(Integral, 0, None, closed="left")],
         "scale": [StrOptions(set(VALID_SCALING))],
         "copy": ["boolean"],
+        "probability": ["boolean"],
     }
-
-    _doc_link_module = "scikit_opls"
-
-    @property
-    def _doc_link_template(self) -> str:
-        return "https://hausergroup.github.io/scikit-opls/api/{estimator_name_lower}/"
-
-    @_doc_link_template.setter
-    def _doc_link_template(self, value: str) -> None:
-        pass
-
-    def _doc_link_url_param_generator(self) -> dict[str, str]:
-        """Generate URL parameters for the documentation link."""
-        return {"estimator_name_lower": "opls_da"}
 
     def __init__(
         self,
@@ -83,11 +71,13 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         n_orthogonal: int = 1,
         scale: str = "standard",
         copy: bool = True,
+        probability: bool = False,
     ) -> None:
         self.n_components = n_components
         self.n_orthogonal = n_orthogonal
         self.scale = scale
         self.copy = copy
+        self.probability = probability
 
     def fit(self, X: ArrayLike, y: ArrayLike) -> OPLSDA:
         """Fit the binary OPLS-DA classifier.
@@ -141,18 +131,14 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         ).fit(X, y_dummy)
         self.n_orthogonal_ = self.opls_.n_orthogonal_
 
-        # Platt scaling: calibrate the raw OPLS score into probabilities. Using the
-        # calibrator for predict/decision_function/predict_proba keeps them mutually
-        # consistent (argmax(proba) == decision_function > 0 == predict).
-        raw = self._raw_scores(X)
-        raw_std = float(np.std(raw, ddof=1)) if len(raw) > 1 else 0.0
-        raw_scale = float(np.mean(np.abs(raw)))
-        if raw_std <= 1e-12 * raw_scale or raw_std == 0.0:
-            raise ValueError(
-                "OPLSDA produced constant raw scores; "
-                "classification/calibration is undefined."
-            )
-        self._platt = LogisticRegression().fit(raw, y_encoded)
+        if self.probability:
+            raw = self.decision_function(X).reshape(-1, 1)
+            if not _has_nonzero_variation(raw):
+                raise ValueError(
+                    "OPLSDA produced constant raw scores; "
+                    "classification/calibration is undefined."
+                )
+            self._platt = LogisticRegression().fit(raw, y_encoded)
         return self
 
     def _raw_scores(self, X: ArrayLike) -> NDArray[np.float64]:
@@ -171,11 +157,10 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         scores : ndarray of shape (n_samples,)
             The raw OPLS predictive score.
         """
-        check_is_fitted(self)
-        return self._raw_scores(X).ravel()
+        return self.decision_function(X)
 
     def decision_function(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Signed Platt-calibrated confidence score; positive favours ``classes_[1]``.
+        """Signed uncalibrated confidence score; positive favours ``classes_[1]``.
 
         Parameters
         ----------
@@ -185,12 +170,10 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         Returns
         -------
         scores : ndarray of shape (n_samples,)
-            Signed confidence (calibrated/logistic decision value).
-            ``> 0`` predicts ``classes_[1]``.
+            Signed uncalibrated confidence. ``> 0`` predicts ``classes_[1]``.
         """
         check_is_fitted(self)
-        scores = self._platt.decision_function(self._raw_scores(X))
-        return np.asarray(scores, dtype=np.float64).ravel()
+        return np.asarray(self.opls_.predict(X), dtype=np.float64).ravel()
 
     def predict(self, X: ArrayLike) -> NDArray[Any]:
         """Predict class labels.
@@ -208,6 +191,14 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         indices = (self.decision_function(X) > 0.0).astype(int)
         return self.classes_[indices]
 
+    def _check_probability(self) -> bool:
+        if not getattr(self, "probability", False):
+            raise AttributeError(
+                "predict_proba is only available when probability=True."
+            )
+        return True
+
+    @available_if(_check_probability)
     def predict_proba(self, X: ArrayLike) -> NDArray[np.float64]:
         """In-sample Platt-scaled class probabilities.
 
