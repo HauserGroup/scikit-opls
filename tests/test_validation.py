@@ -111,19 +111,16 @@ def test_permutation_test_cv_defaults_small_dataset():
     assert result.permuted_q2.shape == (3,)
 
 
-def test_permutation_test_pipeline_opls():
+def test_permutation_test_bare_pipeline_raises():
+    # Pipelines are no longer unwrapped: permutation_test takes an OPLS-like
+    # estimator exposing r2y_, or a GridSearchCV wrapping one.
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import StandardScaler
 
     X, y = _regression_data(seed=42)
-    pipe = Pipeline(
-        [
-            ("scale", StandardScaler()),
-            ("opls", OPLS(n_orthogonal=0)),
-        ]
-    )
-    result = permutation_test(pipe, X, y, n_permutations=3, random_state=0)
-    assert result.permuted_r2y.shape == (3,)
+    pipe = Pipeline([("scale", StandardScaler()), ("opls", OPLS(n_orthogonal=0))])
+    with pytest.raises(TypeError, match="OPLS-like regression estimator exposing r2y_"):
+        permutation_test(pipe, X, y, n_permutations=3)
 
 
 def test_permutation_test_classifier_wrapped_raises():

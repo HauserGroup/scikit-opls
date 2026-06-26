@@ -71,12 +71,9 @@ def _fitted_r2y(fitted: BaseEstimator) -> float:
         return float(getattr(fitted, "r2y_"))
     if hasattr(fitted, "best_estimator_"):
         return _fitted_r2y(getattr(fitted, "best_estimator_"))
-    if hasattr(fitted, "steps"):
-        steps = getattr(fitted, "steps")
-        return _fitted_r2y(steps[-1][1])
     raise TypeError(
-        "permutation_test requires a regression estimator exposing r2y_ "
-        "directly, via best_estimator_, or on the final Pipeline step."
+        "permutation_test requires an OPLS-like regression estimator exposing r2y_, "
+        "or a GridSearchCV wrapping one."
     )
 
 
@@ -95,9 +92,6 @@ def _contains_classifier(estimator: BaseEstimator) -> bool:
         return True
     if hasattr(estimator, "estimator"):
         return _contains_classifier(getattr(estimator, "estimator"))
-    if hasattr(estimator, "steps"):
-        steps = getattr(estimator, "steps")
-        return any(_contains_classifier(step) for _, step in steps)
     return False
 
 
