@@ -122,9 +122,8 @@ def orthogonal_filter(
 ) -> OrthogonalComponents:
     """Remove up to ``n_components`` directions in ``block`` orthogonal to a given one.
 
-    Block-agnostic NIPALS deflation (Trygg & Wold): the same primitive deflates ``X``
-    for OPLS or ``Y`` for O2PLS — the predictive direction is passed in rather than
-    computed from ``y``.
+    NIPALS deflation (Trygg & Wold) of one block against a supplied predictive
+    direction (passed in rather than computed from ``y``), as used by OPLS.
 
     Parameters
     ----------
@@ -161,9 +160,8 @@ def orthogonal_filter(
         raise ValueError(f"n_components must be >= 0, got {n_components}")
 
     # The deflation math below assumes a unit-norm predictive direction. Normalise it
-    # defensively so this block-agnostic primitive is safe to reuse (e.g. for O2PLS)
-    # even when a caller passes an un-normalised direction. The direction is unused
-    # when no components are requested, so only guard/normalise when it matters.
+    # defensively in case a caller passes an un-normalised direction. The direction is
+    # unused when no components are requested, so only guard/normalise when it matters.
     if n_components > 0:
         w_norm = float(np.linalg.norm(w_pred))
         if w_norm == 0.0:
