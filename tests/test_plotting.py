@@ -14,6 +14,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 from matplotlib.axes import Axes  # noqa: E402
+from sklearn.exceptions import NotFittedError  # noqa: E402
 from sklearn.model_selection import GridSearchCV  # noqa: E402
 
 from scikit_opls import OPLS, OPLSDA  # noqa: E402
@@ -112,6 +113,26 @@ def test_scores_display_y_mismatched_length_raises():
     model = OPLS().fit(X, y)
     with pytest.raises(ValueError, match="y must have the same length"):
         OPLSScoresDisplay.from_estimator(model, X, y[:-1])
+
+
+def test_scores_display_flattens_column_vector_labels():
+    X, y = _regression_data()
+    labels = np.where(y > 0, "hi", "lo").reshape(-1, 1)
+    model = OPLS().fit(X, y)
+
+    disp = OPLSScoresDisplay.from_estimator(model, X, labels)
+
+    assert disp.y is not None
+    assert disp.y.shape == (X.shape[0],)
+    assert isinstance(disp.scatter_, list)
+    plt.close("all")
+
+
+def test_plotting_unfitted_estimator_raises_not_fitted():
+    X, _ = _regression_data()
+
+    with pytest.raises(NotFittedError):
+        SPlotDisplay.from_estimator(OPLS(), X)
 
 
 def test_splot_display_ensure_min_samples_raises():

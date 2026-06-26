@@ -20,16 +20,26 @@ from typing import TYPE_CHECKING
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from sklearn.base import BaseEstimator
-from sklearn.utils._optional_dependencies import check_matplotlib_support
-from sklearn.utils.validation import check_array
+from sklearn.utils.validation import check_array, check_is_fitted
 
 from scikit_opls._opls import OPLS
+from scikit_opls._opls_da import OPLSDA
 from scikit_opls._preprocessing import apply_scaling
 
 if TYPE_CHECKING:
     import matplotlib.axes
     import matplotlib.collections
     import matplotlib.figure
+
+
+def _check_matplotlib_support(caller: str):
+    try:
+        import matplotlib.pyplot as plt
+    except ImportError as exc:
+        raise ImportError(
+            f"{caller} requires matplotlib. Install with `scikit-opls[plot]`."
+        ) from exc
+    return plt
 
 
 def _validate_component_index(value: object, name: str) -> int:
@@ -46,41 +56,48 @@ def _validate_component_index(value: object, name: str) -> int:
 
 
 def _unwrap_estimator_and_data(
-    estimator: BaseEstimator, X: ArrayLike
+    estimator: BaseEstimator, X: NDArray[np.float64]
 ) -> tuple[OPLS, NDArray[np.float64]]:
-    """Unwrap search/meta-estimator wrappers, returning base model and transformed X.
+    """Unwrap search/meta-estimator wrappers, returning fitted base model and X.
 
-    Accepts only ``OPLS``/``OPLSDA``/``GridSearchCV`` wrapping them — a ``Pipeline``
-    raises a clean ``TypeError``. TODO: if pipeline plotting is ever added, the callers'
-    ``check_array(..., dtype=float64)`` must be dropped so the pipeline's own
-    preprocessing (and any DataFrame column names) runs first, before this unwrap.
+    Accepts ``OPLS``/``OPLSDA`` or a search meta-estimator (e.g. ``GridSearchCV``)
+    wrapping them — a ``Pipeline`` raises a clean ``TypeError``. TODO: if pipeline
+    plotting is ever added, the callers' ``check_array(..., dtype=float64)`` must be
+    dropped so the pipeline's own preprocessing (and any DataFrame column names) runs
+    first, before this unwrap.
     """
     inner = getattr(estimator, "best_estimator_", estimator)
 
-    if hasattr(inner, "opls_"):
-        opls_attr = getattr(inner, "opls_")
-        assert isinstance(opls_attr, OPLS)
-        return opls_attr, np.asarray(X, dtype=np.float64)
+    if isinstance(inner, OPLSDA):
+        check_is_fitted(inner)
+        base = inner.opls_
+    elif isinstance(inner, OPLS):
+        base = inner
+    else:
+        raise TypeError(
+            "estimator must be an OPLS, OPLSDA, or a search meta-estimator "
+            "(e.g. GridSearchCV) wrapping them."
+        )
 
-    if isinstance(inner, OPLS):
-        return inner, np.asarray(X, dtype=np.float64)
-
-    raise TypeError("estimator must be an OPLS, OPLSDA, or GridSearchCV wrapping them.")
+    if not isinstance(base, OPLS):
+        raise TypeError("estimator.opls_ must be a fitted OPLS instance.")
+    check_is_fitted(base)
+    return base, X
 
 
 class OPLSScoresDisplay:
     """Predictive vs orthogonal score scatter for an OPLS-family model.
 
     Works for :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` and a fitted
-    :class:`~sklearn.model_selection.GridSearchCV` wrapping one. Construct with
-    :meth:`from_estimator`.
+    search meta-estimator (e.g. :class:`~sklearn.model_selection.GridSearchCV`)
+    wrapping one. Construct with :meth:`from_estimator`.
 
     Parameters
     ----------
     t_predictive : ndarray of shape (n_samples,)
-        First predictive score per sample.
+        Selected predictive score per sample.
     t_orthogonal : ndarray of shape (n_samples,)
-        First orthogonal score per sample (zeros when the model has none).
+        Selected orthogonal score per sample (zeros when the model has none).
     y : ndarray of shape (n_samples,) or None, default=None
         Optional labels used to colour the points.
 
@@ -136,7 +153,7 @@ class OPLSScoresDisplay:
 
         Parameters
         ----------
-        estimator : OPLS, OPLSDA or GridSearchCV
+        estimator : OPLS, OPLSDA or search meta-estimator
             A fitted estimator.
         X : array-like of shape (n_samples, n_features)
             Samples to project.
@@ -161,8 +178,12 @@ class OPLSScoresDisplay:
             orthogonal_component, "orthogonal_component"
         )
         X_arr = check_array(X, dtype=np.float64)
-        if y is not None and len(y) != X_arr.shape[0]:
-            raise ValueError("y must have the same length as X.")
+        if y is None:
+            y_arr = None
+        else:
+            y_arr = np.asarray(y).ravel()
+            if y_arr.shape[0] != X_arr.shape[0]:
+                raise ValueError("y must have the same length as X.")
         base, X_trans = _unwrap_estimator_and_data(estimator, X_arr)
 
         # Bound against the *fitted* score dimensions (robust to orthogonal
@@ -196,7 +217,7 @@ class OPLSScoresDisplay:
         display = cls(
             t_predictive=t_pred,
             t_orthogonal=t_o,
-            y=None if y is None else np.asarray(y),
+            y=y_arr,
             predictive_component=predictive_component,
             orthogonal_component=orthogonal_component,
             has_orthogonal=n_ortho > 0,
@@ -216,9 +237,7 @@ class OPLSScoresDisplay:
         display : OPLSScoresDisplay
             ``self``, with ``ax_`` / ``figure_`` populated.
         """
-        check_matplotlib_support("OPLSScoresDisplay.plot")
-        import matplotlib.pyplot as plt
-
+        plt = _check_matplotlib_support("OPLSScoresDisplay.plot")
         if ax is None:
             _, ax = plt.subplots()
         if self.y is None:
@@ -255,15 +274,15 @@ class SPlotDisplay:
         subset by its own mean.
 
     Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` or a fitted
-    :class:`~sklearn.model_selection.GridSearchCV` wrapping one. Construct with
-    :meth:`from_estimator`.
+    search meta-estimator (e.g. :class:`~sklearn.model_selection.GridSearchCV`)
+    wrapping one. Construct with :meth:`from_estimator`.
 
     Parameters
     ----------
     covariance : ndarray of shape (n_features,)
-        Covariance of each feature with the first predictive score.
+        Covariance of each feature with the selected predictive score.
     correlation : ndarray of shape (n_features,)
-        Correlation of each feature with the first predictive score.
+        Correlation of each feature with the selected predictive score.
 
     Attributes
     ----------
@@ -303,7 +322,7 @@ class SPlotDisplay:
 
         Parameters
         ----------
-        estimator : OPLS, OPLSDA or GridSearchCV
+        estimator : OPLS, OPLSDA or search meta-estimator
             A fitted estimator.
         X : array-like of shape (n_samples, n_features)
             Samples to project.
@@ -373,9 +392,7 @@ class SPlotDisplay:
         display : SPlotDisplay
             ``self``, with ``ax_`` / ``figure_`` populated.
         """
-        check_matplotlib_support("SPlotDisplay.plot")
-        import matplotlib.pyplot as plt
-
+        plt = _check_matplotlib_support("SPlotDisplay.plot")
         if ax is None:
             _, ax = plt.subplots()
         self.scatter_ = ax.scatter(self.covariance, self.correlation)

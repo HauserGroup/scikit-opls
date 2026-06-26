@@ -26,14 +26,22 @@ from sklearn.model_selection import (
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_consistent_length
 
+from scikit_opls._utils import _has_nonzero_variation
+
 _CVType = int | BaseCrossValidator | BaseShuffleSplit | Iterable | None
 
 
 def _safe_r2_score(y_true: ArrayLike, y_pred: ArrayLike) -> float:
-    y_true_arr = np.asarray(y_true)
-    if np.var(y_true_arr, ddof=0) == 0.0:
+    y_true_arr = np.asarray(y_true, dtype=np.float64).ravel()
+    y_pred_arr = np.asarray(y_pred, dtype=np.float64).ravel()
+    if y_true_arr.shape != y_pred_arr.shape:
+        raise ValueError(
+            "y_true and y_pred must have the same flattened shape, "
+            f"got {y_true_arr.shape} and {y_pred_arr.shape}."
+        )
+    if not _has_nonzero_variation(y_true_arr):
         return np.nan
-    return float(r2_score(y_true_arr, y_pred))
+    return float(r2_score(y_true_arr, y_pred_arr))
 
 
 def _cross_val_q2(
@@ -154,7 +162,7 @@ def permutation_test(
             "permutation_test is for regression models; "
             "classifiers like OPLSDA are not supported."
         )
-    if not isinstance(n_permutations, Integral):
+    if isinstance(n_permutations, bool) or not isinstance(n_permutations, Integral):
         raise TypeError(
             f"n_permutations must be an integer, got {type(n_permutations).__name__}"
         )
@@ -164,9 +172,8 @@ def permutation_test(
     X = check_array(X, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64).ravel()
     check_consistent_length(X, y)
-
-    fitted = clone(estimator).fit(X, y)
-    observed_r2y = _fitted_r2y(fitted)
+    if len(y) < 2:
+        raise ValueError("permutation_test requires at least 2 samples.")
 
     if cv is None:
         estimator_cv = getattr(estimator, "cv", None)
@@ -178,6 +185,9 @@ def permutation_test(
         cv = list(cv)
     cv_checked = check_cv(cv, y=y, classifier=False)
 
+    fitted = clone(estimator).fit(X, y)
+    observed_r2y = _fitted_r2y(fitted)
+
     rng = check_random_state(random_state)
     observed_q2 = _cross_val_q2(estimator, X, y, cv=cv_checked)
 
@@ -187,8 +197,8 @@ def permutation_test(
     scored = Parallel(n_jobs=n_jobs)(
         delayed(_permuted_scores)(estimator, X, y_perm, cv_checked) for y_perm in perms
     )
-    permuted_r2y = np.array([r2y for r2y, _ in scored])
-    permuted_q2 = np.array([q2 for _, q2 in scored])
+    permuted_r2y = np.asarray([r2y for r2y, _ in scored], dtype=np.float64)
+    permuted_q2 = np.asarray([q2 for _, q2 in scored], dtype=np.float64)
 
     # An undefined observed metric (NaN) must not masquerade as significant.
     r2y_p = (

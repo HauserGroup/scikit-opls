@@ -7,7 +7,7 @@ import pytest
 from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLS
-from scikit_opls.validation import permutation_test
+from scikit_opls.validation import _safe_r2_score, permutation_test
 
 from ._data import make_regression_data as _regression_data
 
@@ -85,6 +85,23 @@ def test_permutation_test_n_permutations_type_check():
     X, y = _regression_data(seed=11)
     with pytest.raises(TypeError, match="must be an integer"):
         permutation_test(OPLS(), X, y, n_permutations="twenty")  # type: ignore
+    with pytest.raises(TypeError, match="must be an integer"):
+        permutation_test(OPLS(), X, y, n_permutations=True)
+
+
+def test_permutation_test_requires_at_least_two_samples():
+    X = np.ones((1, 3))
+    y = np.array([1.0])
+
+    with pytest.raises(ValueError, match="at least 2 samples"):
+        permutation_test(OPLS(), X, y, n_permutations=1)
+
+
+def test_safe_r2_score_flattens_and_validates_shape():
+    assert _safe_r2_score(np.array([1.0, 2.0]), np.array([[1.0], [2.0]])) == 1.0
+
+    with pytest.raises(ValueError, match="same flattened shape"):
+        _safe_r2_score(np.array([1.0, 2.0]), np.array([1.0, 2.0, 3.0]))
 
 
 def test_permutation_test_grid_search():
