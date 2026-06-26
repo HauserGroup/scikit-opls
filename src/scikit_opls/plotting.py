@@ -14,6 +14,7 @@ imported lazily inside :meth:`plot`, so importing this module never requires it.
 
 from __future__ import annotations
 
+from numbers import Integral
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -30,7 +31,18 @@ if TYPE_CHECKING:
     import matplotlib.collections
     import matplotlib.figure
 
-_EPS = np.finfo(np.float64).eps
+
+def _validate_component_index(value: object, name: str) -> int:
+    """Return ``value`` as a non-negative integer index, or raise.
+
+    Rejects booleans (a subclass of ``int``) and non-integers so a stray float or
+    ``True`` cannot silently index the wrong column or fail later inside NumPy.
+    """
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise TypeError(f"{name} must be an integer index, got {type(value).__name__}.")
+    if value < 0:
+        raise ValueError(f"{name} must be >= 0, got {value}.")
+    return int(value)
 
 
 def _unwrap_estimator_and_data(
@@ -80,6 +92,9 @@ class OPLSScoresDisplay:
         The parent figure (set by :meth:`plot`).
     scatter_ : matplotlib PathCollection or list of PathCollection
         The scatter plot artist(s) (set by :meth:`plot`).
+    has_orthogonal : bool
+        Whether the fitted model has any orthogonal component. When ``False`` the
+        orthogonal axis is a constant-zero placeholder and labelled as such.
     """
 
     ax_: matplotlib.axes.Axes
@@ -97,12 +112,14 @@ class OPLSScoresDisplay:
         y: NDArray | None = None,
         predictive_component: int = 0,
         orthogonal_component: int = 0,
+        has_orthogonal: bool = True,
     ) -> None:
         self.t_predictive = t_predictive
         self.t_orthogonal = t_orthogonal
         self.y = y
         self.predictive_component = predictive_component
         self.orthogonal_component = orthogonal_component
+        self.has_orthogonal = has_orthogonal
 
     @classmethod
     def from_estimator(
@@ -137,27 +154,35 @@ class OPLSScoresDisplay:
         display : OPLSScoresDisplay
             The plotted display, with ``ax_`` / ``figure_`` set.
         """
+        predictive_component = _validate_component_index(
+            predictive_component, "predictive_component"
+        )
+        orthogonal_component = _validate_component_index(
+            orthogonal_component, "orthogonal_component"
+        )
         X_arr = check_array(X, dtype=np.float64)
         if y is not None and len(y) != X_arr.shape[0]:
             raise ValueError("y must have the same length as X.")
         base, X_trans = _unwrap_estimator_and_data(estimator, X_arr)
 
-        if predictive_component < 0 or orthogonal_component < 0:
-            raise ValueError("component indices must be >= 0.")
-        if predictive_component >= base._n_features_out:
+        # Bound against the *fitted* score dimensions (robust to orthogonal
+        # truncation; independent of constructor parameters).
+        n_pred = base.x_scores_.shape[1]
+        n_ortho = base.x_ortho_scores_.shape[1]
+        if predictive_component >= n_pred:
             raise ValueError(
                 f"predictive_component={predictive_component} is out of bounds for "
-                f"estimator with n_components={base._n_features_out}."
+                f"estimator with {n_pred} predictive component(s)."
             )
-        if base.n_orthogonal_ > 0 and orthogonal_component >= base.n_orthogonal_:
-            raise ValueError(
-                f"orthogonal_component={orthogonal_component} is out of bounds for "
-                f"estimator with n_orthogonal_={base.n_orthogonal_}."
-            )
-        if base.n_orthogonal_ == 0 and orthogonal_component > 0:
+        if n_ortho == 0 and orthogonal_component > 0:
             raise ValueError(
                 f"orthogonal_component={orthogonal_component} is out of bounds; "
-                f"estimator was fitted with n_orthogonal=0."
+                f"estimator was fitted with no orthogonal components."
+            )
+        if n_ortho > 0 and orthogonal_component >= n_ortho:
+            raise ValueError(
+                f"orthogonal_component={orthogonal_component} is out of bounds for "
+                f"estimator with {n_ortho} orthogonal component(s)."
             )
 
         X_filtered, t_ortho = base._filter(X_trans)
@@ -167,17 +192,14 @@ class OPLSScoresDisplay:
         else:
             t_pred_arr = scores
         t_pred = t_pred_arr[:, predictive_component]
-        t_o = (
-            t_ortho[:, orthogonal_component]
-            if t_ortho.shape[1] > 0
-            else np.zeros_like(t_pred)
-        )
+        t_o = t_ortho[:, orthogonal_component] if n_ortho > 0 else np.zeros_like(t_pred)
         display = cls(
             t_predictive=t_pred,
             t_orthogonal=t_o,
             y=None if y is None else np.asarray(y),
             predictive_component=predictive_component,
             orthogonal_component=orthogonal_component,
+            has_orthogonal=n_ortho > 0,
         )
         return display.plot(ax=ax)
 
@@ -213,7 +235,12 @@ class OPLSScoresDisplay:
         ax.axhline(0.0, color="grey", linewidth=0.8)
         ax.axvline(0.0, color="grey", linewidth=0.8)
         ax.set_xlabel(f"Predictive score t_pred[{self.predictive_component + 1}]")
-        ax.set_ylabel(f"Orthogonal score t_ortho[{self.orthogonal_component + 1}]")
+        if self.has_orthogonal:
+            ax.set_ylabel(f"Orthogonal score t_ortho[{self.orthogonal_component + 1}]")
+        else:
+            # No orthogonal component fitted: the y-axis is a constant zero line, not
+            # a real score — label it so the flat line is not misread.
+            ax.set_ylabel("No orthogonal component fitted (shown as zero)")
         self.ax_ = ax
         self.figure_ = ax.figure
         return self
@@ -290,15 +317,15 @@ class SPlotDisplay:
         display : SPlotDisplay
             The plotted display, with ``ax_`` / ``figure_`` set.
         """
+        component = _validate_component_index(component, "component")
         X = check_array(X, dtype=np.float64, ensure_min_samples=2)
         base, X_trans = _unwrap_estimator_and_data(estimator, X)
 
-        if component < 0:
-            raise ValueError("component index must be >= 0.")
-        if component >= base._n_features_out:
+        n_pred = base.x_scores_.shape[1]
+        if component >= n_pred:
             raise ValueError(
                 f"component={component} is out of bounds for estimator with "
-                f"n_components={base._n_features_out}."
+                f"{n_pred} predictive component(s)."
             )
 
         Xs = apply_scaling(X_trans, base.x_mean_, base.x_std_)

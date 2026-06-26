@@ -210,10 +210,32 @@ def test_plotting_multi_component_component_selection():
 def test_plotting_negative_component_raises():
     X, y = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
-    with pytest.raises(ValueError, match="component indices must be >= 0"):
+    with pytest.raises(ValueError, match="predictive_component must be >= 0"):
         OPLSScoresDisplay.from_estimator(model, X, predictive_component=-1)
-    with pytest.raises(ValueError, match="component indices must be >= 0"):
+    with pytest.raises(ValueError, match="orthogonal_component must be >= 0"):
         OPLSScoresDisplay.from_estimator(model, X, orthogonal_component=-1)
-    with pytest.raises(ValueError, match="component index must be >= 0"):
+    with pytest.raises(ValueError, match="component must be >= 0"):
         SPlotDisplay.from_estimator(model, X, component=-1)
+    plt.close("all")
+
+
+def test_plotting_non_integer_component_raises():
+    X, y = _regression_data()
+    model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
+    # float and bool are rejected before any indexing happens.
+    with pytest.raises(TypeError, match="must be an integer index"):
+        SPlotDisplay.from_estimator(model, X, component=0.0)
+    with pytest.raises(TypeError, match="must be an integer index"):
+        SPlotDisplay.from_estimator(model, X, component=True)
+    with pytest.raises(TypeError, match="must be an integer index"):
+        OPLSScoresDisplay.from_estimator(model, X, predictive_component=1.0)
+    plt.close("all")
+
+
+def test_scores_plot_zero_orthogonal_label():
+    X, y = _regression_data()
+    model = OPLS(n_components=2, n_orthogonal=0).fit(X, y)
+    disp = OPLSScoresDisplay.from_estimator(model, X, y)
+    assert disp.has_orthogonal is False
+    assert "No orthogonal component fitted" in disp.ax_.get_ylabel()
     plt.close("all")
