@@ -248,3 +248,11 @@ def test_opls_grid_search_over_multi_component():
     param_grid = {"n_components": [1, 2], "n_orthogonal": [0, 1]}
     gs = GridSearchCV(OPLS(), param_grid, cv=3).fit(X, y)
     assert gs.best_estimator_ is not None
+
+
+def test_opls_n_components_exceeds_post_filter_rank_raises():
+    X, y = _regression_data(n_samples=10, n_features=3, seed=42)
+    with pytest.raises(
+        ValueError, match="exceeds the numerical rank of X after orthogonal filtering"
+    ):
+        OPLS(n_components=3, n_orthogonal=1).fit(X, y)

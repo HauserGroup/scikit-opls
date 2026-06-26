@@ -1,11 +1,12 @@
 """Orthogonal PLS (OPLS) regressor with a scikit-learn interface.
 
 OPLS (Trygg & Wold, 2002) splits the variation in ``X`` into a *predictive* part
-correlated with ``y`` and *orthogonal* parts uncorrelated with ``y``. This estimator
-removes the orthogonal variation with a NIPALS filter (:mod:`scikit_opls._orthogonal`)
-and then fits :class:`sklearn.cross_decomposition.PLSRegression` on the cleaned ``X`` as
-the predictive engine. With ``n_orthogonal=0``, this becomes ordinary ``PLSRegression``
-after the package's selected X preprocessing.
+correlated with ``y`` and *orthogonal* parts uncorrelated with ``y``. This
+estimator removes the orthogonal variation with an OSC-style orthogonal filter
+(:mod:`scikit_opls._orthogonal`) and then fits
+:class:`sklearn.cross_decomposition.PLSRegression` on the cleaned ``X`` as the
+predictive engine. With ``n_orthogonal=0``, this becomes ordinary
+``PLSRegression`` after the package's selected X preprocessing.
 """
 
 # scikit-learn's validate_data uses sentinel-string parameter defaults that lead
@@ -73,28 +74,27 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     coef_filtered_ : ndarray
         Coefficient matrix taken from the underlying PLS engine. Note: these
         coefficients act on the preprocessed, orthogonal-filtered space, and
-        cannot be directly multiplied with raw input ``X``.
+        cannot be directly multiplied with raw input ``X``. Use ``predict(X)``
+        for raw-input predictions.
     intercept_ : float or ndarray
-        Intercept of the predictive model in the preprocessed, orthogonal-filtered
-        space.
+        Intercept of the underlying PLS model for predictions from the preprocessed,
+        orthogonal-filtered X block to the original y scale.
     pls_ : PLSRegression
         The fitted predictive engine.
     x_mean_, x_std_ : ndarray
         Centering/scaling vectors applied to ``X``.
     r2x_, r2x_ortho_, r2y_, rmsee_ : float
-        Training-set fit summaries. ``r2x_`` is the predictive-block reconstruction
-        fraction of the preprocessed ``X``; ``r2x_ortho_`` is the orthogonal-block
-        fraction. These are diagnostic summaries, **not** a guaranteed exact additive
-        partition — do not assume ``r2x_ + r2x_ortho_`` equals the total explained
-        ``X`` variance. For cross-validated Q2 use
+        Training-set fit summaries. ``r2x_`` is computed from the predictive PLS
+        scores/loadings on the filtered ``X`` block, relative to the preprocessed
+        original ``X``. ``r2x_ortho_`` is computed from the removed orthogonal
+        scores/loadings. These are diagnostic summaries, not a guaranteed exact
+        additive partition; do not assume ``r2x_ + r2x_ortho_`` equals total
+        explained ``X`` variance. For cross-validated Q2 use
         :func:`sklearn.model_selection.cross_val_score`.
-        Note: ``r2x_`` is computed from the predictive PLS scores/loadings
-        on the filtered ``X`` block. It does not include the removed
-        orthogonal variation.
     vip_, ortho_vip_ : ndarray of shape (n_features,)
         Lazy predictive / orthogonal Variable Importance in Projection scores,
-        computed on access (sklearn ``feature_importances_`` convention). For
-        non-empty blocks with positive explained variance, each satisfies
+        computed on first access (sklearn ``feature_importances_`` convention).
+        For non-empty blocks with positive explained variance, each satisfies
         ``sum(vip**2) == n_features``. Empty or degenerate blocks return zeros.
         For ``n_components > 1``, predictive VIP aggregates across predictive
         PLS components.
@@ -163,6 +163,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self : OPLS
             The fitted estimator.
         """
+        for _attr in ("_vip_", "_ortho_vip_"):
+            self.__dict__.pop(_attr, None)
         self._validate_params()
         # multi_output=False ravels a column-vector y (with a DataConversionWarning)
         # and rejects multi-column y: OPLS is univariate.
@@ -194,6 +196,14 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
                 "reduce n_orthogonal."
             )
 
+        rank_filtered = np.linalg.matrix_rank(X_filtered)
+        if self.n_components > rank_filtered:
+            raise ValueError(
+                f"n_components={self.n_components} exceeds the numerical rank of "
+                f"X after orthogonal filtering ({rank_filtered}). "
+                "Reduce n_components or n_orthogonal."
+            )
+
         self.x_ortho_weights_ = ofit.x_ortho_weights
         self.x_ortho_loadings_ = ofit.x_ortho_loadings
         self.x_ortho_scores_ = ofit.x_ortho_scores
@@ -219,10 +229,6 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         )
         self.r2y_ = float(r2_score(y, y_fit))
         self.rmsee_ = float(root_mean_squared_error(y, y_fit))
-        # Drop any lazily-cached VIP from a previous fit so it cannot go stale
-        # (e.g. wrong length after refitting on a different number of features).
-        for _attr in ("_vip_", "_ortho_vip_"):
-            self.__dict__.pop(_attr, None)
         return self
 
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
@@ -282,7 +288,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """Predictive VIP per feature (Galindo-Prieto 2014); ndarray (n_features,).
 
         Variable Importance in Projection of the predictive block, normalised so
-        ``sum(vip_**2) == n_features``. Computed on access from the fitted weights.
+        ``sum(vip_**2) == n_features``. Computed lazily on first access from the
+        fitted weights.
         """
         check_is_fitted(self)
         if not hasattr(self, "_vip_"):
@@ -293,7 +300,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
     @property
     def ortho_vip_(self) -> NDArray[np.float64]:
-        """Orthogonal VIP per feature; ndarray (n_features,)."""
+        """Orthogonal VIP per feature; ndarray (n_features,).
+
+        Computed lazily on first access from the fitted weights.
+        """
         check_is_fitted(self)
         if not hasattr(self, "_ortho_vip_"):
             self._ortho_vip_ = orthogonal_vip(

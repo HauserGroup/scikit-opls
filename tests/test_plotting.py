@@ -224,11 +224,15 @@ def test_plotting_non_integer_component_raises():
     model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
     # float and bool are rejected before any indexing happens.
     with pytest.raises(TypeError, match="must be an integer index"):
-        SPlotDisplay.from_estimator(model, X, component=0.0)
+        SPlotDisplay.from_estimator(model, X, component=0.0)  # type: ignore
     with pytest.raises(TypeError, match="must be an integer index"):
         SPlotDisplay.from_estimator(model, X, component=True)
     with pytest.raises(TypeError, match="must be an integer index"):
-        OPLSScoresDisplay.from_estimator(model, X, predictive_component=1.0)
+        OPLSScoresDisplay.from_estimator(
+            model,
+            X,
+            predictive_component=1.0,  # type: ignore
+        )
     plt.close("all")
 
 
