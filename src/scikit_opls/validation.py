@@ -143,6 +143,17 @@ def permutation_test(
     -------
     result : PermutationResult
         Observed and permuted R2Y/Q2 with empirical p-values.
+
+    Notes
+    -----
+    ``random_state`` controls only the label permutations. If ``cv`` is a randomised
+    splitter (e.g. ``ShuffleSplit`` without its own ``random_state``), repeated calls
+    can differ even with a fixed ``random_state`` here — set ``random_state`` on the
+    splitter itself for full reproducibility.
+
+    When ``estimator`` is a ``GridSearchCV`` with ``cv=None``, its inner CV still
+    defaults to 5-fold; for ``n_samples < 5`` set the ``GridSearchCV`` ``cv``
+    explicitly (this function does not rewrite a user's inner CV).
     """
     if _contains_classifier(estimator):
         raise TypeError(
@@ -166,6 +177,11 @@ def permutation_test(
     if cv is None:
         estimator_cv = getattr(estimator, "cv", None)
         cv = estimator_cv if estimator_cv is not None else min(5, len(y))
+    # A one-shot iterable of splits would be consumed by the observed-Q2 pass and
+    # leave nothing for the permutations; materialise it so every pass sees the
+    # same splits.
+    if cv is not None and not isinstance(cv, Integral) and not hasattr(cv, "split"):
+        cv = list(cv)
     cv_checked = check_cv(cv, y=y, classifier=False)
 
     rng = check_random_state(random_state)
