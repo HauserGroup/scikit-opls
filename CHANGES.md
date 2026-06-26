@@ -21,6 +21,12 @@ and default-value changes will be documented here.
 
 ### Changed (breaking, pre-1.0)
 
+- Removed `OPLSDA`'s `probability` parameter and its in-sample Platt calibration
+  (`predict_proba`, `raw_score`). `OPLSDA` is now a clean score classifier:
+  `decision_function` returns the raw signed OPLS regression output and `predict`
+  its sign. For probabilities, wrap in `CalibratedClassifierCV(OPLSDA(...))`
+  (cross-fitted, better calibrated). This also removes the
+  `predict`/`predict_proba` boundary inconsistency the in-sample calibrator caused.
 - Cross-validated selection of `n_orthogonal` is now done with scikit-learn's
   `GridSearchCV` directly — there is no bespoke selection API. `OPLS.n_orthogonal`
   is a plain `int`; the `"auto"` option and the `cv` parameter are removed from
@@ -52,7 +58,6 @@ and default-value changes will be documented here.
 
 - `OPLSScoresDisplay` and `SPlotDisplay` plotting classes following scikit-learn's
   Display convention (`from_estimator(...)`, `plot(ax=...)`, `ax_` / `figure_`).
-  `scores_plot` / `s_plot` are kept as thin wrappers.
 
 - `OPLS.get_feature_names_out` so `set_output(transform="pandas")` yields named
   predictive-score columns
@@ -62,7 +67,7 @@ and default-value changes will be documented here.
   parallel; reproducible regardless of `n_jobs`). Cross-validated `n_orthogonal`
   selection inherits `n_jobs` from `GridSearchCV`.
 
-- `_orthogonal.orthogonal_filter`, a block-agnostic NIPALS deflation primitive
+- `_orthogonal.orthogonal_filter`, a block-agnostic OSC-style deflation primitive
   shared by `opls_filter` (and a future `O2PLS`).
 
 - Full numpydoc docstrings on all public methods and functions.
@@ -92,7 +97,7 @@ and default-value changes will be documented here.
 - `matplotlib` is now an optional dependency, moved to the `plot` extra
   (`pip install scikit-opls[plot]`). Only `scikit_opls.plotting` needs it and it
   is imported lazily.
-- `OPLSDA` discovers classes with `unique_labels`.
+- `OPLSDA` uses its fitted `LabelEncoder` as the single class-label source.
 - Numerical tests use `sklearn.utils._testing.assert_allclose`.
 - Pinned the pre-commit `ruff` rev to the dev-group `ruff` version.
 

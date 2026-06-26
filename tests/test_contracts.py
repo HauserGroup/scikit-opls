@@ -2,16 +2,18 @@
 
 from __future__ import annotations
 
+from importlib import resources
+
 import pytest
 from sklearn.exceptions import NotFittedError
 from sklearn.utils import get_tags
 
 from scikit_opls import OPLS, OPLSDA
 
-from .test_opls import _regression_data
+from ._data import make_regression_data as _regression_data
 
 
-@pytest.mark.parametrize("bad", [0, -1, 1.5, "x"])
+@pytest.mark.parametrize("bad", [0, -1, 1.5, True, False, "x"])
 def test_n_components_invalid_raises(bad):
     X, y = _regression_data()
     with pytest.raises(ValueError, match="n_components"):
@@ -22,13 +24,6 @@ def test_n_components_too_large_raises():
     X, y = _regression_data(n_samples=20, n_features=5)
     with pytest.raises(ValueError, match="exceeds"):
         OPLS(n_components=6, n_orthogonal=0).fit(X, y)
-
-
-def test_multi_component_requires_zero_orthogonal():
-    X, y = _regression_data()
-    with pytest.raises(ValueError, match="one predictive component"):
-        OPLS(n_components=2, n_orthogonal=1).fit(X, y)
-    OPLS(n_components=2, n_orthogonal=0).fit(X, y)  # allowed with no filtering
 
 
 @pytest.mark.parametrize("method", ["predict", "transform", "transform_orthogonal"])
@@ -68,8 +63,16 @@ def test_tags_match_intent(est):
 
 
 def test_opls_regressor_tag_poor_score():
-    assert get_tags(OPLS()).regressor_tags.poor_score is True
+    tags = get_tags(OPLS())
+    assert tags.regressor_tags is not None
+    assert tags.regressor_tags.poor_score is True
 
 
 def test_opls_da_not_multiclass():
-    assert get_tags(OPLSDA()).classifier_tags.multi_class is False
+    tags = get_tags(OPLSDA())
+    assert tags.classifier_tags is not None
+    assert tags.classifier_tags.multi_class is False
+
+
+def test_py_typed_marker_present():
+    assert resources.files("scikit_opls").joinpath("py.typed").is_file()

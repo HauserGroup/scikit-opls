@@ -64,8 +64,13 @@ from scikit_opls import OPLSDA
 y_lab = np.where(X[:, 0] > 0, "case", "ctrl")
 clf = OPLSDA(n_components=1, n_orthogonal=2).fit(X, y_lab)
 clf.predict(X)            # class labels
-clf.predict_proba(X)      # Platt-scaled probabilities
-clf.decision_function(X)  # signed confidence
+clf.decision_function(X)  # raw signed OPLS regression output
+
+# Probabilities via cross-fitted calibration when each class has enough samples
+# for the chosen calibration CV split:
+from sklearn.calibration import CalibratedClassifierCV
+calibrated_clf = CalibratedClassifierCV(clf, cv=5).fit(X, y_lab)
+calibrated_clf.predict_proba(X)
 
 # Cross-validated OPLS-DA selection: an int cv is stratified automatically.
 GridSearchCV(
@@ -80,7 +85,23 @@ from scikit_opls.plotting import OPLSScoresDisplay, SPlotDisplay
 from scikit_opls.validation import permutation_test
 
 model.vip_                                     # predictive VIP per feature (lazy)
-OPLSScoresDisplay.from_estimator(model, X, y)  # t_pred vs t_ortho
-SPlotDisplay.from_estimator(model, X)          # covariance vs correlation
-permutation_test(OPLS(n_orthogonal=2), X, y)   # model significance
+
+# Draw score plot (t_pred vs t_ortho). Supports component selection for multi-component PLS
+OPLSScoresDisplay.from_estimator(
+    model, X, y, predictive_component=0, orthogonal_component=0
+)
+
+# Draw S-plot (covariance vs correlation) for a specific predictive component
+SPlotDisplay.from_estimator(model, X, component=0)
+
+# Permutation significance testing
+permutation_test(OPLS(n_orthogonal=2), X, y)
 ```
+
+!!! note "Pipeline support in plotting"
+Diagnostic plotting displays support `OPLS`, `OPLSDA`, pipelines ending in one,
+and fitted search meta-estimators exposing `best_estimator_` around either shape.
+When passing a pipeline, pass raw `X` as expected by the pipeline. When passing the
+final OPLS step directly, pass the already transformed matrix. For pipeline
+S-plots, points are in the transformed feature space received by the final OPLS
+step.

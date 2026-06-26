@@ -12,15 +12,10 @@ scikit-learn interface.
 
 OPLS (Trygg & Wold, 2002) splits the variation in `X` into a *predictive* part
 correlated with the response and *orthogonal* parts that are not. `scikit-opls`
-removes the orthogonal variation with a NIPALS filter and then fits
+removes the orthogonal variation with an OSC-style orthogonal filter and then fits
 [`sklearn.cross_decomposition.PLSRegression`](https://scikit-learn.org/stable/modules/generated/sklearn.cross_decomposition.PLSRegression.html)
 on the cleaned `X` as the predictive engine. With `n_orthogonal=0` the model
 reduces *exactly* to `PLSRegression`.
-
-This project is inspired by the R
-[`ropls`](https://www.rdocumentation.org/packages/ropls/versions/1.4.2) package
-and uses the orthogonal-scores PLS algorithm of
-[`pls::oscorespls.fit`](https://cran.r-project.org/package=pls) as its engine.
 
 ## Install
 
@@ -95,9 +90,13 @@ y = np.where(X[:, 0] > 0, "case", "ctrl")
 clf = OPLSDA(n_components=1, n_orthogonal=2).fit(X, y)
 
 clf.predict(X)            # class labels
-clf.predict_proba(X)      # Platt-scaled probabilities
-clf.decision_function(X)  # signed confidence
+clf.decision_function(X)  # raw signed OPLS regression output
 clf.opls_.transform(X)    # predictive scores of the underlying OPLS model
+
+# Probabilities: wrap in a cross-fitted calibrator when each class has enough
+# samples for the chosen calibration CV split.
+from sklearn.calibration import CalibratedClassifierCV
+CalibratedClassifierCV(clf, cv=5).fit(X, y).predict_proba(X)
 ```
 
 ### Diagnostics
@@ -109,13 +108,25 @@ follows scikit-learn's Display convention.
 from scikit_opls.plotting import OPLSScoresDisplay, SPlotDisplay
 from scikit_opls.validation import permutation_test
 
-OPLSScoresDisplay.from_estimator(model, X, y)  # t_pred vs t_ortho
-SPlotDisplay.from_estimator(model, X)          # covariance vs correlation
-permutation_test(OPLS(n_orthogonal=2), X, y)   # model significance
+# Draw score plot (t_pred vs t_ortho). Supports component selection for multi-component PLS
+OPLSScoresDisplay.from_estimator(
+    model, X, y, predictive_component=0, orthogonal_component=0
+)
+
+# Draw S-plot (covariance vs correlation) for a specific predictive component
+SPlotDisplay.from_estimator(model, X, component=0)
+
+# Permutation significance testing
+permutation_test(OPLS(n_orthogonal=2), X, y)
 ```
 
-The older `scores_plot(model, X, y)` / `s_plot(model, X)` functions remain as
-thin wrappers.
+> [!NOTE]
+> **Pipeline support in plotting:** Diagnostic plotting displays support `OPLS`,
+> `OPLSDA`, pipelines ending in one, and fitted search meta-estimators exposing
+> `best_estimator_` around either shape. When passing a pipeline, pass raw `X` as
+> expected by the pipeline. When passing the final OPLS step directly, pass the
+> already transformed matrix. For pipeline S-plots, points are in the transformed
+> feature space received by the final OPLS step.
 
 ### Example datasets
 
@@ -158,6 +169,11 @@ uv run pre-commit run --all-files  # run every hook
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow.
 
 ## References
+
+This project is inspired by the R
+[`ropls`](https://www.rdocumentation.org/packages/ropls/versions/1.4.2) package
+and uses the orthogonal-scores PLS algorithm of
+[`pls::oscorespls.fit`](https://cran.r-project.org/package=pls) as its engine.
 
 - Trygg, J. & Wold, S. (2002). *Orthogonal projections to latent structures
   (O-PLS).* Journal of Chemometrics, 16(3), 119–128.

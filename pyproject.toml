@@ -7,7 +7,6 @@ requires-python = ">=3.12"
 dependencies = [
     "joblib>=1.4.0",
     "numpy>=2.5.0",
-    "pandas>=3.0.3",
     "scikit-learn>=1.9.0",
     "scipy>=1.18.0",
 ]
@@ -30,6 +29,8 @@ dev = [
     "mdformat>=1.0.0",
     "mdformat-gfm>=1.0.0",
     "mkdocstrings[python]>=0.26.0",
+    "pandas>=3.0.3",
+    "pandas-stubs>=3.0.3.260530",
     "pre-commit>=4.6.0",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
@@ -69,9 +70,9 @@ convention = "numpy"
 "src/scikit_opls/__init__.py" = ["D104"]
 
 [tool.ruff.lint.isort]
-# Intra-package imports are deliberately relative (e.g. `from ._opls import OPLS`),
-# the common convention for an installable third-party package. Ruff's isort
-# enforces ordering; `known-first-party` keeps the package grouped correctly.
+# Intra-package imports are absolute (e.g. `from scikit_opls._opls import OPLS`),
+# per the scikit-learn developer guide. `known-first-party` keeps the package
+# grouped correctly and Ruff's isort enforces ordering.
 known-first-party = ["scikit_opls"]
 
 [tool.coverage.run]

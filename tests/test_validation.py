@@ -7,9 +7,9 @@ import pytest
 from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLS
-from scikit_opls.validation import permutation_test
+from scikit_opls.validation import _safe_r2_score, permutation_test
 
-from .test_opls import _regression_data
+from ._data import make_regression_data as _regression_data
 
 
 def test_permutation_test_detects_real_signal():
@@ -37,6 +37,17 @@ def test_permutation_pvalues_in_unit_interval():
     assert 0.0 < result.q2_p_value <= 1.0
 
 
+def test_permutation_nan_metric_yields_nan_pvalue(monkeypatch):
+    import scikit_opls.validation as val
+
+    # Force an undefined Q2; the p-value must be NaN, not falsely significant.
+    monkeypatch.setattr(val, "_cross_val_q2", lambda *a, **k: np.nan)
+    X, y = _regression_data(seed=6)
+    result = permutation_test(OPLS(n_orthogonal=1), X, y, n_permutations=5)
+    assert np.isnan(result.q2_p_value)
+    assert not np.isnan(result.r2y_p_value)  # R2Y still defined
+
+
 @pytest.mark.parametrize("bad", [0, -1])
 def test_permutation_test_rejects_non_positive_n_permutations(bad):
     X, y = _regression_data(seed=7)
@@ -58,3 +69,159 @@ def test_permutation_test_n_jobs_is_reproducible():
     parallel = permutation_test(OPLS(n_orthogonal=1), X, y, n_jobs=2, **kw)
     assert_allclose(serial.permuted_q2, parallel.permuted_q2)
     assert_allclose(serial.permuted_r2y, parallel.permuted_r2y)
+
+
+def test_permutation_test_non_regression_estimator_raises():
+    from scikit_opls import OPLSDA
+
+    X, y = _regression_data(seed=10)
+    labels = np.where(y > 0.0, "hi", "lo")
+    # OPLSDA is a classifier, raising a clean TypeError immediately
+    with pytest.raises(TypeError, match="classifiers like OPLSDA are not supported"):
+        permutation_test(OPLSDA(), X, labels)
+
+
+def test_permutation_test_n_permutations_type_check():
+    X, y = _regression_data(seed=11)
+    with pytest.raises(TypeError, match="must be an integer"):
+        permutation_test(OPLS(), X, y, n_permutations="twenty")  # type: ignore
+    with pytest.raises(TypeError, match="must be an integer"):
+        permutation_test(OPLS(), X, y, n_permutations=True)
+
+
+@pytest.mark.parametrize(
+    ("X", "y"),
+    [
+        (np.ones((1, 3)), np.array([1.0])),
+        (np.array([[0.0, 1.0], [1.0, 0.0]]), np.array([0.0, 1.0])),
+    ],
+)
+def test_permutation_test_requires_at_least_three_samples(X, y):
+    with pytest.raises(ValueError, match="at least 3 samples"):
+        permutation_test(OPLS(), X, y, n_permutations=1)
+
+
+def test_permutation_test_rejects_nonfinite_y():
+    X, y = _regression_data()
+    y = y.copy()
+    y[0] = np.nan
+
+    with pytest.raises(ValueError, match="y must contain only finite values"):
+        permutation_test(OPLS(), X, y, n_permutations=1)
+
+
+def test_permutation_test_search_refit_false_raises_clear_error():
+    from sklearn.model_selection import GridSearchCV
+
+    X, y = _regression_data()
+    search = GridSearchCV(
+        OPLS(),
+        {"n_orthogonal": [0, 1]},
+        cv=3,
+        refit=False,
+    )
+
+    with pytest.raises(TypeError, match="refit=True"):
+        permutation_test(search, X, y, n_permutations=1)
+
+
+def test_safe_r2_score_flattens_and_validates_shape():
+    assert _safe_r2_score(np.array([1.0, 2.0]), np.array([[1.0], [2.0]])) == 1.0
+
+    with pytest.raises(ValueError, match="same flattened shape"):
+        _safe_r2_score(np.array([1.0, 2.0]), np.array([1.0, 2.0, 3.0]))
+
+
+def test_safe_r2_score_constant_target_returns_nan():
+    assert np.isnan(_safe_r2_score(np.ones(5), np.arange(5.0)))
+
+
+def test_permutation_test_grid_search():
+    from sklearn.model_selection import GridSearchCV
+
+    X, y = _regression_data(seed=12)
+    # Wrap OPLS in GridSearchCV
+    gs = GridSearchCV(OPLS(), {"n_orthogonal": [0, 1]}, cv=3)
+    result = permutation_test(gs, X, y, n_permutations=5, random_state=42)
+    assert result.r2y > 0.0
+    assert result.permuted_r2y.shape == (5,)
+
+
+def test_permutation_test_randomized_search():
+    from sklearn.model_selection import RandomizedSearchCV
+
+    X, y = _regression_data(seed=13)
+    search = RandomizedSearchCV(
+        OPLS(),
+        {"n_orthogonal": [0, 1, 2]},
+        n_iter=2,
+        cv=3,
+        random_state=0,
+    )
+
+    result = permutation_test(search, X, y, n_permutations=5, random_state=42)
+
+    assert result.r2y > 0.0
+    assert result.permuted_r2y.shape == (5,)
+    assert result.permuted_q2.shape == (5,)
+
+
+def test_permutation_test_accepts_one_shot_cv_iterable():
+    from sklearn.model_selection import KFold
+
+    X, y = _regression_data(seed=14)
+    splits = KFold(n_splits=3).split(X, y)
+
+    result = permutation_test(
+        OPLS(n_orthogonal=1),
+        X,
+        y,
+        n_permutations=5,
+        cv=splits,
+        random_state=42,
+    )
+
+    assert result.permuted_q2.shape == (5,)
+
+
+def test_permutation_test_cv_defaults_small_dataset():
+    # Only 4 samples, default cv=5 would fail, but
+    # min(5, len(y)) defaults to 4 and works
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(4, 5))
+    y = rng.normal(size=4)
+    # Ensure it runs without ValueError from check_cv splits > samples
+    result = permutation_test(
+        OPLS(n_orthogonal=0), X, y, n_permutations=3, random_state=42
+    )
+    assert result.permuted_q2.shape == (3,)
+
+
+def test_permutation_test_bare_pipeline_raises():
+    # Unlike plotting displays, permutation_test intentionally does not unwrap
+    # pipelines; it needs a direct OPLS-like regressor or search wrapper exposing r2y_.
+    from sklearn.pipeline import Pipeline
+    from sklearn.preprocessing import StandardScaler
+
+    X, y = _regression_data(seed=42)
+    pipe = Pipeline([("scale", StandardScaler()), ("opls", OPLS(n_orthogonal=0))])
+    with pytest.raises(TypeError, match="OPLS-like regression estimator exposing r2y_"):
+        permutation_test(pipe, X, y, n_permutations=3)
+
+
+def test_permutation_test_classifier_wrapped_raises():
+    from sklearn.model_selection import GridSearchCV
+    from sklearn.pipeline import Pipeline
+
+    from scikit_opls import OPLSDA
+
+    X, y = _regression_data(seed=42)
+    # 1. Pipeline containing a classifier
+    pipe = Pipeline([("clf", OPLSDA())])
+    with pytest.raises(TypeError, match="classifiers like OPLSDA are not supported"):
+        permutation_test(pipe, X, y)
+
+    # 2. GridSearchCV wrapping a classifier pipeline
+    gs = GridSearchCV(pipe, {"clf__n_components": [1]})
+    with pytest.raises(TypeError, match="classifiers like OPLSDA are not supported"):
+        permutation_test(gs, X, y)

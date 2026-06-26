@@ -40,7 +40,8 @@ uv run pre-commit run --all-files
 - **`__init__` purity.** Store every keyword argument unchanged; no logic or
   validation in `__init__`.
 - **Naming/imports.** PEP8 names (`n_samples`, not `nsamples`). Intra-package
-  imports are relative (`from ._opls import OPLS`); Ruff's isort enforces order.
+  imports are absolute (`from scikit_opls._opls import OPLS`), per the scikit-learn
+  guide; Ruff's isort (`known-first-party = ["scikit_opls"]`) enforces order.
 - **Tests.** New code comes with tests. Use
   `sklearn.utils._testing.assert_allclose` for numeric comparisons; pass `atol`
   when comparing against zero.

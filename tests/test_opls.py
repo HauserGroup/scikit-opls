@@ -11,22 +11,7 @@ from sklearn.utils._testing import assert_allclose
 import scikit_opls
 from scikit_opls import OPLS
 
-
-def _regression_data(n_samples=80, n_features=30, n_ortho=2, amp=6.0, seed=0):
-    """y-correlated signal plus large y-orthogonal structured variation."""
-    rng = np.random.default_rng(seed)
-    y = rng.normal(size=n_samples)
-    y -= y.mean()
-    p_pred = rng.normal(size=n_features)
-    X = np.outer(y, p_pred)
-    for _ in range(n_ortho):
-        t_o = rng.normal(size=n_samples)
-        t_o -= t_o.mean()
-        t_o -= (t_o @ y) / (y @ y) * y  # exactly orthogonal to y
-        p_o = amp * (0.5 * p_pred + rng.normal(size=n_features))
-        X += np.outer(t_o, p_o)
-    X += 0.05 * rng.normal(size=(n_samples, n_features))
-    return X, y
+from ._data import make_regression_data as _regression_data
 
 
 def test_version():
@@ -41,8 +26,16 @@ def test_reduces_to_plsregression(n_components):
     pls = PLSRegression(n_components=n_components, scale=False).fit(X, y)
 
     assert_allclose(opls.predict(X), pls.predict(X).ravel(), atol=1e-9)
-    assert_allclose(opls.coef_, pls.coef_, atol=1e-9)
+    assert_allclose(opls.coef_filtered_, pls.coef_, atol=1e-9)
     assert_allclose(np.abs(opls.transform(X)), np.abs(pls.transform(X)), atol=1e-9)
+
+
+def test_does_not_expose_raw_coef_alias():
+    X, y = _regression_data()
+    model = OPLS(n_orthogonal=1).fit(X, y)
+
+    assert hasattr(model, "coef_filtered_")
+    assert not hasattr(model, "coef_")
 
 
 def test_predict_shape_matches_y_ndim():
@@ -105,7 +98,7 @@ def test_invalid_scale_raises():
         OPLS(scale="bogus").fit(X, y)
 
 
-@pytest.mark.parametrize("bad", [-1, 1.5, "nope"])
+@pytest.mark.parametrize("bad", [-1, 1.5, True, False, "nope"])
 def test_invalid_n_orthogonal_raises(bad):
     X, y = _regression_data()
     with pytest.raises(ValueError, match="n_orthogonal"):
@@ -115,6 +108,7 @@ def test_invalid_n_orthogonal_raises(bad):
 def test_clone_and_params():
     model = OPLS(n_components=2, n_orthogonal=3, scale="pareto")
     cloned = clone(model)
+    assert isinstance(cloned, OPLS)
     assert cloned.get_params() == model.get_params()
 
 
@@ -128,6 +122,35 @@ def test_feature_names_out_are_components(n_components):
     assert model.transform(X).shape[1] == len(names)
 
 
+def test_get_feature_names_out_validates_input_features():
+    X, y = _regression_data(n_features=4)
+    model = OPLS(n_components=2, n_orthogonal=0).fit(X, y)
+
+    assert list(model.get_feature_names_out(["a", "b", "c", "d"])) == [
+        "opls_pred0",
+        "opls_pred1",
+    ]
+    with pytest.raises(ValueError):
+        model.get_feature_names_out(["a", "b"])
+
+
+@pytest.mark.parametrize("method", ["predict", "transform", "transform_orthogonal"])
+def test_methods_reject_wrong_number_of_features(method):
+    X, y = _regression_data(n_features=6)
+    model = OPLS(n_orthogonal=1).fit(X, y)
+
+    with pytest.raises(ValueError, match="features"):
+        getattr(model, method)(X[:, :5])
+
+
+def test_opls_rejects_sparse_input():
+    sparse = pytest.importorskip("scipy.sparse")
+    X, y = _regression_data()
+
+    with pytest.raises(TypeError, match="Sparse data"):
+        OPLS().fit(sparse.csr_matrix(X), y)
+
+
 def test_set_output_pandas_columns_named():
     pd = pytest.importorskip("pandas")
     X, y = _regression_data(n_features=6)
@@ -138,25 +161,150 @@ def test_set_output_pandas_columns_named():
     assert list(out.columns) == ["opls_pred0"]
 
 
-def test_html_repr_doc_links():
-    from sklearn.utils import estimator_html_repr
+def test_opls_n_orthogonal_zero_parity():
+    # Parity with PLSRegression on pre-centered data
+    X, y = _regression_data(seed=42)
+    # pre-center X and y
+    X_centered = X - X.mean(axis=0)
+    y_centered = y - y.mean()
 
-    from scikit_opls import OPLS, OPLSDA
-
-    opls = OPLS()
-    opls_da = OPLSDA()
-
-    assert opls._get_doc_link() == "https://hausergroup.github.io/scikit-opls/api/opls/"
-    assert (
-        opls_da._get_doc_link()
-        == "https://hausergroup.github.io/scikit-opls/api/opls_da/"
+    opls = OPLS(n_components=1, n_orthogonal=0, scale="none").fit(
+        X_centered, y_centered
     )
+    pls = PLSRegression(n_components=1, scale=False).fit(X_centered, y_centered)
+    assert_allclose(opls.predict(X_centered), pls.predict(X_centered).ravel())
 
-    # Verify they are correctly embedded in estimator HTML representation
-    assert "https://hausergroup.github.io/scikit-opls/api/opls/" in estimator_html_repr(
-        opls
+
+def test_opls_zero_variance_columns():
+    # Ensure constant columns don't cause division by zero
+    X, y = _regression_data(seed=42)
+    X[:, 0] = 5.0  # Constant column
+    model = OPLS(n_orthogonal=1).fit(X, y)
+    assert not np.isnan(model.predict(X)).any()
+
+
+def test_opls_too_many_components():
+    X, y = _regression_data(n_samples=10, n_features=5)
+    with pytest.raises(ValueError, match="exceeds the maximum"):
+        OPLS(n_components=6, n_orthogonal=0).fit(X, y)
+
+
+def test_opls_constant_y_raises():
+    X, y = _regression_data(seed=42)
+    y_const = np.ones_like(y) * 5.0
+    with pytest.raises(ValueError, match="non-constant target y"):
+        OPLS().fit(X, y_const)
+
+
+def test_opls_constant_x_raises():
+    X, y = _regression_data(seed=42)
+    X_const = np.ones_like(X) * 5.0
+    with pytest.raises(ValueError, match="no non-zero variation"):
+        OPLS(n_orthogonal=0).fit(X_const, y)
+
+
+def test_opls_no_variation_after_filtering_raises(monkeypatch):
+    from scikit_opls._orthogonal import OrthogonalComponents
+
+    X, y = _regression_data(seed=42)
+    # Mock opls_filter to return zero filtered X to trigger the guard
+    dummy_components = OrthogonalComponents(
+        x_ortho_weights=np.zeros((X.shape[1], 0)),
+        x_ortho_scores=np.zeros((X.shape[0], 0)),
+        x_ortho_loadings=np.zeros((X.shape[1], 0)),
+        x_filtered=np.zeros_like(X),
+        x_predictive_weight=np.zeros(X.shape[1]),
+        n_components=0,
     )
-    assert (
-        "https://hausergroup.github.io/scikit-opls/api/opls_da/"
-        in estimator_html_repr(opls_da)
+    monkeypatch.setattr(
+        "scikit_opls._opls.opls_filter", lambda *args, **kwargs: dummy_components
     )
+    with pytest.raises(
+        ValueError, match="no remaining variation after orthogonal filtering"
+    ):
+        OPLS().fit(X, y)
+
+
+def test_opls_exposes_intercept():
+    X, y = _regression_data(seed=42)
+    model = OPLS(n_orthogonal=1).fit(X, y)
+    assert hasattr(model, "intercept_")
+    assert isinstance(model.intercept_, (float, np.ndarray))
+
+
+def test_opls_constant_nonzero_x_scale_none_raises():
+    X = np.ones((10, 5)) * 5.0
+    y = np.arange(10.0)
+    with pytest.raises(ValueError, match="no non-zero variation"):
+        OPLS(scale="none", n_orthogonal=0).fit(X, y)
+
+
+def test_opls_large_offset_small_variation_does_not_raise():
+    rng = np.random.default_rng(0)
+    X = 1e12 + rng.normal(size=(30, 5))
+    y = rng.normal(size=30)
+    # This should succeed since variance is normal, despite a huge offset
+    OPLS(scale="center", n_orthogonal=0).fit(X, y)
+
+
+def test_opls_rank_check_allows_near_collinear_full_rank_data():
+    rng = np.random.default_rng(0)
+    z = rng.normal(size=(30, 1))
+    X = np.hstack(
+        [
+            z,
+            z + 1e-8 * rng.normal(size=(30, 1)),
+            rng.normal(size=(30, 1)),
+        ]
+    )
+    y = rng.normal(size=30)
+
+    OPLS(n_components=2, n_orthogonal=0).fit(X, y)
+
+
+def test_opls_multi_component_fit_and_shapes():
+    X, y = _regression_data(seed=42)
+    model = OPLS(n_components=2, n_orthogonal=1).fit(X, y)
+
+    # transform shape is (n_samples, 2)
+    assert model.transform(X).shape == (X.shape[0], 2)
+    # transform_orthogonal shape is (n_samples, 1)
+    assert model.transform_orthogonal(X).shape == (X.shape[0], 1)
+    # predict shape is (n_samples,)
+    assert model.predict(X).shape == (X.shape[0],)
+    # no NaNs in prediction
+    assert not np.isnan(model.predict(X)).any()
+
+
+def test_opls_multi_component_parity():
+    # OPLS(n_components=2, n_orthogonal=0) parity with
+    # PLSRegression(n_components=2, scale=False) after standard preprocessing.
+    X, y = _regression_data(seed=42)
+
+    opls = OPLS(n_components=2, n_orthogonal=0, scale="pareto").fit(X, y)
+
+    # manual preprocess
+    from scikit_opls._preprocessing import apply_scaling
+
+    Xs = apply_scaling(X, opls.x_mean_, opls.x_std_)
+    pls = PLSRegression(n_components=2, scale=False).fit(Xs, y - y.mean())
+
+    assert_allclose(opls.predict(X), pls.predict(Xs).ravel() + y.mean())
+    assert_allclose(opls.transform(X), pls.transform(Xs))
+
+
+def test_opls_grid_search_over_multi_component():
+    from sklearn.model_selection import GridSearchCV
+
+    X, y = _regression_data(seed=42)
+    param_grid = {"n_components": [1, 2], "n_orthogonal": [0, 1]}
+    gs = GridSearchCV(OPLS(), param_grid, cv=3).fit(X, y)
+    assert gs.best_estimator_ is not None
+
+
+def test_opls_n_components_exceeds_post_filter_rank_raises():
+    X, y = _regression_data(n_samples=10, n_features=3, seed=42)
+    with pytest.raises(
+        ValueError, match="exceeds the numerical rank of X after orthogonal filtering"
+    ):
+        OPLS(n_components=3, n_orthogonal=1).fit(X, y)
