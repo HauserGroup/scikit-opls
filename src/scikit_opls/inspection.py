@@ -9,9 +9,9 @@ Both satisfy ``sum_j VIP_j**2 == n_features`` (mean squared VIP of 1).
 
 VIP is computed on demand here rather than eagerly in ``OPLS.fit``. The
 ``vip(model)``/``orthogonal_vip(model)`` functions are the canonical API; they
-accept a fitted :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, or
-``GridSearchCV`` returned by :func:`~scikit_opls.selection.select_orthogonal`
-(wrappers are unwrapped automatically).
+accept a fitted :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, or a
+:class:`~sklearn.model_selection.GridSearchCV` wrapping one (the ``best_estimator_``
+and inner ``opls_`` wrappers are unwrapped automatically).
 """
 
 from __future__ import annotations

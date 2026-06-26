@@ -11,8 +11,8 @@ cleaned `X`. With `n_orthogonal=0` it reduces exactly to `PLSRegression`.
 ## Highlights
 
 - [`OPLS`](api/opls.md) — regressor and supervised transformer.
-- [Selection](api/selection.md) — chooses `n_orthogonal` with `GridSearchCV`
-  and a parsimonious refit.
+- Cross-validated `n_orthogonal` selection via scikit-learn's `GridSearchCV`
+  (see [Quickstart](quickstart.md)).
 - [`OPLSDA`](api/opls_da.md) — binary classifier composing `OPLS`.
 - [Inspection](api/inspection.md) — on-demand VIP scores and variance metrics.
 - [Plotting](api/plotting.md) — score and S-plot Displays.

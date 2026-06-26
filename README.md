@@ -52,19 +52,41 @@ vip(model)                    # variable importance (predictive), computed on de
 ```
 
 Let cross-validated Q2 choose the number of orthogonal components with
-`select_orthogonal`, a thin `GridSearchCV` factory with a parsimonious refit:
+scikit-learn's `GridSearchCV` — no bespoke estimator needed (`scoring=None` gives
+out-of-fold R2, which equals Q2 for `OPLS`):
 
 ```python
-from scikit_opls import OPLS, select_orthogonal
+from sklearn.model_selection import GridSearchCV
+from scikit_opls import OPLS
 
-search = select_orthogonal(OPLS(n_components=1), cv=7).fit(X, y)
+search = GridSearchCV(
+    OPLS(n_components=1), {"n_orthogonal": list(range(10))}, cv=7
+).fit(X, y)
 search.best_params_["n_orthogonal"]       # chosen count
 search.best_estimator_                    # final OPLS refit on all data
 search.cv_results_["mean_test_score"]     # out-of-fold R2/Q2 path
 ```
 
-For OPLS-DA, use the same helper with classification scoring, for example
-`select_orthogonal(OPLSDA(), scoring="roc_auc")` after importing `OPLSDA`.
+For OPLS-DA, wrap `OPLSDA()` the same way; an `int` `cv` becomes stratified
+automatically and `scoring="roc_auc"` is usually preferable.
+
+To bias toward fewer orthogonal components — prefer the smallest count whose mean
+score is within a tolerance of the best — pass a `refit` callable:
+
+```python
+import numpy as np
+
+def parsimonious_refit(cv_results, tol=0.01):
+    scores = np.asarray(cv_results["mean_test_score"], dtype=float)
+    counts = np.asarray(cv_results["param_n_orthogonal"], dtype=int)
+    within = np.flatnonzero(scores >= np.nanmax(scores) - tol)
+    return int(within[np.argmin(counts[within])])
+
+GridSearchCV(
+    OPLS(n_components=1), {"n_orthogonal": list(range(10))},
+    cv=7, refit=parsimonious_refit,
+).fit(X, y)
+```
 
 ### OPLS-DA (binary classification)
 
@@ -113,14 +135,14 @@ uv run python examples/palmerpenguins_opls_regression.py
 
 ## Parameters
 
-| Parameter      | Meaning                                                                     |
-| -------------- | --------------------------------------------------------------------------- |
-| `n_components` | Predictive components (classic OPLS uses 1).                                |
-| `n_orthogonal` | Orthogonal components to remove (`int`; use `select_orthogonal` to select). |
-| `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"`.                             |
+| Parameter      | Meaning                                                           |
+| -------------- | ----------------------------------------------------------------- |
+| `n_components` | Predictive components (classic OPLS uses 1).                      |
+| `n_orthogonal` | Orthogonal components to remove (`int`; tune via `GridSearchCV`). |
+| `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"`.                   |
 
-`select_orthogonal` exposes `cv`, `max_orthogonal`, `tol`, `scoring` and `n_jobs`
-through standard `GridSearchCV`.
+Wrap `OPLS` in `GridSearchCV` over `n_orthogonal` for cross-validated selection
+(see the snippet above); `cv`, `scoring` and `n_jobs` come from `GridSearchCV`.
 
 ## Development
 

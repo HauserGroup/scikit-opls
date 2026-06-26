@@ -45,8 +45,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         ``n_orthogonal=0`` (plain multi-component PLS extension mode).
     n_orthogonal : int, default=1
         Number of orthogonal (y-uncorrelated) components to remove from ``X``.
-        To choose this by cross-validated Q2, use
-        :func:`~scikit_opls.selection.select_orthogonal`.
+        To choose this by cross-validated Q2, wrap ``OPLS`` in
+        :class:`~sklearn.model_selection.GridSearchCV` over ``n_orthogonal``.
     scale : {"none", "center", "pareto", "standard"}, default="standard"
         Column preprocessing applied to ``X``.
     copy : bool, default=True

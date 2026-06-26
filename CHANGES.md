@@ -14,15 +14,16 @@ and default-value changes will be documented here.
 
 ### Changed (breaking, pre-1.0)
 
-- Cross-validated selection of `n_orthogonal` moved out of `OPLS` into
-  `selection.select_orthogonal`, a thin `GridSearchCV` factory with a
-  parsimonious refit. `OPLS.n_orthogonal` is now a plain `int`; the `"auto"`
-  option and the `cv` parameter are removed from both `OPLS` and `OPLSDA`.
-  `OPLSCV` is removed; use `select_orthogonal(OPLS(...)).fit(X, y)` and read
+- Cross-validated selection of `n_orthogonal` is now done with scikit-learn's
+  `GridSearchCV` directly — there is no bespoke selection API. `OPLS.n_orthogonal`
+  is a plain `int`; the `"auto"` option and the `cv` parameter are removed from
+  both `OPLS` and `OPLSDA`, and the `OPLSCV` estimator and the
+  `selection.select_orthogonal` factory are both removed. Use
+  `GridSearchCV(OPLS(...), {"n_orthogonal": [...]}).fit(X, y)` and read
   `best_params_["n_orthogonal"]`, `best_estimator_`, and
-  `cv_results_["mean_test_score"]`.
+  `cv_results_["mean_test_score"]`. For a parsimony bias, pass a `refit` callable
+  (recipe in the README / quickstart).
 - `OPLSDACV` will not be added. Use
-  `select_orthogonal(OPLSDA(), scoring="roc_auc")` or plain
   `GridSearchCV(OPLSDA(), {"n_orthogonal": [...]}, scoring="roc_auc")`, which
   gives stratified folds for classification.
 - VIP is no longer computed eagerly in `fit`. `model.vip_` / `model.ortho_vip_`
@@ -47,13 +48,11 @@ and default-value changes will be documented here.
   (`opls_pred0, …`).
 
 - `n_jobs` on `validation.permutation_test` (runs the independent permutations in
-  parallel; reproducible regardless of `n_jobs`). `GridSearchCV` provides
-  `n_jobs` for `select_orthogonal`.
+  parallel; reproducible regardless of `n_jobs`). Cross-validated `n_orthogonal`
+  selection inherits `n_jobs` from `GridSearchCV`.
 
-- `selection.select_orthogonal` for `GridSearchCV`-based selection of
-  `n_orthogonal`.
-
-- `inspection.vip` / `inspection.orthogonal_vip` model-level helpers.
+- `inspection.vip` / `inspection.orthogonal_vip` model-level helpers (they unwrap
+  a fitted `GridSearchCV` to its `best_estimator_` automatically).
 
 - `_orthogonal.orthogonal_filter`, a block-agnostic NIPALS deflation primitive
   shared by `opls_filter` (and a future `O2PLS`).

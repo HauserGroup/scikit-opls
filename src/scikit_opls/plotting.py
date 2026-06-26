@@ -35,9 +35,9 @@ def _predictive_engine(model: Any) -> Any:
 class OPLSScoresDisplay:
     """Predictive vs orthogonal score scatter for an OPLS-family model.
 
-    Works for :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` and fitted
-    ``GridSearchCV`` returned by :func:`~scikit_opls.selection.select_orthogonal`.
-    Construct with :meth:`from_estimator`.
+    Works for :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` and a fitted
+    :class:`~sklearn.model_selection.GridSearchCV` wrapping one. Construct with
+    :meth:`from_estimator`.
 
     Parameters
     ----------
@@ -144,9 +144,9 @@ class OPLSScoresDisplay:
 class SPlotDisplay:
     """S-plot: covariance vs correlation of each feature with the predictive score.
 
-    Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` or fitted
-    ``GridSearchCV`` returned by :func:`~scikit_opls.selection.select_orthogonal`.
-    Construct with :meth:`from_estimator`.
+    Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA` or a fitted
+    :class:`~sklearn.model_selection.GridSearchCV` wrapping one. Construct with
+    :meth:`from_estimator`.
 
     Parameters
     ----------
