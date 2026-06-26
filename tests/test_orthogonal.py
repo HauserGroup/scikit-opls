@@ -145,6 +145,26 @@ def test_single_column_y_matches_xty_direction():
     assert_allclose(np.abs(w @ xty), 1.0, atol=1e-10)
 
 
+def test_multivariate_y_predictive_weight_is_unit_direction():
+    X, y = _make_data()
+    Y = np.column_stack([y, y**2 - np.mean(y**2)])
+
+    w = predictive_weight(X, Y)
+
+    assert w.shape == (X.shape[1],)
+    assert_allclose(np.linalg.norm(w), 1.0, atol=1e-12)
+
+
+def test_multivariate_y_predictive_weight_shape_guards():
+    X, y = _make_data()
+    Y = np.column_stack([y, y])
+
+    with pytest.raises(ValueError, match="Number of samples in Y"):
+        predictive_weight(X, Y[:-1])
+    with pytest.raises(ValueError, match="Y must be 1D or 2D"):
+        predictive_weight(X, Y[:, :, np.newaxis])
+
+
 def test_orthogonal_filter_reproduces_opls_filter():
     """opls_filter == orthogonal_filter with the predictive direction passed in."""
     X, y = _make_data()
@@ -190,6 +210,16 @@ def test_opls_filter_rejects_non_integer_n_components(bad):
 
     with pytest.raises(TypeError, match="n_components"):
         opls_filter(X, y, bad)
+
+
+def test_low_level_filters_reject_negative_n_components():
+    X, y = _make_data()
+    w = predictive_weight(X, y)
+
+    with pytest.raises(ValueError, match="n_components must be >= 0"):
+        orthogonal_filter(X, w, -1)
+    with pytest.raises(ValueError, match="n_components must be >= 0"):
+        opls_filter(X, y, -1)
 
 
 def test_orthogonal_filter_rejects_nonfinite_values():

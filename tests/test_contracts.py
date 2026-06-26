@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from importlib import resources
+
 import pytest
 from sklearn.exceptions import NotFittedError
 from sklearn.utils import get_tags
@@ -11,7 +13,7 @@ from scikit_opls import OPLS, OPLSDA
 from .test_opls import _regression_data
 
 
-@pytest.mark.parametrize("bad", [0, -1, 1.5, "x"])
+@pytest.mark.parametrize("bad", [0, -1, 1.5, True, "x"])
 def test_n_components_invalid_raises(bad):
     X, y = _regression_data()
     with pytest.raises(ValueError, match="n_components"):
@@ -70,3 +72,7 @@ def test_opls_da_not_multiclass():
     tags = get_tags(OPLSDA())
     assert tags.classifier_tags is not None
     assert tags.classifier_tags.multi_class is False
+
+
+def test_py_typed_marker_present():
+    assert resources.files("scikit_opls").joinpath("py.typed").is_file()

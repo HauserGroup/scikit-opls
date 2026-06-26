@@ -90,7 +90,7 @@ def test_invalid_scale_raises():
         OPLS(scale="bogus").fit(X, y)
 
 
-@pytest.mark.parametrize("bad", [-1, 1.5, "nope"])
+@pytest.mark.parametrize("bad", [-1, 1.5, True, "nope"])
 def test_invalid_n_orthogonal_raises(bad):
     X, y = _regression_data()
     with pytest.raises(ValueError, match="n_orthogonal"):

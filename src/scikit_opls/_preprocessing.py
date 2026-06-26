@@ -44,6 +44,8 @@ def compute_scaling(
     X = np.asarray(X, dtype=np.float64)
     if X.ndim != 2:
         raise ValueError(f"X must be 2D, got shape {X.shape}.")
+    if X.shape[0] == 0 or X.shape[1] == 0:
+        raise ValueError("X must have at least one sample and one feature.")
     if not np.all(np.isfinite(X)):
         raise ValueError("X must contain only finite values.")
     n_features = X.shape[1]
@@ -94,14 +96,18 @@ def apply_scaling(
 
     if X.ndim != 2:
         raise ValueError(f"X must be 2D, got shape {X.shape}.")
+    if X.shape[0] == 0 or X.shape[1] == 0:
+        raise ValueError("X must have at least one sample and one feature.")
     if mean_.shape != (X.shape[1],):
         raise ValueError(f"mean_ must have shape ({X.shape[1]},), got {mean_.shape}.")
     if scale_.shape != (X.shape[1],):
         raise ValueError(f"scale_ must have shape ({X.shape[1]},), got {scale_.shape}.")
     if not np.all(np.isfinite(X)):
         raise ValueError("X must contain only finite values.")
-    if not np.all(np.isfinite(mean_)) or not np.all(np.isfinite(scale_)):
-        raise ValueError("mean_ and scale_ must contain only finite values.")
+    if not np.all(np.isfinite(mean_)):
+        raise ValueError("mean_ must contain only finite values.")
+    if not np.all(np.isfinite(scale_)):
+        raise ValueError("scale_ must contain only finite values.")
     if np.any(scale_ == 0.0):
         raise ValueError("scale_ must not contain zeros.")
 

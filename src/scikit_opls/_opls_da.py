@@ -93,6 +93,10 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         self : OPLSDA
             The fitted estimator.
         """
+        if isinstance(self.n_components, bool):
+            raise ValueError("n_components must be an integer, not bool.")
+        if isinstance(self.n_orthogonal, bool):
+            raise ValueError("n_orthogonal must be an integer, not bool.")
         self._validate_params()
         # validate_data ravels a column-vector y and rejects multi-column y.
         X, y = validate_data(

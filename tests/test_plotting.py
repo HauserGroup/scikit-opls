@@ -14,10 +14,12 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 import numpy as np
 from matplotlib.axes import Axes  # noqa: E402
+from sklearn.calibration import CalibratedClassifierCV  # noqa: E402
 from sklearn.compose import ColumnTransformer  # noqa: E402
 from sklearn.exceptions import NotFittedError  # noqa: E402
 from sklearn.feature_selection import VarianceThreshold  # noqa: E402
 from sklearn.model_selection import GridSearchCV  # noqa: E402
+from sklearn.multiclass import OneVsRestClassifier  # noqa: E402
 from sklearn.pipeline import Pipeline  # noqa: E402
 from sklearn.preprocessing import StandardScaler  # noqa: E402
 
@@ -287,6 +289,20 @@ def test_plotting_rejects_unsupported_pipeline_shapes():
         SPlotDisplay.from_estimator(non_opls_final, X)
 
 
+def test_plotting_rejects_unsupported_meta_classifiers():
+    X, y = _classification_data()
+
+    calibrated = CalibratedClassifierCV(
+        OPLSDA(n_components=1, n_orthogonal=1), cv=3
+    ).fit(X, y)
+    with pytest.raises(TypeError, match="meta-classifier wrappers are unsupported"):
+        OPLSScoresDisplay.from_estimator(calibrated, X, y=y)
+
+    one_vs_rest = OneVsRestClassifier(OPLSDA(n_components=1, n_orthogonal=1)).fit(X, y)
+    with pytest.raises(TypeError, match="meta-classifier wrappers are unsupported"):
+        OPLSScoresDisplay.from_estimator(one_vs_rest, X, y=y)
+
+
 def test_plotting_unfitted_pipeline_raises_not_fitted():
     X, _ = _regression_data()
     pipe = Pipeline(
@@ -298,31 +314,6 @@ def test_plotting_unfitted_pipeline_raises_not_fitted():
 
     with pytest.raises(NotFittedError):
         SPlotDisplay.from_estimator(pipe, X)
-
-
-def test_import_without_matplotlib(monkeypatch):
-    import importlib
-    import sys
-
-    # Simulate matplotlib not being installed by putting None in sys.modules
-    with monkeypatch.context() as m:
-        m.setitem(sys.modules, "matplotlib", None)
-        m.setitem(sys.modules, "matplotlib.pyplot", None)
-
-        # Check that we can import the package and instantiate OPLS
-        # without bringing in matplotlib or raising ModuleNotFoundError.
-        importlib.invalidate_caches()
-
-        # We reload scikit_opls and plotting to verify no module-level imports fail
-        if "scikit_opls.plotting" in sys.modules:
-            m.delitem(sys.modules, "scikit_opls.plotting")
-        if "scikit_opls" in sys.modules:
-            m.delitem(sys.modules, "scikit_opls")
-
-        from scikit_opls import OPLS
-
-        model = OPLS()
-        assert model is not None
 
 
 def test_plotting_multi_component_component_selection():

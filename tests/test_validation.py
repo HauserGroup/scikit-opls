@@ -115,6 +115,42 @@ def test_permutation_test_grid_search():
     assert result.permuted_r2y.shape == (5,)
 
 
+def test_permutation_test_randomized_search():
+    from sklearn.model_selection import RandomizedSearchCV
+
+    X, y = _regression_data(seed=13)
+    search = RandomizedSearchCV(
+        OPLS(),
+        {"n_orthogonal": [0, 1, 2]},
+        n_iter=2,
+        cv=3,
+        random_state=0,
+    )
+
+    result = permutation_test(search, X, y, n_permutations=5, random_state=42)
+
+    assert result.r2y > 0.0
+    assert result.permuted_q2.shape == (5,)
+
+
+def test_permutation_test_accepts_one_shot_cv_iterable():
+    from sklearn.model_selection import KFold
+
+    X, y = _regression_data(seed=14)
+    splits = KFold(n_splits=3).split(X, y)
+
+    result = permutation_test(
+        OPLS(n_orthogonal=1),
+        X,
+        y,
+        n_permutations=5,
+        cv=splits,
+        random_state=42,
+    )
+
+    assert result.permuted_q2.shape == (5,)
+
+
 def test_permutation_test_cv_defaults_small_dataset():
     # Only 4 samples, default cv=5 would fail, but
     # min(5, len(y)) defaults to 4 and works
@@ -129,8 +165,8 @@ def test_permutation_test_cv_defaults_small_dataset():
 
 
 def test_permutation_test_bare_pipeline_raises():
-    # Pipelines are no longer unwrapped: permutation_test takes an OPLS-like
-    # estimator exposing r2y_, or a GridSearchCV wrapping one.
+    # Unlike plotting displays, permutation_test intentionally does not unwrap
+    # pipelines; it needs a direct OPLS-like regressor or search wrapper exposing r2y_.
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import StandardScaler
 

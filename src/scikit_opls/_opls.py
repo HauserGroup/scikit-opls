@@ -165,6 +165,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """
         for _attr in ("_vip_", "_ortho_vip_"):
             self.__dict__.pop(_attr, None)
+        if isinstance(self.n_components, bool):
+            raise ValueError("n_components must be an integer, not bool.")
+        if isinstance(self.n_orthogonal, bool):
+            raise ValueError("n_orthogonal must be an integer, not bool.")
         self._validate_params()
         # multi_output=False ravels a column-vector y (with a DataConversionWarning)
         # and rejects multi-column y: OPLS is univariate.

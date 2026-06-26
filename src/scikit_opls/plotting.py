@@ -84,7 +84,9 @@ def _unwrap_estimator_and_data(
     else:
         raise TypeError(
             "estimator must be a fitted OPLS, OPLSDA, Pipeline ending in one, "
-            "or a fitted search meta-estimator wrapping one."
+            "or a fitted search meta-estimator wrapping one. Ensemble and "
+            "meta-classifier wrappers are unsupported because they do not expose "
+            "one latent OPLS space."
         )
 
     if not isinstance(base, OPLS):

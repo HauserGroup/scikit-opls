@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from sklearn.base import clone
+from sklearn.exceptions import DataConversionWarning, NotFittedError
 from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLSDA
@@ -45,6 +46,34 @@ def test_decision_function_sign_matches_predict():
     np.testing.assert_array_equal(model.predict(X), expected)
 
 
+@pytest.mark.parametrize("method", ["predict", "decision_function"])
+def test_unfitted_methods_raise(method):
+    X, _ = _classification_data()
+
+    with pytest.raises(NotFittedError):
+        getattr(OPLSDA(), method)(X)
+
+
+@pytest.mark.parametrize("attr", ["vip_", "ortho_vip_"])
+def test_unfitted_vip_properties_raise(attr):
+    with pytest.raises(NotFittedError):
+        getattr(OPLSDA(), attr)
+
+
+@pytest.mark.parametrize(
+    ("param", "kwargs"),
+    [
+        ("n_components", {"n_components": True}),
+        ("n_orthogonal", {"n_orthogonal": True}),
+    ],
+)
+def test_bool_integer_parameters_raise_clear_value_error(param, kwargs):
+    X, y = _classification_data()
+
+    with pytest.raises(ValueError, match=param):
+        OPLSDA(**kwargs).fit(X, y)
+
+
 def test_decision_function_zero_predicts_first_class():
     class ZeroScoreOPLSDA(OPLSDA):
         def decision_function(self, X):
@@ -66,6 +95,15 @@ def test_scores_available_via_underlying_opls():
         X.shape[0],
         model.n_orthogonal_,
     )
+
+
+def test_column_vector_y_warns_and_ravels():
+    X, y = _classification_data()
+
+    with pytest.warns(DataConversionWarning):
+        model = OPLSDA(n_orthogonal=1).fit(X, y.reshape(-1, 1))
+
+    assert model.predict(X).shape == y.shape
 
 
 def test_non_binary_raises():

@@ -28,28 +28,36 @@ def test_metrics_present_and_sane():
 
 
 def test_vip_not_computed_eagerly():
-    """VIP is a lazy property: fit must not cache vip_/ortho_vip_ into the instance."""
+    """VIP is lazy: fit must not cache _vip_/_ortho_vip_ into the instance."""
     X, y = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
-    assert "vip_" not in model.__dict__
-    assert "ortho_vip_" not in model.__dict__
+    assert "_vip_" not in model.__dict__
+    assert "_ortho_vip_" not in model.__dict__
 
 
 def test_vip_cache_cleared_on_refit():
-    """A cached vip_ from a prior fit must not survive a refit on different data."""
+    """Cached VIP arrays from a prior fit must not survive a refit."""
     X1, y1 = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=2).fit(X1, y1)
     v1 = model.vip_.copy()
+    ov1 = model.ortho_vip_.copy()
     assert v1.shape == (X1.shape[1],)
+    assert ov1.shape == (X1.shape[1],)
+    assert "_vip_" in model.__dict__
+    assert "_ortho_vip_" in model.__dict__
 
     # Refit on fewer features: stale cache would keep the old length/values.
     n_half = X1.shape[1] // 2
     X2 = X1[:, :n_half]
     model.fit(X2, y1)
     assert "_vip_" not in model.__dict__  # cache dropped by fit
+    assert "_ortho_vip_" not in model.__dict__
     v2 = model.vip_
+    ov2 = model.ortho_vip_
     assert v2.shape == (n_half,)
+    assert ov2.shape == (n_half,)
     assert not np.array_equal(v1, v2)
+    assert not np.array_equal(ov1, ov2)
 
 
 def test_weighted_vip_rejects_bad_shapes_and_nonfinite():
