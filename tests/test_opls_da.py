@@ -103,9 +103,27 @@ def test_opls_da_raw_score_vs_decision_function():
 
 def test_opls_da_constant_raw_scores_raises(monkeypatch):
     X, y = _classification_data()
-    # Mock decision_function to return constant values (all zeros) to trigger guard
+    # Mock the raw scores (used by fit's calibrator) to constant zeros to trigger guard.
     monkeypatch.setattr(
-        OPLSDA, "decision_function", lambda self, X: np.zeros(X.shape[0])
+        OPLSDA, "_raw_scores", lambda self, X: np.zeros((X.shape[0], 1))
     )
     with pytest.raises(ValueError, match="OPLSDA produced constant raw scores"):
         OPLSDA(probability=True).fit(X, y)
+
+
+def test_predict_agrees_with_predict_proba_when_calibrated():
+    X, y = _classification_data()
+    model = OPLSDA(n_orthogonal=1, probability=True).fit(X, y)
+    expected = model.classes_[np.argmax(model.predict_proba(X), axis=1)]
+    np.testing.assert_array_equal(model.predict(X), expected)
+
+
+def test_decision_function_calibrated_differs_from_raw():
+    X, y = _classification_data()
+    model = OPLSDA(n_orthogonal=1, probability=True).fit(X, y)
+    raw = model.raw_score(X)
+    df = model.decision_function(X)
+    # Platt has a slope/intercept, so the calibrated score is an affine reshape of raw.
+    assert not np.allclose(df, raw)
+    # raw_score stays the uncalibrated predictive score regardless of probability.
+    np.testing.assert_allclose(raw, model.opls_.predict(X).ravel())

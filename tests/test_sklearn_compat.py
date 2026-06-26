@@ -15,6 +15,7 @@ from scikit_opls import OPLS, OPLSDA
         OPLS(n_orthogonal=0),
         OPLS(scale="pareto"),
         OPLSDA(),
+        OPLSDA(probability=True),
     ]
 )
 def test_sklearn_compatible_estimator(estimator, check):
