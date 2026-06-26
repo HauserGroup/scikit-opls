@@ -56,6 +56,12 @@ and default-value changes will be documented here.
 
 ### Added
 
+- `OPLS.coef_raw_` / `OPLS.intercept_raw_`: linear coefficients on the original raw
+  input feature space, collapsing scaling, the orthogonal filter and the predictive
+  PLS into one map, so `X @ coef_raw_.T + intercept_raw_` reproduces `predict(X)`.
+  No bare sklearn `coef_` alias is exposed (it would be the raw-space coefficient,
+  not the engine's filtered-space one).
+
 - `OPLS.filter_transform(X)` returns the preprocessed, orthogonal-filtered `X`
   actually passed to the predictive PLS engine (so
   `pls_.predict(filter_transform(X))` matches `predict(X)`); useful for diagnostics

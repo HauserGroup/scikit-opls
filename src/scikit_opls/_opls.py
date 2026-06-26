@@ -43,6 +43,62 @@ from scikit_opls._preprocessing import VALID_SCALING, apply_scaling, compute_sca
 from scikit_opls._utils import _has_nonzero_variation
 
 
+def _orthogonal_filter_matrix(
+    x_ortho_weights: NDArray[np.float64],
+    x_ortho_loadings: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Right-side linear operator ``F`` such that ``X_filtered == X_scaled @ F``.
+
+    The replayed orthogonal filter applies ``X <- X - (X w_i) p_iᵀ`` for each
+    component, i.e. right multiplication by ``I - outer(w_i, p_i)``. Composing them
+    in order yields the single matrix equivalent of :func:`apply_orthogonal_filter`.
+    """
+    W = np.asarray(x_ortho_weights, dtype=np.float64)
+    P = np.asarray(x_ortho_loadings, dtype=np.float64)
+    n_features = W.shape[0]
+    eye = np.eye(n_features, dtype=np.float64)
+    F = eye.copy()
+    for i in range(W.shape[1]):
+        F = F @ (eye - np.outer(W[:, i], P[:, i]))
+    return F
+
+
+def _compose_raw_coefficients(
+    coef_filtered: NDArray[np.float64],
+    intercept_filtered: float | NDArray[np.float64],
+    x_mean: NDArray[np.float64],
+    x_std: NDArray[np.float64],
+    x_ortho_weights: NDArray[np.float64],
+    x_ortho_loadings: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Collapse filtered/scaled-space PLS coefficients into raw-X coefficients.
+
+    The fitted prediction is linear: ``X -> (X - mean) / std -> @ F -> @ Bᶠ + b``,
+    where ``b`` is the predictive engine's prediction offset (``pls_.predict(0)``,
+    not ``pls_.intercept_``). With ``B_scaled = F @ Bᶠ`` and ``inv_scale = 1 / std``
+    this reduces to ``y = X @ B_raw + (b - (mean * inv_scale) @ B_scaled)`` where
+    ``B_raw = inv_scale[:, None] * B_scaled``.
+    """
+    coef_arr = np.asarray(coef_filtered, dtype=np.float64)
+    if coef_arr.ndim == 1:
+        coef_arr = coef_arr.reshape(1, -1)
+    # sklearn PLSRegression exposes coef_ as (n_targets, n_features); work with the
+    # transpose B as (n_features, n_targets).
+    b_filtered = coef_arr.T
+
+    f_matrix = _orthogonal_filter_matrix(x_ortho_weights, x_ortho_loadings)
+    b_scaled = f_matrix @ b_filtered
+
+    inv_scale = 1.0 / np.asarray(x_std, dtype=np.float64)
+    b_raw = inv_scale[:, None] * b_scaled
+
+    offset_scaled = np.asarray(x_mean, dtype=np.float64) * inv_scale
+    intercept_raw = np.asarray(intercept_filtered, dtype=np.float64) - (
+        offset_scaled @ b_scaled
+    )
+    return b_raw.T, intercept_raw
+
+
 class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     """Orthogonal Projections to Latent Structures regression.
 
@@ -76,9 +132,16 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         coefficients act on the preprocessed, orthogonal-filtered space, and
         cannot be directly multiplied with raw input ``X``. Use ``predict(X)``
         for raw-input predictions.
+    coef_raw_ : ndarray of shape (1, n_features)
+        Linear coefficients on the original *raw* input feature space, collapsing the
+        scaling, orthogonal filter and predictive PLS into one linear map.
+        ``predict(X) == (X @ coef_raw_.T + intercept_raw_).ravel()`` up to
+        floating-point tolerance. (No sklearn ``coef_`` alias is exposed.)
     intercept_ : float or ndarray
         Intercept of the underlying PLS model for predictions from the preprocessed,
         orthogonal-filtered X block to the original y scale.
+    intercept_raw_ : float or ndarray
+        Intercept paired with ``coef_raw_`` for prediction from raw input ``X``.
     pls_ : PLSRegression
         The fitted predictive engine.
     x_mean_, x_std_ : ndarray
@@ -129,7 +192,9 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     x_scores_: NDArray[np.float64]
     y_loadings_: NDArray[np.float64]
     coef_filtered_: NDArray[np.float64]
+    coef_raw_: NDArray[np.float64]
     intercept_: float | NDArray[np.float64]
+    intercept_raw_: float | NDArray[np.float64]
     pls_: PLSRegression
     r2x_: float
     r2x_ortho_: float
@@ -234,6 +299,21 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.y_loadings_ = self.pls_.y_loadings_
         self.coef_filtered_ = self.pls_.coef_
         self.intercept_ = self.pls_.intercept_
+        # The engine's prediction offset is predict(0), not intercept_: sklearn's
+        # PLSRegression centers the filtered X internally, so predict(Z) ==
+        # Z @ coef_.T + predict(0) but intercept_ omits that centering term (it only
+        # coincides with predict(0) when the filtered X is already centered).
+        engine_offset = self.pls_.predict(
+            np.zeros((1, X_filtered.shape[1]), dtype=np.float64)
+        ).ravel()
+        self.coef_raw_, self.intercept_raw_ = _compose_raw_coefficients(
+            self.coef_filtered_,
+            engine_offset,
+            self.x_mean_,
+            self.x_std_,
+            self.x_ortho_weights_,
+            self.x_ortho_loadings_,
+        )
 
         y_fit = self.pls_.predict(X_filtered)
         self.r2x_ = explained_x_variance(Xs, self.x_scores_, self.x_loadings_)

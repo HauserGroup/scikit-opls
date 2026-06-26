@@ -45,6 +45,13 @@ model.r2x_, model.r2y_        # fit summaries
 model.vip_                    # variable importance (predictive), lazy property
 ```
 
+The whole fitted pipeline (scaling → orthogonal filter → predictive PLS) is linear,
+so it collapses to coefficients on the raw input space:
+
+```python
+y_hat = (X @ model.coef_raw_.T + model.intercept_raw_).ravel()  # == model.predict(X)
+```
+
 Let cross-validated Q2 choose the number of orthogonal components with
 scikit-learn's `GridSearchCV` — no bespoke estimator needed (`scoring=None` gives
 out-of-fold R2, which equals Q2 for `OPLS`):
