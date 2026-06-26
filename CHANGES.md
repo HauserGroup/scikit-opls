@@ -58,7 +58,6 @@ and default-value changes will be documented here.
 
 - `OPLSScoresDisplay` and `SPlotDisplay` plotting classes following scikit-learn's
   Display convention (`from_estimator(...)`, `plot(ax=...)`, `ax_` / `figure_`).
-  `scores_plot` / `s_plot` are kept as thin wrappers.
 
 - `OPLS.get_feature_names_out` so `set_output(transform="pandas")` yields named
   predictive-score columns
@@ -68,7 +67,7 @@ and default-value changes will be documented here.
   parallel; reproducible regardless of `n_jobs`). Cross-validated `n_orthogonal`
   selection inherits `n_jobs` from `GridSearchCV`.
 
-- `_orthogonal.orthogonal_filter`, a block-agnostic NIPALS deflation primitive
+- `_orthogonal.orthogonal_filter`, a block-agnostic OSC-style deflation primitive
   shared by `opls_filter` (and a future `O2PLS`).
 
 - Full numpydoc docstrings on all public methods and functions.

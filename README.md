@@ -12,7 +12,7 @@ scikit-learn interface.
 
 OPLS (Trygg & Wold, 2002) splits the variation in `X` into a *predictive* part
 correlated with the response and *orthogonal* parts that are not. `scikit-opls`
-removes the orthogonal variation with a NIPALS filter and then fits
+removes the orthogonal variation with an OSC-style orthogonal filter and then fits
 [`sklearn.cross_decomposition.PLSRegression`](https://scikit-learn.org/stable/modules/generated/sklearn.cross_decomposition.PLSRegression.html)
 on the cleaned `X` as the predictive engine. With `n_orthogonal=0` the model
 reduces *exactly* to `PLSRegression`.
@@ -107,13 +107,20 @@ follows scikit-learn's Display convention.
 from scikit_opls.plotting import OPLSScoresDisplay, SPlotDisplay
 from scikit_opls.validation import permutation_test
 
-OPLSScoresDisplay.from_estimator(model, X, y)  # t_pred vs t_ortho
-SPlotDisplay.from_estimator(model, X)          # covariance vs correlation
-permutation_test(OPLS(n_orthogonal=2), X, y)   # model significance
+# Draw score plot (t_pred vs t_ortho). Supports component selection for multi-component PLS
+OPLSScoresDisplay.from_estimator(
+    model, X, y, predictive_component=0, orthogonal_component=0
+)
+
+# Draw S-plot (covariance vs correlation) for a specific predictive component
+SPlotDisplay.from_estimator(model, X, component=0)
+
+# Permutation significance testing
+permutation_test(OPLS(n_orthogonal=2), X, y)
 ```
 
-The older `scores_plot(model, X, y)` / `s_plot(model, X)` functions remain as
-thin wrappers.
+> [!WARNING]
+> **Pipeline support in plotting:** Diagnostic plotting displays (`OPLSScoresDisplay`, `SPlotDisplay`) support `OPLS`, `OPLSDA`, and fitted `GridSearchCV` estimators wrapping them. They do not support scikit-learn `Pipeline` objects and will raise a `TypeError` if passed. Always pass the OPLS, OPLSDA, or GridSearchCV estimator directly to the plotting displays.
 
 ### Example datasets
 
