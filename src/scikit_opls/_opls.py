@@ -38,12 +38,8 @@ from sklearn.utils.validation import (
 
 from scikit_opls._inspection import explained_x_variance, orthogonal_vip, predictive_vip
 from scikit_opls._orthogonal import apply_orthogonal_filter, opls_filter
-from scikit_opls._preprocessing import (
-    VALID_SCALING,
-    _has_nonzero_variation,
-    apply_scaling,
-    compute_scaling,
-)
+from scikit_opls._preprocessing import VALID_SCALING, apply_scaling, compute_scaling
+from scikit_opls._utils import _has_nonzero_variation
 
 
 class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
@@ -107,18 +103,9 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
     Notes
     -----
-    The estimator has three valid regimes of operation:
-
-    - ``n_components=1, n_orthogonal=0``: One-component PLS baseline.
-    - ``n_components=1, n_orthogonal>0``: Minimal/classic OPLS-style model.
-    - ``n_components>1, n_orthogonal>0``: Orthogonal-filtered multi-component PLS.
-
-    With ``n_components=1``, OPLS gives the simplest decomposition: one predictive
-    score and one or more orthogonal scores. With ``n_components>1``, the estimator
-    becomes an orthogonal-filtered multi-component PLS model. This can be useful
-    when the relation between ``X`` and ``y`` has more than one predictive mode,
-    but score plots and S-plots should be interpreted component-wise rather than
-    as a single predictive axis.
+    Classic OPLS uses ``n_components=1``; ``n_orthogonal=0`` reduces to ordinary
+    ``PLSRegression``, and ``n_components>1`` is orthogonal-filtered multi-component
+    PLS (interpret score plots / S-plots component-wise).
     """
 
     n_features_in_: int

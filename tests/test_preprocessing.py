@@ -7,11 +7,8 @@ import pytest
 from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLS
-from scikit_opls._preprocessing import (
-    _has_nonzero_variation,
-    apply_scaling,
-    compute_scaling,
-)
+from scikit_opls._preprocessing import apply_scaling, compute_scaling
+from scikit_opls._utils import _has_nonzero_variation
 
 from .test_opls import _regression_data
 
