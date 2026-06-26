@@ -48,6 +48,11 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         The two class labels seen during fit.
     opls_ : OPLS
         The fitted underlying OPLS regressor (against a -1/+1 dummy response).
+    vip_, ortho_vip_ : ndarray of shape (n_features,)
+        Lazy predictive / orthogonal Variable Importance in Projection scores,
+        delegating to the inner :attr:`opls_`. Use with
+        :class:`~sklearn.feature_selection.SelectFromModel` via
+        ``importance_getter="vip_"``.
     """
 
     _parameter_constraints: dict = {
@@ -186,6 +191,18 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         return np.asarray(
             self._platt.predict_proba(self._raw_scores(X)), dtype=np.float64
         )
+
+    @property
+    def vip_(self) -> NDArray[np.float64]:
+        """Predictive VIP per feature (delegates to the inner OPLS)."""
+        check_is_fitted(self)
+        return self.opls_.vip_
+
+    @property
+    def ortho_vip_(self) -> NDArray[np.float64]:
+        """Orthogonal VIP per feature (delegates to the inner OPLS)."""
+        check_is_fitted(self)
+        return self.opls_.ortho_vip_
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()

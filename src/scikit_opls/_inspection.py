@@ -1,4 +1,8 @@
-"""Model inspection for OPLS: VIP scores and explained-variance metrics.
+"""Internal stateless math for OPLS VIP scores and explained-variance metrics.
+
+Private module — not part of the public API. The VIP scores are exposed as lazy
+``vip_`` / ``ortho_vip_`` properties on :class:`~scikit_opls.OPLS` and
+:class:`~scikit_opls.OPLSDA`; these functions compute them from fitted weights.
 
 VIP (Variable Importance in Projection) follows Galindo-Prieto et al. (2014):
 
@@ -6,21 +10,12 @@ VIP (Variable Importance in Projection) follows Galindo-Prieto et al. (2014):
 - orthogonal VIP weights each orthogonal component by the X variance it explains.
 
 Both satisfy ``sum_j VIP_j**2 == n_features`` (mean squared VIP of 1).
-
-VIP is computed on demand here rather than eagerly in ``OPLS.fit``. The
-``vip(model)``/``orthogonal_vip(model)`` functions are the canonical API; they
-accept a fitted :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, or a
-:class:`~sklearn.model_selection.GridSearchCV` wrapping one (the ``best_estimator_``
-and inner ``opls_`` wrappers are unwrapped automatically).
 """
 
 from __future__ import annotations
 
-from typing import Any
-
 import numpy as np
 from numpy.typing import NDArray
-from sklearn.utils.validation import check_is_fitted
 
 _EPS = np.finfo(np.float64).eps
 
@@ -113,7 +108,7 @@ def predictive_vip(
     return _weighted_vip(x_weights, ssy)
 
 
-def _orthogonal_vip(
+def orthogonal_vip(
     x_ortho_weights: NDArray[np.float64],
     x_ortho_scores: NDArray[np.float64],
     x_ortho_loadings: NDArray[np.float64],
@@ -136,45 +131,3 @@ def _orthogonal_vip(
     """
     ssx = np.sum(x_ortho_scores**2, axis=0) * np.sum(x_ortho_loadings**2, axis=0)
     return _weighted_vip(x_ortho_weights, ssx)
-
-
-def _unwrap(model: Any) -> Any:
-    """Return the fitted inner ``OPLS`` from DA/search wrappers, or ``model`` itself."""
-    inner = getattr(model, "best_estimator_", model)
-    inner = getattr(inner, "opls_", inner)
-    check_is_fitted(inner)
-    return inner
-
-
-def vip(model: Any) -> NDArray[np.float64]:
-    """Predictive VIP for a fitted OPLS / OPLSDA / selected GridSearchCV.
-
-    Parameters
-    ----------
-    model : OPLS, OPLSDA or GridSearchCV
-        A fitted estimator (DA/search wrappers are unwrapped automatically).
-
-    Returns
-    -------
-    vip : ndarray of shape (n_features,)
-        Predictive VIP scores.
-    """
-    m = _unwrap(model)
-    return predictive_vip(m.x_weights_, m.x_scores_, m.y_loadings_)
-
-
-def orthogonal_vip(model: Any) -> NDArray[np.float64]:
-    """Orthogonal VIP for a fitted OPLS / OPLSDA / selected GridSearchCV.
-
-    Parameters
-    ----------
-    model : OPLS, OPLSDA or GridSearchCV
-        A fitted estimator (DA/search wrappers are unwrapped automatically).
-
-    Returns
-    -------
-    vip : ndarray of shape (n_features,)
-        Orthogonal VIP scores.
-    """
-    m = _unwrap(model)
-    return _orthogonal_vip(m.x_ortho_weights_, m.x_ortho_scores_, m.x_ortho_loadings_)

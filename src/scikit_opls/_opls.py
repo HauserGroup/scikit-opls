@@ -35,9 +35,9 @@ from sklearn.utils.validation import (
     validate_data,
 )
 
+from ._inspection import explained_x_variance, orthogonal_vip, predictive_vip
 from ._orthogonal import apply_orthogonal_filter, opls_filter
 from ._preprocessing import VALID_SCALING, apply_scaling, compute_scaling
-from .inspection import explained_x_variance
 
 
 class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
@@ -74,6 +74,12 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     r2x_, r2x_ortho_, r2y_, rmsee_ : float
         Training-set fit summaries. For cross-validated Q2 use
         :func:`sklearn.model_selection.cross_val_score`.
+    vip_, ortho_vip_ : ndarray of shape (n_features,)
+        Lazy predictive / orthogonal Variable Importance in Projection scores,
+        computed on access (sklearn ``feature_importances_`` convention). Each
+        satisfies ``sum(vip**2) == n_features``. Use with
+        :class:`~sklearn.feature_selection.SelectFromModel` via
+        ``importance_getter="vip_"``.
     """
 
     _parameter_constraints: dict = {
@@ -177,7 +183,6 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         )
         self.r2y_ = float(r2_score(y, y_fit))
         self.rmsee_ = float(root_mean_squared_error(y, y_fit))
-        # VIP is no longer computed eagerly — see scikit_opls.inspection.vip().
         return self
 
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
@@ -231,6 +236,24 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self)
         return self._filter(X)[1]
+
+    @property
+    def vip_(self) -> NDArray[np.float64]:
+        """Predictive VIP per feature (Galindo-Prieto 2014); ndarray (n_features,).
+
+        Variable Importance in Projection of the predictive block, normalised so
+        ``sum(vip_**2) == n_features``. Computed on access from the fitted weights.
+        """
+        check_is_fitted(self)
+        return predictive_vip(self.x_weights_, self.x_scores_, self.y_loadings_)
+
+    @property
+    def ortho_vip_(self) -> NDArray[np.float64]:
+        """Orthogonal VIP per feature; ndarray (n_features,)."""
+        check_is_fitted(self)
+        return orthogonal_vip(
+            self.x_ortho_weights_, self.x_ortho_scores_, self.x_ortho_loadings_
+        )
 
     def get_feature_names_out(self, input_features=None) -> NDArray[np.object_]:
         """Output feature names for :meth:`transform` (the predictive scores).
