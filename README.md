@@ -90,9 +90,12 @@ y = np.where(X[:, 0] > 0, "case", "ctrl")
 clf = OPLSDA(n_components=1, n_orthogonal=2).fit(X, y)
 
 clf.predict(X)            # class labels
-clf.predict_proba(X)      # Platt-scaled probabilities
-clf.decision_function(X)  # signed confidence
+clf.decision_function(X)  # raw predictive score (signed confidence)
 clf.opls_.transform(X)    # predictive scores of the underlying OPLS model
+
+# Probabilities: wrap in a cross-fitted calibrator (avoids in-sample overconfidence)
+from sklearn.calibration import CalibratedClassifierCV
+CalibratedClassifierCV(clf, cv=5).fit(X, y).predict_proba(X)
 ```
 
 ### Diagnostics

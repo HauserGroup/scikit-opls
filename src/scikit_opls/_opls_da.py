@@ -4,9 +4,9 @@ OPLS-DA fits an OPLS regression against a dummy-coded class label, then classifi
 by the sign of the predictive score. This is the dominant use of OPLS in
 metabolomics. The estimator wraps an internal :class:`~scikit_opls.OPLS`
 (composition, so the regressor and classifier mixins never collide) and adds class
-encoding. With ``probability=True`` it also fits a Platt logistic calibrator,
-enabling ``predict_proba`` and switching ``decision_function`` to the calibrated
-score; ``raw_score`` always returns the uncalibrated predictive score.
+encoding. ``decision_function`` exposes the raw predictive score, so calibrated
+probabilities are available — cross-fitted, not in-sample — via
+:class:`~sklearn.calibration.CalibratedClassifierCV`.
 """
 
 # See _opls.py: scikit-learn's validate_data is under-typed; suppress the
@@ -22,10 +22,8 @@ from numbers import Integral
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from sklearn.base import BaseEstimator, ClassifierMixin
-from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils._param_validation import Interval, StrOptions
-from sklearn.utils.metaestimators import available_if
 from sklearn.utils.multiclass import (
     check_classification_targets,
     type_of_target,
@@ -34,17 +32,16 @@ from sklearn.utils.multiclass import (
 from sklearn.utils.validation import check_is_fitted, validate_data
 
 from scikit_opls._opls import OPLS
-from scikit_opls._preprocessing import VALID_SCALING, _has_nonzero_variation
+from scikit_opls._preprocessing import VALID_SCALING
 
 
 class OPLSDA(ClassifierMixin, BaseEstimator):
     """Binary OPLS Discriminant Analysis.
 
-    Parameters mirror :class:`~scikit_opls.OPLS`. ``predict`` returns class labels;
-    ``decision_function`` returns the Platt-calibrated logistic decision score when
-    ``probability=True`` and the raw predictive score otherwise; ``raw_score`` always
-    returns the raw (uncalibrated) predictive score; ``predict_proba`` (available only
-    when ``probability=True``) returns in-sample Platt-scaled probabilities.
+    Parameters mirror :class:`~scikit_opls.OPLS`. ``decision_function`` returns the
+    raw OPLS predictive score (positive favours ``classes_[1]``) and ``predict``
+    returns class labels from its sign. For class probabilities, wrap in
+    :class:`~sklearn.calibration.CalibratedClassifierCV` (cross-fitted, robust).
 
     Attributes
     ----------
@@ -65,14 +62,12 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
     opls_: OPLS
     n_orthogonal_: int
     _label_encoder: LabelEncoder
-    _platt: LogisticRegression
 
     _parameter_constraints: dict = {
         "n_components": [Interval(Integral, 1, None, closed="left")],
         "n_orthogonal": [Interval(Integral, 0, None, closed="left")],
         "scale": [StrOptions(set(VALID_SCALING))],
         "copy": ["boolean"],
-        "probability": ["boolean"],
     }
 
     def __init__(
@@ -81,13 +76,11 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         n_orthogonal: int = 1,
         scale: str = "standard",
         copy: bool = True,
-        probability: bool = False,
     ) -> None:
         self.n_components = n_components
         self.n_orthogonal = n_orthogonal
         self.scale = scale
         self.copy = copy
-        self.probability = probability
 
     def fit(self, X: ArrayLike, y: ArrayLike) -> OPLSDA:
         """Fit the binary OPLS-DA classifier.
@@ -140,40 +133,10 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             copy=self.copy,
         ).fit(X, y_dummy)
         self.n_orthogonal_ = self.opls_.n_orthogonal_
-
-        if self.probability:
-            raw = self._raw_scores(X)
-            if not _has_nonzero_variation(raw):
-                raise ValueError(
-                    "OPLSDA produced constant raw scores; "
-                    "classification/calibration is undefined."
-                )
-            # max_iter raised from the default 100: near-separable 1-D raw scores can
-            # otherwise emit a ConvergenceWarning on small datasets.
-            self._platt = LogisticRegression(max_iter=1000).fit(raw, y_encoded)
         return self
 
-    def _raw_scores(self, X: ArrayLike) -> NDArray[np.float64]:
-        return np.asarray(self.opls_.predict(X), dtype=np.float64).reshape(-1, 1)
-
-    def raw_score(self, X: ArrayLike) -> NDArray[np.float64]:
-        """OPLS predictive regression score (uncalibrated).
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            Samples to score.
-
-        Returns
-        -------
-        scores : ndarray of shape (n_samples,)
-            The raw OPLS predictive score.
-        """
-        check_is_fitted(self)
-        return self._raw_scores(X).ravel()
-
     def decision_function(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Signed confidence score; positive favours ``classes_[1]``.
+        """Raw OPLS predictive score; positive favours ``classes_[1]``.
 
         Parameters
         ----------
@@ -183,17 +146,10 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         Returns
         -------
         scores : ndarray of shape (n_samples,)
-            Signed confidence; ``> 0`` predicts ``classes_[1]``. Platt-calibrated when
-            ``probability=True`` (so ``predict`` agrees with ``predict_proba``), raw
-            otherwise.
+            Signed confidence; ``> 0`` predicts ``classes_[1]``.
         """
         check_is_fitted(self)
-        raw = self._raw_scores(X)
-        if getattr(self, "probability", False):
-            return np.asarray(
-                self._platt.decision_function(raw), dtype=np.float64
-            ).ravel()
-        return raw.ravel()
+        return np.asarray(self.opls_.predict(X), dtype=np.float64).ravel()
 
     def predict(self, X: ArrayLike) -> NDArray:
         """Predict class labels.
@@ -210,39 +166,6 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         """
         indices = (self.decision_function(X) > 0.0).astype(int)
         return self.classes_[indices]
-
-    def _check_probability(self) -> bool:
-        if not getattr(self, "probability", False):
-            raise AttributeError(
-                "predict_proba is only available when probability=True."
-            )
-        return True
-
-    @available_if(_check_probability)
-    def predict_proba(self, X: ArrayLike) -> NDArray[np.float64]:
-        """In-sample Platt-scaled class probabilities.
-
-        .. warning::
-            These probabilities are calibrated in-sample on the same training data
-            used to fit the OPLS model, which can lead to overconfidence (especially
-            on small datasets, common in metabolomics). For robust cross-fitted
-            calibration, consider wrapping your estimator in
-            :class:`~sklearn.calibration.CalibratedClassifierCV`.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            Samples to score.
-
-        Returns
-        -------
-        proba : ndarray of shape (n_samples, 2)
-            Class probabilities, column ``j`` for ``classes_[j]``.
-        """
-        check_is_fitted(self)
-        return np.asarray(
-            self._platt.predict_proba(self._raw_scores(X)), dtype=np.float64
-        )
 
     @property
     def vip_(self) -> NDArray[np.float64]:

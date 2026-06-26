@@ -21,6 +21,12 @@ and default-value changes will be documented here.
 
 ### Changed (breaking, pre-1.0)
 
+- Removed `OPLSDA`'s `probability` parameter and its in-sample Platt calibration
+  (`predict_proba`, `raw_score`). `OPLSDA` is now a clean score classifier:
+  `decision_function` returns the raw OPLS predictive score and `predict` its sign.
+  For probabilities, wrap in `CalibratedClassifierCV(OPLSDA(...))` (cross-fitted,
+  better calibrated). This also removes the `predict`/`predict_proba` boundary
+  inconsistency the in-sample calibrator caused.
 - Cross-validated selection of `n_orthogonal` is now done with scikit-learn's
   `GridSearchCV` directly — there is no bespoke selection API. `OPLS.n_orthogonal`
   is a plain `int`; the `"auto"` option and the `cv` parameter are removed from

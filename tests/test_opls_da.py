@@ -26,16 +26,13 @@ def test_predict_returns_known_labels():
     assert set(np.unique(preds)).issubset(set(model.classes_))
 
 
-def test_predict_proba_behavior():
-    X, y = _classification_data()
-    # By default, probability is False, raising AttributeError on predict_proba
-    model = OPLSDA(n_orthogonal=1).fit(X, y)
-    with pytest.raises(AttributeError, match="has no attribute 'predict_proba'"):
-        model.predict_proba(X)
+def test_calibrated_classifier_cv_provides_proba():
+    """Probabilities come from cross-fitted CalibratedClassifierCV, not OPLSDA."""
+    from sklearn.calibration import CalibratedClassifierCV
 
-    # When probability=True, predict_proba is available and sums to 1.0
-    model_prob = OPLSDA(n_orthogonal=1, probability=True).fit(X, y)
-    proba = model_prob.predict_proba(X)
+    X, y = _classification_data()
+    clf = CalibratedClassifierCV(OPLSDA(n_orthogonal=1), cv=3).fit(X, y)
+    proba = clf.predict_proba(X)
     assert proba.shape == (X.shape[0], 2)
     assert_allclose(proba.sum(axis=1), 1.0, atol=1e-8)
 
@@ -88,42 +85,19 @@ def test_opls_da_sample_guards():
         OPLSDA().fit(X_imb, y_imbalanced)
 
 
-def test_opls_da_raw_score_vs_decision_function():
+def test_decision_function_is_raw_opls_score():
     X, y = _classification_data()
     model = OPLSDA(n_orthogonal=1).fit(X, y)
-    raw = model.raw_score(X)
     df = model.decision_function(X)
-    assert raw.shape == (X.shape[0],)
     assert df.shape == (X.shape[0],)
-    # The sign of decision_function maps to predictions
+    np.testing.assert_allclose(df, model.opls_.predict(X).ravel())
     np.testing.assert_array_equal(
         model.predict(X), model.classes_[(df > 0).astype(int)]
     )
 
 
-def test_opls_da_constant_raw_scores_raises(monkeypatch):
-    X, y = _classification_data()
-    # Mock the raw scores (used by fit's calibrator) to constant zeros to trigger guard.
-    monkeypatch.setattr(
-        OPLSDA, "_raw_scores", lambda self, X: np.zeros((X.shape[0], 1))
-    )
-    with pytest.raises(ValueError, match="OPLSDA produced constant raw scores"):
-        OPLSDA(probability=True).fit(X, y)
-
-
-def test_predict_agrees_with_predict_proba_when_calibrated():
-    X, y = _classification_data()
-    model = OPLSDA(n_orthogonal=1, probability=True).fit(X, y)
-    expected = model.classes_[np.argmax(model.predict_proba(X), axis=1)]
-    np.testing.assert_array_equal(model.predict(X), expected)
-
-
-def test_decision_function_calibrated_differs_from_raw():
-    X, y = _classification_data()
-    model = OPLSDA(n_orthogonal=1, probability=True).fit(X, y)
-    raw = model.raw_score(X)
-    df = model.decision_function(X)
-    # Platt has a slope/intercept, so the calibrated score is an affine reshape of raw.
-    assert not np.allclose(df, raw)
-    # raw_score stays the uncalibrated predictive score regardless of probability.
-    np.testing.assert_allclose(raw, model.opls_.predict(X).ravel())
+def test_no_probability_param():
+    # probability mode removed: not a constructor parameter, no predict_proba.
+    assert "probability" not in OPLSDA().get_params()
+    model = OPLSDA(n_orthogonal=1).fit(*_classification_data())
+    assert not hasattr(model, "predict_proba")

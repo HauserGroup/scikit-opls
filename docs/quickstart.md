@@ -64,10 +64,9 @@ from scikit_opls import OPLSDA
 y_lab = np.where(X[:, 0] > 0, "case", "ctrl")
 clf = OPLSDA(n_components=1, n_orthogonal=2).fit(X, y_lab)
 clf.predict(X)            # class labels
-clf.predict_proba(X)      # Platt-scaled probabilities (in-sample)
-clf.decision_function(X)  # signed confidence
+clf.decision_function(X)  # raw predictive score (signed confidence)
 
-# For robust out-of-fold probability calibration (to prevent in-sample overconfidence):
+# Probabilities via cross-fitted calibration (avoids in-sample overconfidence):
 from sklearn.calibration import CalibratedClassifierCV
 calibrated_clf = CalibratedClassifierCV(clf, cv=5).fit(X, y_lab)
 calibrated_clf.predict_proba(X)
