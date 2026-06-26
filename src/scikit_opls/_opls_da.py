@@ -8,8 +8,10 @@ encoding plus Platt-scaled probabilities.
 """
 
 # See _opls.py: scikit-learn's validate_data is under-typed; suppress the
-# resulting static-checker false positives.
+# resulting static-checker false positives. reportAbstractUsage covers
+# Interval/StrOptions (abstract __str__ not visibly overridden).
 # pyright: reportArgumentType=false, reportAttributeAccessIssue=false
+# pyright: reportAbstractUsage=false
 
 from __future__ import annotations
 

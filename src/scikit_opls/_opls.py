@@ -10,8 +10,14 @@ the predictive engine. With ``n_orthogonal=0`` it reduces exactly to ``PLSRegres
 # scikit-learn's validate_data uses sentinel-string parameter defaults that lead
 # static type checkers to flag every downstream array op as a false positive.
 # Suppress those categories here; the test suite and ``check_estimator`` are the
-# real correctness gate.
+# real correctness gate. reportAbstractUsage covers Interval/StrOptions: their
+# base _Constraint declares __str__ abstract and the subclass override is not
+# visible to the type checker, so instantiating them looks abstract (it is not).
 # pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportReturnType=false
+# pyright: reportAbstractUsage=false
+# reportIncompatibleMethodOverride: our score() narrows X to ArrayLike (no sparse)
+# vs RegressorMixin's MatrixLike; OPLS rejects sparse anyway (input_tags.sparse=False).
+# pyright: reportIncompatibleMethodOverride=false
 
 from __future__ import annotations
 
