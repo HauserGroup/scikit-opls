@@ -8,8 +8,9 @@ matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt  # noqa: E402
 from matplotlib.axes import Axes  # noqa: E402
+from sklearn.model_selection import GridSearchCV  # noqa: E402
 
-from scikit_opls import OPLS, OPLSDA, select_orthogonal  # noqa: E402
+from scikit_opls import OPLS, OPLSDA  # noqa: E402
 from scikit_opls.plotting import (  # noqa: E402
     OPLSScoresDisplay,
     SPlotDisplay,
@@ -70,7 +71,9 @@ def test_scores_display_replots_on_given_axes():
 
 def test_splot_display_from_estimator_with_cv():
     X, y = _regression_data()
-    model = select_orthogonal(OPLS(n_components=1), cv=4, max_orthogonal=3).fit(X, y)
+    model = GridSearchCV(
+        OPLS(n_components=1), {"n_orthogonal": [0, 1, 2, 3]}, cv=4
+    ).fit(X, y)
     disp = SPlotDisplay.from_estimator(model, X)
     assert isinstance(disp, SPlotDisplay)
     assert disp.covariance.shape == (X.shape[1],)

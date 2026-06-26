@@ -1,0 +1,80 @@
+[project]
+site_name = "scikit-opls"
+site_description = "Orthogonal PLS (OPLS / OPLS-DA) with a scikit-learn interface"
+site_url = "https://hausergroup.github.io/scikit-opls/"
+repo_url = "https://github.com/HauserGroup/scikit-opls"
+repo_name = "HauserGroup/scikit-opls"
+
+# docs/ is watched automatically; add the source tree (for mkdocstrings) and the
+# changelog snippet source.
+watch = ["src/scikit_opls", "CHANGES.md"]
+
+extra_css = ["css/custom.css"]
+extra_javascript = ["https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js"]
+
+nav = [
+    { "Home" = "index.md" },
+    { "Installation" = "installation.md" },
+    { "Quickstart" = "quickstart.md" },
+    { "API Reference" = [
+        { "OPLS" = "api/opls.md" },
+        { "OPLS-DA" = "api/opls_da.md" },
+        { "Plotting" = "api/plotting.md" },
+        { "Validation" = "api/validation.md" },
+    ] },
+    { "Changelog" = "changelog.md" },
+]
+
+# ----------------------------------------------------------------------------
+# Theme. Zensical's default "modern" variant is used; set variant = "classic"
+# to restore the previous Material for MkDocs look exactly.
+# ----------------------------------------------------------------------------
+[project.theme]
+features = [
+    "navigation.tabs",
+    "navigation.sections",
+    "navigation.top",
+    "content.code.copy",
+    "search.suggest",
+    "search.highlight",
+]
+
+[[project.theme.palette]]
+scheme = "default"
+toggle.icon = "material/weather-night"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+scheme = "slate"
+toggle.icon = "material/weather-sunny"
+toggle.name = "Switch to light mode"
+
+# ----------------------------------------------------------------------------
+# Markdown extensions (mirrors the previous mkdocs.yml).
+# ----------------------------------------------------------------------------
+[project.markdown_extensions.admonition]
+[project.markdown_extensions.tables]
+[project.markdown_extensions.toc]
+permalink = true
+[project.markdown_extensions.pymdownx.superfences]
+[project.markdown_extensions.pymdownx.highlight]
+[project.markdown_extensions.pymdownx.snippets]
+base_path = ["."]
+check_paths = true
+[project.markdown_extensions.pymdownx.arithmatex]
+generic = true
+
+# ----------------------------------------------------------------------------
+# mkdocstrings: API reference generated from the numpy-style docstrings.
+# ----------------------------------------------------------------------------
+[project.plugins.mkdocstrings.handlers.python]
+paths = ["src"]
+inventories = ["https://docs.python.org/3/objects.inv"]
+
+[project.plugins.mkdocstrings.handlers.python.options]
+docstring_style = "numpy"
+merge_init_into_class = true
+separate_signature = true
+show_signature_annotations = true
+members_order = "source"
+show_source = false
