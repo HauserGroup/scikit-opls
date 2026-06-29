@@ -10,9 +10,9 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "joblib>=1.4.0",
-    "numpy>=2.5.0",
-    "scikit-learn>=1.9.0",
-    "scipy>=1.18.0",
+    "numpy>=1.26",
+    "scikit-learn>=1.6",
+    "scipy>=1.11",
 ]
 
 [project.urls]
@@ -25,7 +25,7 @@ Changelog = "https://github.com/HauserGroup/scikit-opls/blob/main/CHANGES.md"
 [project.optional-dependencies]
 # Plotting (scikit_opls.plotting) is the only matplotlib consumer and imports it
 # lazily, so it is an opt-in extra: `pip install scikit-opls[plot]`.
-plot = ["matplotlib>=3.11.0"]
+plot = ["matplotlib>=3.8.0"]
 
 [dependency-groups]
 dev = [

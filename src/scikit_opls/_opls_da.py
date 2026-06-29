@@ -228,7 +228,22 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         *,
         kind: str = "predictive",
     ) -> NDArray[np.float64]:
-        """Return Hotelling-like score distances from the inner OPLS model."""
+        """Return Hotelling-like score distances from the inner OPLS model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples in raw feature space. Pass raw X. Do not manually center or scale
+            before calling diagnostics. The outer classifier validates feature names
+            and feature counts before delegating to the fitted inner OPLS model.
+        kind : {"predictive", "orthogonal", "all"}, default="predictive"
+            Which coordinate space to use.
+
+        Returns
+        -------
+        score_dist : ndarray of shape (n_samples,)
+            Computed Hotelling-like distance per sample.
+        """
         X_valid = self._validate_X_predict(X)
         return self.opls_._score_distance_validated(X_valid, kind=kind)
 
@@ -238,7 +253,22 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         *,
         space: str = "full",
     ) -> NDArray[np.float64]:
-        """Return Q residuals from the inner OPLS model."""
+        """Return Q residuals from the inner OPLS model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples in raw feature space. Pass raw X. Do not manually center or scale
+            before calling diagnostics. The outer classifier validates feature names
+            and feature counts before delegating to the fitted inner OPLS model.
+        space : {"full", "predictive"}, default="full"
+            Which model reconstruction space to use.
+
+        Returns
+        -------
+        q : ndarray of shape (n_samples,)
+            Squared residual norm per sample.
+        """
         X_valid = self._validate_X_predict(X)
         return self.opls_._q_residuals_validated(X_valid, space=space)
 

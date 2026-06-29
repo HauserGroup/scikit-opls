@@ -1190,10 +1190,10 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "joblib", specifier = ">=1.4.0" },
-    { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.11.0" },
-    { name = "numpy", specifier = ">=2.5.0" },
-    { name = "scikit-learn", specifier = ">=1.9.0" },
-    { name = "scipy", specifier = ">=1.18.0" },
+    { name = "matplotlib", marker = "extra == 'plot'", specifier = ">=3.8.0" },
+    { name = "numpy", specifier = ">=1.26" },
+    { name = "scikit-learn", specifier = ">=1.6" },
+    { name = "scipy", specifier = ">=1.11" },
 ]
 provides-extras = ["plot"]
 

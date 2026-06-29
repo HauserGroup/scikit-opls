@@ -369,8 +369,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.q_residuals_train_ = np.sum((X_model_full - X_hat_full) ** 2, axis=1)
         self.x_residual_ss_ = float(np.sum(self.q_residuals_train_))
 
-        _, X_hat_pred = self._predictive_reconstruction_validated(X)
-        self.q_residuals_predictive_train_ = np.sum((Xs - X_hat_pred) ** 2, axis=1)
+        X_model_pred, X_hat_pred = self._predictive_reconstruction_validated(X)
+        self.q_residuals_predictive_train_ = np.sum(
+            (X_model_pred - X_hat_pred) ** 2, axis=1
+        )
 
         y_fit_arr = np.asarray(y_fit, dtype=np.float64)
         y_arr = np.asarray(y, dtype=np.float64)
@@ -633,6 +635,16 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             raise ValueError("kind must be one of {'predictive', 'orthogonal', 'all'}.")
         return self._score_distance_from_scores(scores, reference)
 
+    def _pls_x_mean(self) -> NDArray[np.float64]:
+        """Return the fitted PLS engine's internal X mean."""
+        x_mean = getattr(self.pls_, "_x_mean", None)
+        if x_mean is None:
+            raise AttributeError(
+                "The fitted PLS engine does not expose _x_mean; "
+                "cannot reconstruct predictive X-space residuals."
+            )
+        return np.asarray(x_mean, dtype=np.float64)
+
     def _scaled_x_validated(self, X_valid: NDArray[np.float64]) -> NDArray[np.float64]:
         """Return X in the fitted scaled/centered model space."""
         return apply_scaling(X_valid, self.x_mean_, self.x_std_)
@@ -641,27 +653,25 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self,
         X_valid: NDArray[np.float64],
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Return filtered X and its predictive PLS reconstruction."""
+        """Return scaled X and its predictive-only reconstruction in scaled X-space."""
+        Xs = self._scaled_x_validated(X_valid)
         X_filtered, _ = self._filter_validated(X_valid)
         T = self.pls_.transform(X_filtered)
-        X_hat = T @ self.x_loadings_.T
-        return X_filtered, X_hat
+        X_hat = self._pls_x_mean() + T @ self.x_loadings_.T
+        return Xs, X_hat
 
     def _full_reconstruction_validated(
         self,
         X_valid: NDArray[np.float64],
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Return scaled X and reconstruction from orthogonal + predictive structure."""
+        """Return scaled X and full OPLS reconstruction in scaled X-space."""
         Xs = self._scaled_x_validated(X_valid)
-        # Orthogonal part reconstructed in scaled X-space.
         if self.n_orthogonal_ > 0:
             T_ortho = self._filter_validated(X_valid)[1]
             X_ortho_hat = T_ortho @ self.x_ortho_loadings_.T
         else:
             X_ortho_hat = np.zeros_like(Xs)
-        # Predictive reconstruction after orthogonal filtering.
-        X_filtered, X_pred_hat = self._predictive_reconstruction_validated(X_valid)
-        # The model reconstructs scaled X as orthogonal + predictive filtered part.
+        _, X_pred_hat = self._predictive_reconstruction_validated(X_valid)
         X_hat = X_ortho_hat + X_pred_hat
         return Xs, X_hat
 
