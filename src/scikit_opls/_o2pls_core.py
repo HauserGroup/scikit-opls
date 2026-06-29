@@ -1,0 +1,387 @@
+"""Stateless dense O2PLS fitting primitives."""
+
+from __future__ import annotations
+
+import warnings
+from dataclasses import dataclass
+
+import numpy as np
+from numpy.typing import NDArray
+from sklearn.exceptions import ConvergenceWarning
+from sklearn.utils.extmath import svd_flip
+
+from scikit_opls._utils import _has_nonzero_variation
+
+_TOL = 1e-12
+
+
+@dataclass
+class OrthogonalBlockComponent:
+    """One fitted O2PLS orthogonal component for a single block."""
+
+    weight: NDArray[np.float64]
+    score: NDArray[np.float64]
+    loading: NDArray[np.float64]
+    filtered_block: NDArray[np.float64]
+
+
+@dataclass
+class O2PLSComponents:
+    """Fitted dense O2PLS components in preprocessed coordinates."""
+
+    x_joint_weights: NDArray[np.float64]
+    y_joint_weights: NDArray[np.float64]
+    x_joint_scores: NDArray[np.float64]
+    y_joint_scores: NDArray[np.float64]
+    x_joint_loadings: NDArray[np.float64]
+    y_joint_loadings: NDArray[np.float64]
+    x_orthogonal_weights: NDArray[np.float64]
+    x_orthogonal_scores: NDArray[np.float64]
+    x_orthogonal_loadings: NDArray[np.float64]
+    y_orthogonal_weights: NDArray[np.float64]
+    y_orthogonal_scores: NDArray[np.float64]
+    y_orthogonal_loadings: NDArray[np.float64]
+    b_t: NDArray[np.float64]
+    b_u: NDArray[np.float64]
+    x_filtered: NDArray[np.float64]
+    y_filtered: NDArray[np.float64]
+    x_residuals: NDArray[np.float64]
+    y_residuals: NDArray[np.float64]
+    r2x: float
+    r2y: float
+    r2x_ortho: float
+    r2y_ortho: float
+    singular_values_initial: NDArray[np.float64]
+    singular_values_final: NDArray[np.float64]
+    n_components: int
+    n_x_orthogonal: int
+    n_y_orthogonal: int
+
+
+def _ssq(values: NDArray[np.float64]) -> float:
+    """Return sum of squares as a Python float."""
+    return float(np.sum(np.asarray(values, dtype=np.float64) ** 2))
+
+
+def _effective_rank(s: NDArray[np.float64], tol: float) -> int:
+    """Numerical rank from singular values using relative tolerance."""
+    singular_values = np.asarray(s, dtype=np.float64)
+    if singular_values.size == 0 or singular_values[0] <= 0.0:
+        return 0
+    return int(np.sum(singular_values > tol * singular_values[0]))
+
+
+def _cross_cov_svd_x_to_y(
+    Xs: NDArray[np.float64], Ys: NDArray[np.float64], k: int
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+    """SVD of ``Xs.T @ Ys`` with paired deterministic signs.
+
+    Returns X-side weights ``W`` with shape ``(p, k)``, Y-side weights ``C`` with
+    shape ``(q, k)``, and all singular values from the thin cross-covariance SVD.
+    """
+    X = np.asarray(Xs, dtype=np.float64)
+    Y = np.asarray(Ys, dtype=np.float64)
+    if X.ndim != 2:
+        raise ValueError(f"Xs must be 2D, got shape {X.shape}.")
+    if Y.ndim != 2:
+        raise ValueError(f"Ys must be 2D, got shape {Y.shape}.")
+    if X.shape[0] != Y.shape[0]:
+        raise ValueError(
+            f"Xs and Ys must have the same number of samples, got "
+            f"{X.shape[0]} and {Y.shape[0]}."
+        )
+    if not np.all(np.isfinite(X)):
+        raise ValueError("Xs must contain only finite values.")
+    if not np.all(np.isfinite(Y)):
+        raise ValueError("Ys must contain only finite values.")
+    max_components = min(X.shape[1], Y.shape[1])
+    if k < 0 or k > max_components:
+        raise ValueError(f"k must be between 0 and {max_components}, got {k}.")
+
+    U, s, Vt = np.linalg.svd(X.T @ Y, full_matrices=False)
+    U, Vt = svd_flip(U, Vt)
+    return U[:, :k], Vt[:k].T, s
+
+
+def _lstsq_loadings(
+    scores: NDArray[np.float64], block: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """Least-squares map from score columns to a target block."""
+    coef, *_ = np.linalg.lstsq(scores, block, rcond=None)
+    return coef
+
+
+def _extract_one_orthogonal_component(
+    block: NDArray[np.float64],
+    joint_scores: NDArray[np.float64],
+    joint_weights: NDArray[np.float64],
+    *,
+    tol: float = _TOL,
+) -> OrthogonalBlockComponent | None:
+    """Extract one sequential O2PLS orthogonal component from ``block``."""
+    X = np.asarray(block, dtype=np.float64)
+    T = np.asarray(joint_scores, dtype=np.float64)
+    W = np.asarray(joint_weights, dtype=np.float64)
+    if X.ndim != 2 or T.ndim != 2 or W.ndim != 2:
+        raise ValueError("block, joint_scores, and joint_weights must be 2D.")
+    if X.shape[0] != T.shape[0]:
+        raise ValueError("block and joint_scores must have the same row count.")
+    if X.shape[1] != W.shape[0] or T.shape[1] != W.shape[1]:
+        raise ValueError("joint_scores and joint_weights have incompatible shapes.")
+    if not _has_nonzero_variation(X, axis=0):
+        return None
+    if not _has_nonzero_variation(T, axis=0):
+        return None
+
+    residual = X - T @ W.T
+    if not _has_nonzero_variation(residual, axis=0):
+        return None
+
+    cross = residual.T @ T
+    if _ssq(cross) <= (tol**2) * max(_ssq(residual) * _ssq(T), 1.0):
+        return None
+
+    try:
+        U, s, _ = np.linalg.svd(cross, full_matrices=False)
+    except np.linalg.LinAlgError:
+        return None
+    if s.size == 0 or s[0] <= tol * max(s[0], 1.0):
+        return None
+
+    weight = U[:, 0]
+    weight_norm = float(np.linalg.norm(weight))
+    if weight_norm <= np.finfo(np.float64).tiny:
+        return None
+    weight = weight / weight_norm
+
+    score = X @ weight
+    score_ssq = float(score @ score)
+    block_ssq = max(_ssq(X), 1.0)
+    if score_ssq <= tol * block_ssq:
+        return None
+
+    loading = X.T @ score / score_ssq
+    if not np.all(np.isfinite(loading)):
+        return None
+
+    filtered = X - np.outer(score, loading)
+    if not np.all(np.isfinite(filtered)):
+        return None
+    if _ssq(filtered) >= _ssq(X) - tol * max(_ssq(X), 1.0):
+        return None
+
+    return OrthogonalBlockComponent(
+        weight=weight,
+        score=score,
+        loading=loading,
+        filtered_block=filtered,
+    )
+
+
+def _replay_orthogonal_filter(
+    block: NDArray[np.float64],
+    weights: NDArray[np.float64],
+    loadings: NDArray[np.float64],
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Replay stored sequential orthogonal deflation on ``block``."""
+    X = np.asarray(block, dtype=np.float64)
+    W = np.asarray(weights, dtype=np.float64)
+    P = np.asarray(loadings, dtype=np.float64)
+    if X.ndim != 2:
+        raise ValueError(f"block must be 2D, got shape {X.shape}.")
+    if W.ndim != 2 or P.ndim != 2:
+        raise ValueError("weights and loadings must be 2D.")
+    if W.shape != P.shape:
+        raise ValueError(
+            f"weights and loadings must have matching shapes, got {W.shape} "
+            f"and {P.shape}."
+        )
+    if X.shape[1] != W.shape[0]:
+        raise ValueError(
+            f"block has {X.shape[1]} features but weights have {W.shape[0]} rows."
+        )
+    if not np.all(np.isfinite(X)):
+        raise ValueError("block must contain only finite values.")
+    if not np.all(np.isfinite(W)):
+        raise ValueError("weights must contain only finite values.")
+    if not np.all(np.isfinite(P)):
+        raise ValueError("loadings must contain only finite values.")
+
+    filtered = X.copy()
+    scores = np.zeros((X.shape[0], W.shape[1]), dtype=np.float64)
+    for i in range(W.shape[1]):
+        score = filtered @ W[:, i]
+        filtered -= np.outer(score, P[:, i])
+        scores[:, i] = score
+    return filtered, scores
+
+
+def _stack_columns(
+    values: list[NDArray[np.float64]], n_rows: int, n_columns: int
+) -> NDArray[np.float64]:
+    """Column-stack values or return a correctly shaped empty matrix."""
+    if values:
+        return np.column_stack(values)
+    return np.zeros((n_rows, n_columns), dtype=np.float64)
+
+
+def _reconstruction_r2(
+    reconstruction: NDArray[np.float64], reference: NDArray[np.float64]
+) -> float:
+    """Sum-of-squares ratio with a zero-safe denominator."""
+    denom = _ssq(reference)
+    if denom == 0.0:
+        return 0.0
+    return _ssq(reconstruction) / denom
+
+
+def o2pls_fit(
+    Xs: NDArray[np.float64],
+    Ys: NDArray[np.float64],
+    n_components: int,
+    n_x_orthogonal: int,
+    n_y_orthogonal: int,
+    *,
+    tol: float = _TOL,
+) -> O2PLSComponents:
+    """Fit dense O2PLS components on already preprocessed blocks."""
+    X0 = np.asarray(Xs, dtype=np.float64)
+    Y0 = np.asarray(Ys, dtype=np.float64)
+    if X0.ndim != 2:
+        raise ValueError(f"Xs must be 2D, got shape {X0.shape}.")
+    if Y0.ndim != 2:
+        raise ValueError(f"Ys must be 2D, got shape {Y0.shape}.")
+    if X0.shape[0] != Y0.shape[0]:
+        raise ValueError(
+            f"Xs and Ys must have the same number of samples, got "
+            f"{X0.shape[0]} and {Y0.shape[0]}."
+        )
+    if not np.all(np.isfinite(X0)):
+        raise ValueError("Xs must contain only finite values.")
+    if not np.all(np.isfinite(Y0)):
+        raise ValueError("Ys must contain only finite values.")
+    if n_components < 1:
+        raise ValueError("n_components must be >= 1.")
+    if n_x_orthogonal < 0:
+        raise ValueError("n_x_orthogonal must be >= 0.")
+    if n_y_orthogonal < 0:
+        raise ValueError("n_y_orthogonal must be >= 0.")
+
+    n_samples, n_x_features = X0.shape
+    _, n_y_features = Y0.shape
+    max_components = min(n_x_features, n_y_features)
+    if n_components > max_components:
+        raise ValueError(
+            f"n_components={n_components} exceeds min(n_features, n_targets)="
+            f"{max_components}."
+        )
+
+    _, _, s_initial_full = _cross_cov_svd_x_to_y(X0, Y0, max_components)
+    rank = _effective_rank(s_initial_full, tol)
+    if rank < n_components:
+        raise ValueError(
+            f"n_components={n_components} exceeds the effective rank of X.T @ Y "
+            f"({rank})."
+        )
+
+    k_initial = min(n_components + max(n_x_orthogonal, n_y_orthogonal), rank)
+    W_init, C_init, _ = _cross_cov_svd_x_to_y(X0, Y0, k_initial)
+
+    X_work = X0.copy()
+    x_weights: list[NDArray[np.float64]] = []
+    x_scores: list[NDArray[np.float64]] = []
+    x_loadings: list[NDArray[np.float64]] = []
+    for i in range(n_x_orthogonal):
+        T_init = X_work @ W_init
+        component = _extract_one_orthogonal_component(X_work, T_init, W_init, tol=tol)
+        if component is None:
+            warnings.warn(
+                "O2PLS X-orthogonal extraction ran out of numerically "
+                f"resolvable variation after {i} of {n_x_orthogonal} requested "
+                "components; using the components extracted so far.",
+                ConvergenceWarning,
+                stacklevel=2,
+            )
+            break
+        x_weights.append(component.weight)
+        x_scores.append(component.score)
+        x_loadings.append(component.loading)
+        X_work = component.filtered_block
+
+    Y_work = Y0.copy()
+    y_weights: list[NDArray[np.float64]] = []
+    y_scores: list[NDArray[np.float64]] = []
+    y_loadings: list[NDArray[np.float64]] = []
+    for i in range(n_y_orthogonal):
+        U_init = Y_work @ C_init
+        component = _extract_one_orthogonal_component(Y_work, U_init, C_init, tol=tol)
+        if component is None:
+            warnings.warn(
+                "O2PLS Y-orthogonal extraction ran out of numerically "
+                f"resolvable variation after {i} of {n_y_orthogonal} requested "
+                "components; using the components extracted so far.",
+                ConvergenceWarning,
+                stacklevel=2,
+            )
+            break
+        y_weights.append(component.weight)
+        y_scores.append(component.score)
+        y_loadings.append(component.loading)
+        Y_work = component.filtered_block
+
+    W, C, s_final = _cross_cov_svd_x_to_y(X_work, Y_work, n_components)
+    final_rank = _effective_rank(s_final, tol)
+    if final_rank < n_components:
+        raise ValueError(
+            "The filtered blocks do not retain enough joint numerical rank for "
+            f"n_components={n_components}; effective rank is {final_rank}."
+        )
+
+    T = X_work @ W
+    U = Y_work @ C
+    B_T = _lstsq_loadings(T, U)
+    B_U = _lstsq_loadings(U, T)
+
+    X_orth_weights = _stack_columns(x_weights, n_x_features, 0)
+    X_orth_scores = _stack_columns(x_scores, n_samples, 0)
+    X_orth_loadings = _stack_columns(x_loadings, n_x_features, 0)
+    Y_orth_weights = _stack_columns(y_weights, n_y_features, 0)
+    Y_orth_scores = _stack_columns(y_scores, n_samples, 0)
+    Y_orth_loadings = _stack_columns(y_loadings, n_y_features, 0)
+
+    X_joint = T @ W.T
+    Y_joint = U @ C.T
+    X_orth = X_orth_scores @ X_orth_loadings.T
+    Y_orth = Y_orth_scores @ Y_orth_loadings.T
+    X_residuals = X0 - X_joint - X_orth
+    Y_residuals = Y0 - Y_joint - Y_orth
+
+    return O2PLSComponents(
+        x_joint_weights=W,
+        y_joint_weights=C,
+        x_joint_scores=T,
+        y_joint_scores=U,
+        x_joint_loadings=W.copy(),
+        y_joint_loadings=C.copy(),
+        x_orthogonal_weights=X_orth_weights,
+        x_orthogonal_scores=X_orth_scores,
+        x_orthogonal_loadings=X_orth_loadings,
+        y_orthogonal_weights=Y_orth_weights,
+        y_orthogonal_scores=Y_orth_scores,
+        y_orthogonal_loadings=Y_orth_loadings,
+        b_t=B_T,
+        b_u=B_U,
+        x_filtered=X_work,
+        y_filtered=Y_work,
+        x_residuals=X_residuals,
+        y_residuals=Y_residuals,
+        r2x=_reconstruction_r2(X_joint, X0),
+        r2y=_reconstruction_r2(Y_joint, Y0),
+        r2x_ortho=_reconstruction_r2(X_orth, X0),
+        r2y_ortho=_reconstruction_r2(Y_orth, Y0),
+        singular_values_initial=s_initial_full,
+        singular_values_final=s_final,
+        n_components=n_components,
+        n_x_orthogonal=X_orth_weights.shape[1],
+        n_y_orthogonal=Y_orth_weights.shape[1],
+    )
