@@ -203,3 +203,62 @@ def test_clone_and_params():
 
     assert isinstance(cloned, O2PLS)
     assert cloned.get_params() == model.get_params()
+
+
+def test_o2pls_univariate_y_rejects_y_orthogonal():
+    X, Y = _make_o2pls_data(n_joint=1, n_y_features=1, n_y_orthogonal=0, seed=7)
+    y = Y.ravel()
+    with pytest.raises(ValueError, match="n_y_orthogonal"):
+        O2PLS(n_y_orthogonal=1).fit(X, y)
+
+
+def test_o2pls_univariate_y_rejects_multiple_joint_components():
+    X, Y = _make_o2pls_data(n_joint=1, n_y_features=1, n_y_orthogonal=0, seed=7)
+    y = Y.ravel()
+    with pytest.raises(ValueError, match="n_components"):
+        O2PLS(n_components=2).fit(X, y)
+
+
+def test_o2pls_univariate_y_allows_x_orthogonal():
+    X, Y = _make_o2pls_data(n_joint=1, n_y_features=1, n_y_orthogonal=0, seed=7)
+    y = Y.ravel()
+    model = O2PLS(n_x_orthogonal=1).fit(X, y)
+    assert model.n_targets_ == 1
+    assert model.n_x_orthogonal_ == 1
+
+
+def test_o2pls_predict_returns_raw_y_units():
+    X, Y = _make_o2pls_data(n_samples=80, n_x_features=8, seed=0)
+    X_raw = 10.0 + 3.0 * X
+    Y_raw = -5.0 + 2.0 * Y
+    model = O2PLS(n_components=1).fit(X_raw, Y_raw)
+    y_scaled_manual = model.filter_transform_x(X_raw) @ model.coef_filtered_
+    y_raw_manual = y_scaled_manual * model.y_std_ + model.y_mean_
+    assert_allclose(model.predict(X_raw), y_raw_manual, atol=1e-10)
+
+
+def test_o2pls_predict_x_returns_raw_x_units():
+    X, Y = _make_o2pls_data(n_samples=80, n_x_features=8, seed=0)
+    X_raw = 10.0 + 3.0 * X
+    Y_raw = -5.0 + 2.0 * Y
+    model = O2PLS(n_components=1).fit(X_raw, Y_raw)
+    x_scaled_manual = model.transform_y(Y_raw) @ model.b_u_ @ model.x_joint_loadings_.T
+    x_raw_manual = x_scaled_manual * model.x_std_ + model.x_mean_
+    assert_allclose(model.predict_x(Y_raw), x_raw_manual, atol=1e-10)
+
+
+def test_o2pls_coef_filtered_matches_predict_path_scaled_y():
+    X, Y = _make_o2pls_data(seed=13)
+    model = O2PLS(n_components=1).fit(X, Y)
+    via_coef = model.filter_transform_x(X) @ model.coef_filtered_
+    via_scores = model.transform(X) @ model.b_t_ @ model.y_joint_loadings_.T
+    assert_allclose(via_coef, via_scores, atol=1e-10)
+
+
+def test_o2pls_nonfinite_y_in_predict_x_rejected():
+    X, Y = _make_o2pls_data(seed=11)
+    model = O2PLS().fit(X, Y)
+    Y_bad = Y.copy()
+    Y_bad[0, 0] = np.nan
+    with pytest.raises(ValueError, match="contains NaN|finite"):
+        model.predict_x(Y_bad)

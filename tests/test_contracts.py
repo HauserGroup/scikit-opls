@@ -7,7 +7,6 @@ from importlib import resources
 import numpy as np
 import pytest
 from sklearn.exceptions import NotFittedError
-from sklearn.utils import get_tags
 
 from scikit_opls import O2PLS, OPLS, OPLSDA
 
@@ -25,7 +24,7 @@ def test_n_components_invalid_raises(bad):
 def test_o2pls_n_components_invalid_raises(bad):
     X, y = _regression_data()
     Y = np.column_stack([y, y + 0.1 * np.random.default_rng(0).normal(size=y.shape)])
-    with pytest.raises(ValueError, match="n_components"):
+    with pytest.raises((TypeError, ValueError), match="n_components"):
         O2PLS(n_components=bad).fit(X, Y)
 
 
@@ -34,7 +33,7 @@ def test_o2pls_n_components_invalid_raises(bad):
 def test_o2pls_orthogonal_counts_invalid_raises(param, bad):
     X, y = _regression_data()
     Y = np.column_stack([y, y + 0.1 * np.random.default_rng(0).normal(size=y.shape)])
-    with pytest.raises(ValueError, match=param):
+    with pytest.raises((TypeError, ValueError), match=param):
         O2PLS(**{param: bad}).fit(X, Y)
 
 
@@ -113,20 +112,20 @@ def test_more_orthogonal_than_rank_truncates():
 @pytest.mark.parametrize("est", [O2PLS(), OPLS(), OPLSDA()])
 def test_tags_match_intent(est):
     """Resolved tags should pin the declared capabilities (guards refactors)."""
-    tags = get_tags(est)
+    tags = est.__sklearn_tags__()
     assert tags.target_tags.required is True
     assert tags.input_tags.sparse is False
     assert tags.non_deterministic is False
 
 
 def test_opls_regressor_tag_poor_score():
-    tags = get_tags(OPLS())
+    tags = OPLS().__sklearn_tags__()
     assert tags.regressor_tags is not None
     assert tags.regressor_tags.poor_score is True
 
 
 def test_o2pls_regressor_tags():
-    tags = get_tags(O2PLS())
+    tags = O2PLS().__sklearn_tags__()
     assert tags.regressor_tags is not None
     assert tags.regressor_tags.poor_score is True
     assert tags.target_tags.multi_output is True
@@ -134,7 +133,7 @@ def test_o2pls_regressor_tags():
 
 
 def test_opls_da_not_multiclass():
-    tags = get_tags(OPLSDA())
+    tags = OPLSDA().__sklearn_tags__()
     assert tags.classifier_tags is not None
     assert tags.classifier_tags.multi_class is False
 

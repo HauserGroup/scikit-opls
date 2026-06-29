@@ -55,6 +55,7 @@ def _make_o2pls_blocks(
 
 
 def _min_subspace_cosine(A, B):
+    assert A.shape[1] == B.shape[1], f"Dimension mismatch: {A.shape[1]} vs {B.shape[1]}"
     QA, _ = np.linalg.qr(A)
     QB, _ = np.linalg.qr(B)
     return float(np.min(np.linalg.svd(QA.T @ QB, compute_uv=False)))
@@ -171,3 +172,66 @@ def test_o2pls_fit_warns_and_truncates_unresolvable_orthogonal_components():
         fit = o2pls_fit(X, Y, 1, 2, 0)
 
     assert fit.n_x_orthogonal < 2
+
+
+def test_o2pls_fit_warns_and_truncates_unresolvable_y_orthogonal_components():
+    rng = np.random.default_rng(8)
+    z = rng.normal(size=(20, 1))
+    X = z @ rng.normal(size=(1, 4))
+    Y = z @ rng.normal(size=(1, 3))
+    X -= X.mean(axis=0)
+    Y -= Y.mean(axis=0)
+
+    with pytest.warns(ConvergenceWarning, match="Y-orthogonal extraction"):
+        fit = o2pls_fit(X, Y, 1, 0, 2)
+
+    assert fit.n_y_orthogonal < 2
+
+
+def test_cross_cov_svd_allows_zero_components():
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(20, 5))
+    Y = rng.normal(size=(20, 3))
+    W, C, s = _cross_cov_svd_x_to_y(X, Y, 0)
+    assert W.shape == (5, 0)
+    assert C.shape == (3, 0)
+    assert s.shape == (3,)
+
+
+@pytest.mark.parametrize("bad", [1.5, True, False, "x", None])
+def test_cross_cov_svd_rejects_bad_k(bad):
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(10, 5))
+    Y = rng.normal(size=(10, 3))
+    with pytest.raises(TypeError):
+        _cross_cov_svd_x_to_y(X, Y, bad)
+
+
+@pytest.mark.parametrize("bad", [1.5, True, False, "x", None])
+def test_o2pls_fit_rejects_bad_component_counts(bad):
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(10, 5))
+    Y = rng.normal(size=(10, 3))
+    with pytest.raises(TypeError):
+        o2pls_fit(X, Y, bad, 0, 0)
+    with pytest.raises(TypeError):
+        o2pls_fit(X, Y, 1, bad, 0)
+    with pytest.raises(TypeError):
+        o2pls_fit(X, Y, 1, 0, bad)
+
+
+@pytest.mark.parametrize("bad_tol", [0.0, -1.0, np.nan, np.inf, "x", None])
+def test_o2pls_fit_rejects_bad_tol(bad_tol):
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(10, 5))
+    Y = rng.normal(size=(10, 3))
+    with pytest.raises((TypeError, ValueError)):
+        o2pls_fit(X, Y, 1, 0, 0, tol=bad_tol)
+
+
+def test_o2pls_fit_requires_two_samples():
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(1, 5))
+    Y = rng.normal(size=(1, 3))
+    with pytest.raises(ValueError, match="at least 2 samples"):
+        o2pls_fit(X, Y, 1, 0, 0)
