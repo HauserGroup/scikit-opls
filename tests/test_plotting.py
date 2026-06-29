@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import pytest
 
 # Skip this module if matplotlib is not installed
@@ -52,6 +54,40 @@ def test_scores_plot_classification():
     disp = OPLSScoresDisplay.from_estimator(model, X, y)
     assert isinstance(disp, OPLSScoresDisplay)
     assert isinstance(disp.ax_, Axes)
+    plt.close("all")
+
+
+def test_scores_display_oplsda_dataframe_validates_feature_names():
+    pd = pytest.importorskip("pandas")
+    X, y = _classification_data(n_features=4)
+    df = pd.DataFrame(X, columns=["a", "b", "c", "d"])
+    model = OPLSDA(n_components=1, n_orthogonal=1).fit(df, y)
+
+    with warnings.catch_warnings(record=True) as record:
+        disp = OPLSScoresDisplay.from_estimator(model, df, y=y)
+
+    messages = [str(w.message) for w in record]
+    assert not any("feature names" in message for message in messages)
+    assert disp.t_predictive.shape == (df.shape[0],)
+
+    with pytest.raises(ValueError, match="feature names"):
+        OPLSScoresDisplay.from_estimator(model, df[["b", "a", "c", "d"]], y=y)
+
+    plt.close("all")
+
+
+def test_scores_display_replays_filter_for_new_samples():
+    X, y = _regression_data(seed=7)
+    model = OPLS(n_components=1, n_orthogonal=2).fit(X[:35], y[:35])
+    X_new = X[35:]
+
+    disp = OPLSScoresDisplay.from_estimator(model, X_new)
+
+    np.testing.assert_allclose(disp.t_predictive, model.transform(X_new)[:, 0])
+    np.testing.assert_allclose(
+        disp.t_orthogonal,
+        model.transform_orthogonal(X_new)[:, 0],
+    )
     plt.close("all")
 
 
@@ -170,6 +206,38 @@ def test_splot_display_nan_correlation():
     disp = SPlotDisplay.from_estimator(model, X_with_const)
     assert np.isnan(disp.correlation[0])
     assert not np.isnan(disp.correlation[1:]).any()
+
+
+def test_splot_display_x_space_controls_covariance_axis():
+    X, y = _regression_data(seed=8, n_features=4)
+    scale = np.array([1.0, 3.0, 10.0, 30.0])
+    X = X * scale
+    model = OPLS(n_components=1, n_orthogonal=1, scale="standard").fit(X, y)
+
+    centered = SPlotDisplay.from_estimator(model, X, x_space="centered")
+    scaled = SPlotDisplay.from_estimator(model, X, x_space="scaled")
+
+    assert not np.allclose(centered.covariance, scaled.covariance)
+    assert centered.correlation.shape == scaled.correlation.shape
+    plt.close("all")
+
+
+def test_splot_display_invalid_x_space_raises():
+    X, y = _regression_data()
+    model = OPLS().fit(X, y)
+
+    with pytest.raises(ValueError, match="x_space must be one of"):
+        SPlotDisplay.from_estimator(model, X, x_space="raw")
+
+
+def test_splot_display_warns_for_non_training_subset():
+    X, y = _regression_data(seed=9)
+    model = OPLS(n_components=1, n_orthogonal=1).fit(X, y)
+
+    with pytest.warns(UserWarning, match="usually intended for the training data"):
+        SPlotDisplay.from_estimator(model, X[:10])
+
+    plt.close("all")
 
 
 def test_plotting_pipeline_ending_in_opls():

@@ -156,20 +156,25 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         self.n_orthogonal_ = self.opls_.n_orthogonal_
         return self
 
-    def _validate_x_predict(self, X: ArrayLike) -> NDArray[np.float64]:
+    def _validate_X_predict(self, X: ArrayLike) -> NDArray[np.float64]:  # noqa: N802
         """Validate prediction input against the outer OPLSDA fit contract."""
         check_is_fitted(self)
 
         # validate_data(..., reset=False) checks n_features_in_ and feature_names_in_
         # against OPLSDA, then returns a nameless ndarray. Passing that ndarray to
         # the inner OPLS avoids the spurious "fitted without feature names" warning.
-        return validate_data(
+        X_valid = validate_data(
             self,
             X,
             dtype=np.float64,
             copy=self.copy,
             reset=False,
         )
+        return np.asarray(X_valid, dtype=np.float64)
+
+    def _validate_x_predict(self, X: ArrayLike) -> NDArray[np.float64]:
+        """Backward-compatible alias for the canonical validation helper."""
+        return self._validate_X_predict(X)
 
     def decision_function(self, X: ArrayLike) -> NDArray[np.float64]:
         """Raw signed OPLS regression output; positive favours ``classes_[1]``.
@@ -185,8 +190,9 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             Signed confidence; ``> 0`` predicts ``classes_[1]``. Scores equal to
             zero are assigned to ``classes_[0]`` by :meth:`predict`.
         """
-        X_valid = self._validate_x_predict(X)
-        return np.asarray(self.opls_.predict(X_valid), dtype=np.float64).ravel()
+        X_valid = self._validate_X_predict(X)
+        X_filtered, _ = self.opls_._filter_validated(X_valid)
+        return np.asarray(self.opls_.pls_.predict(X_filtered), dtype=np.float64).ravel()
 
     def predict(self, X: ArrayLike) -> NDArray:
         """Predict class labels.
