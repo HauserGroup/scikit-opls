@@ -129,3 +129,27 @@ def test_fit_rejects_constant_target():
     X, _ = _regression_data()
     with pytest.raises(ValueError, match="non-constant target"):
         OPLS().fit(X, np.full(X.shape[0], 7.0))
+
+
+def test_standard_scaling_single_sample_uses_unit_scale():
+    """Verify that standard scaling on a single sample falls back to unit scale."""
+    X = np.array([[1.0, 2.0, 3.0]])
+    mean, scale = compute_scaling(X, mode="standard")
+    np.testing.assert_allclose(mean, X[0])
+    np.testing.assert_allclose(scale, np.ones(X.shape[1]))
+
+
+def test_apply_scaling_extra_validation():
+    """Verify extra boundary and non-finite validations in apply_scaling."""
+    X = np.ones((4, 3))
+    # empty X
+    with pytest.raises(ValueError, match="at least one sample and one feature"):
+        apply_scaling(np.empty((0, 3)), np.zeros(3), np.ones(3))
+    # scale shape mismatch
+    with pytest.raises(ValueError, match="scale_ must have shape"):
+        apply_scaling(X, np.zeros(3), np.ones(2))
+    # nonfinite mean/scale
+    with pytest.raises(ValueError, match="finite"):
+        apply_scaling(X, np.array([0.0, np.nan, 0.0]), np.ones(3))
+    with pytest.raises(ValueError, match="finite"):
+        apply_scaling(X, np.zeros(3), np.array([1.0, np.inf, 1.0]))

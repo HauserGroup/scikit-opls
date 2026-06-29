@@ -433,3 +433,14 @@ def test_scores_plot_zero_orthogonal_label():
     assert disp.has_orthogonal is False
     assert "No orthogonal" in disp.ax_.get_ylabel()
     plt.close("all")
+
+
+def test_unwrap_estimator_empty_pipeline():
+    """Verify that plotting functions reject empty sklearn Pipelines."""
+    from sklearn.pipeline import Pipeline
+
+    from scikit_opls.plotting import _unwrap_estimator_and_data
+
+    pipe = Pipeline([])
+    with pytest.raises(TypeError, match="Pipeline must contain at least one step"):
+        _unwrap_estimator_and_data(pipe, np.ones((5, 2)))
