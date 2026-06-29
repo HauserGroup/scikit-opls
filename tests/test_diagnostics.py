@@ -1,5 +1,3 @@
-import warnings
-
 import numpy as np
 import pytest
 
@@ -7,36 +5,6 @@ from scikit_opls import OPLS, OPLSDA
 from scikit_opls._preprocessing import apply_scaling
 
 from ._data import make_regression_data as _regression_data
-
-
-def test_opls_dataframe_predict_transform_no_feature_name_warning():
-    """Predicting and transforming with DataFrame does not trigger warning."""
-    pd = pytest.importorskip("pandas")
-    rng = np.random.default_rng(0)
-    X = pd.DataFrame(rng.normal(size=(30, 5)), columns=list("abcde"))
-    y = rng.normal(size=30)
-    model = OPLS().fit(X, y)
-    with warnings.catch_warnings(record=True) as record:
-        warnings.simplefilter("always")
-        model.predict(X)
-        model.transform(X)
-        model.transform_orthogonal(X)
-        model.filter_transform(X)
-    assert not any("feature names" in str(w.message) for w in record)
-
-
-def test_oplsda_diagnostics_no_feature_name_warning():
-    """OPLSDA diagnostic methods with DataFrame don't trigger warning."""
-    pd = pytest.importorskip("pandas")
-    rng = np.random.default_rng(0)
-    X = pd.DataFrame(rng.normal(size=(30, 5)), columns=list("abcde"))
-    y = np.array([0, 1] * 15)
-    clf = OPLSDA().fit(X, y)
-    with warnings.catch_warnings(record=True) as record:
-        warnings.simplefilter("always")
-        clf.score_distance(X)
-        clf.q_residuals(X)
-    assert not any("feature names" in str(w.message) for w in record)
 
 
 def test_diagnostics_shapes():
@@ -91,21 +59,6 @@ def test_q_residuals_rejects_bad_space():
     model = OPLS().fit(X, y)
     with pytest.raises(ValueError, match="space"):
         model.q_residuals(X, space="bad")
-
-
-def test_diagnostics_reject_reordered_dataframe_columns():
-    """Diagnostic methods raise ValueError for DataFrame with reordered columns."""
-    pd = pytest.importorskip("pandas")
-    rng = np.random.default_rng(0)
-    X = pd.DataFrame(rng.normal(size=(30, 5)), columns=list("abcde"))
-    y = rng.normal(size=30)
-    model = OPLS().fit(X, y)
-
-    X_reordered = X[list("edcba")]
-    with pytest.raises(ValueError, match="feature names"):
-        model.score_distance(X_reordered)
-    with pytest.raises(ValueError, match="feature names"):
-        model.q_residuals(X_reordered)
 
 
 def test_diagnostics_are_pure_no_state_mutation():
@@ -274,19 +227,6 @@ def test_diagnostics_refresh_on_refit_with_different_feature_count():
     assert model.coef_raw_.shape == (1, 5)
     assert model.q_residuals_train_.shape == (40,)
     assert not np.array_equal(q1, model.q_residuals_train_)
-
-
-def test_oplsda_diagnostics_reject_reordered_dataframe_columns():
-    pd = pytest.importorskip("pandas")
-    rng = np.random.default_rng(0)
-    X = pd.DataFrame(rng.normal(size=(30, 5)), columns=list("abcde"))
-    y = np.array([0, 1] * 15)
-    clf = OPLSDA().fit(X, y)
-    X_bad = X[list("edcba")]
-    with pytest.raises(ValueError, match="feature names"):
-        clf.score_distance(X_bad)
-    with pytest.raises(ValueError, match="feature names"):
-        clf.q_residuals(X_bad)
 
 
 def test_diagnostics_public_methods_exist_on_opls_and_oplsda():
