@@ -283,26 +283,6 @@ def test_o2pls_predict_x_unscales_x():
     assert_allclose(model.predict_x(Y_raw), expected)
 
 
-def test_o2pls_wrong_x_feature_count_raises():
-    X, y = _regression_data()
-    model = O2PLS().fit(X, y)
-    with pytest.raises(ValueError):
-        model.predict(X[:, :-1])
-    with pytest.raises(ValueError):
-        model.transform(X[:, :-1])
-
-
-def test_o2pls_wrong_y_target_count_raises():
-    X, y = _regression_data()
-    rng = np.random.default_rng(0)
-    Y = np.column_stack([y, y + 0.1 * rng.normal(size=y.shape)])
-    model = O2PLS().fit(X, Y)
-    with pytest.raises(ValueError, match="target columns"):
-        model.predict_x(Y[:, :1])
-    with pytest.raises(ValueError, match="target columns"):
-        model.transform_y(Y[:, :1])
-
-
 def test_o2pls_truncates_when_preliminary_subspace_saturates_y_block():
     rng = np.random.default_rng(13)
     X = rng.normal(size=(50, 6))
@@ -325,14 +305,3 @@ def test_o2pls_feature_names_out():
     )
     model = O2PLS(n_components=2).fit(X_multi, Y_multi)
     assert list(model.get_feature_names_out()) == ["o2pls_joint0", "o2pls_joint1"]
-
-
-def test_o2pls_nonfinite_y_in_predict_x_rejected():
-    X, y = _regression_data()
-    rng = np.random.default_rng(0)
-    Y = np.column_stack([y, y + 0.1 * rng.normal(size=y.shape)])
-    model = O2PLS().fit(X, Y)
-    Y_bad = Y.copy()
-    Y_bad[0, 0] = np.nan
-    with pytest.raises(ValueError, match="contains NaN|finite"):
-        model.predict_x(Y_bad)

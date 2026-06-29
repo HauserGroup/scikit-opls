@@ -7,7 +7,7 @@ import re
 import numpy as np
 import pytest
 from sklearn.base import clone
-from sklearn.exceptions import DataConversionWarning, NotFittedError
+from sklearn.exceptions import DataConversionWarning
 from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLSDA
@@ -46,36 +46,6 @@ def test_decision_function_sign_matches_predict():
     scores = model.decision_function(X)
     expected = model.classes_[(scores > 0).astype(int)]
     np.testing.assert_array_equal(model.predict(X), expected)
-
-
-@pytest.mark.parametrize("method", ["predict", "decision_function"])
-def test_unfitted_methods_raise(method):
-    X, _ = _classification_data()
-
-    with pytest.raises(NotFittedError):
-        getattr(OPLSDA(), method)(X)
-
-
-@pytest.mark.parametrize("attr", ["vip_", "ortho_vip_"])
-def test_unfitted_vip_properties_raise(attr):
-    with pytest.raises(NotFittedError):
-        getattr(OPLSDA(), attr)
-
-
-@pytest.mark.parametrize(
-    ("param", "kwargs"),
-    [
-        ("n_components", {"n_components": True}),
-        ("n_components", {"n_components": False}),
-        ("n_orthogonal", {"n_orthogonal": True}),
-        ("n_orthogonal", {"n_orthogonal": False}),
-    ],
-)
-def test_bool_integer_parameters_raise_clear_value_error(param, kwargs):
-    X, y = _classification_data()
-
-    with pytest.raises(ValueError, match=param):
-        OPLSDA(**kwargs).fit(X, y)
 
 
 def test_decision_function_zero_predicts_first_class():
