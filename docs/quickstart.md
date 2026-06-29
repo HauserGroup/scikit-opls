@@ -14,7 +14,7 @@ model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
 model.predict(X)              # predicted y
 model.transform(X)            # predictive scores
 model.transform_orthogonal(X) # orthogonal scores
-model.r2y_, model.rmsee_      # training-fit summaries
+model.r2y_, model.rmse_       # training-fit summaries
 ```
 
 ## Choosing `n_orthogonal` by cross-validation

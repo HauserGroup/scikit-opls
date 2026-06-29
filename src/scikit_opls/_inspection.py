@@ -4,10 +4,13 @@ Private module — not part of the public API. The VIP scores are exposed as laz
 ``vip_`` / ``ortho_vip_`` properties on :class:`~scikit_opls.OPLS` and
 :class:`~scikit_opls.OPLSDA`; these functions compute them from fitted weights.
 
-VIP (Variable Importance in Projection) follows Galindo-Prieto et al. (2014):
+VIP (Variable Importance in Projection) is defined in the style of Galindo-Prieto
+et al. (2014); these are not intended to reproduce ropls VIP values exactly:
 
-- predictive VIP weights each predictive component by the Y variance it explains;
-- orthogonal VIP weights each orthogonal component by the X variance it explains.
+- predictive VIP is the standard PLS VIP of the predictive model fitted on the
+  orthogonally filtered X, weighting each component by the Y variance it explains;
+- orthogonal VIP is an X-variance-weighted score for the removed orthogonal
+  components, weighting each component by the X variance it explains.
 
 For non-empty blocks with positive explained variance, VIP is normalized so that
 sum(vip**2) == n_features. Empty or degenerate blocks return zeros.

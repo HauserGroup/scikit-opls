@@ -269,6 +269,14 @@ def opls_filter(X: ArrayLike, Y: ArrayLike, n_components: int) -> OrthogonalComp
 
     Notes
     -----
+    The predictive direction is computed once from the original ``(X, Y)`` and
+    reused for every orthogonal component. For univariate ``Y`` this is exact, not a
+    shortcut: each orthogonal score is constructed exactly orthogonal to ``Y``, so
+    removing it leaves ``Xᵀy`` (hence the predictive direction ``w_p ∝ Xᵀy``)
+    unchanged. Recomputing ``w_p`` from each deflated residual would yield the same
+    direction, so the canonical Trygg-Wold OPLS algorithm coincides with this
+    fixed-direction filter for single-response OPLS.
+
     When ``n_components=0``, ``Y`` is not inspected because no predictive direction
     is needed; the returned predictive weight is a zero vector.
     """

@@ -197,6 +197,23 @@ def test_orthogonal_filter_reproduces_opls_filter():
     assert_allclose(direct.x_ortho_loadings, via_opls.x_ortho_loadings, atol=1e-12)
 
 
+def test_deflation_preserves_predictive_direction():
+    """Removing y-orthogonal structure leaves Xᵀy (the predictive direction) fixed.
+
+    This is why the fixed-direction filter equals the canonical Trygg-Wold OPLS
+    that recomputes ``w_p`` from each residual: every orthogonal score is exactly
+    y-orthogonal, so deflating it does not change ``Xᵀy``. Recomputing the
+    predictive direction after each component would therefore give the same answer.
+    """
+    X, y = _make_data()
+    yc = y - y.mean()
+    fit = opls_filter(X, y, 3)
+    w0 = predictive_weight(X, yc)
+    w_residual = predictive_weight(fit.x_filtered, yc)
+    # Predictive direction recomputed from the fully filtered residual is unchanged.
+    assert_allclose(abs(w0 @ w_residual), 1.0, atol=1e-8)
+
+
 def test_orthogonal_filter_normalises_non_unit_direction():
     """A non-unit predictive direction yields the same result as its unit version."""
     X, y = _make_data()

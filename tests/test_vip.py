@@ -24,7 +24,7 @@ def test_metrics_present_and_sane():
     assert 0.0 <= model.r2x_ <= 1.0
     assert 0.0 <= model.r2x_ortho_ <= 1.0
     assert model.r2y_ > 0.9
-    assert model.rmsee_ > 0.0
+    assert model.rmse_ > 0.0
 
 
 def test_vip_not_computed_eagerly():

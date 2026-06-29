@@ -21,6 +21,9 @@ and default-value changes will be documented here.
 
 ### Changed (breaking, pre-1.0)
 
+- Renamed the fitted attribute `rmsee_` to `rmse_` (uncorrected training root mean
+  squared error). The old name implied a degrees-of-freedom-corrected calibration
+  error, which it never computed; no alias is kept (pre-1.0).
 - Removed `OPLSDA`'s `probability` parameter and its in-sample Platt calibration
   (`predict_proba`, `raw_score`). `OPLSDA` is now a clean score classifier:
   `decision_function` returns the raw signed OPLS regression output and `predict`
@@ -52,6 +55,17 @@ and default-value changes will be documented here.
   unchanged (up to sign) and single-`y` OPLS output is bit-for-bit identical.
 
 ### Added
+
+- `OPLS.coef_raw_` / `OPLS.intercept_raw_`: linear coefficients on the original raw
+  input feature space, collapsing scaling, the orthogonal filter and the predictive
+  PLS into one map, so `X @ coef_raw_.T + intercept_raw_` reproduces `predict(X)`.
+  No bare sklearn `coef_` alias is exposed (it would be the raw-space coefficient,
+  not the engine's filtered-space one).
+
+- `OPLS.filter_transform(X)` returns the preprocessed, orthogonal-filtered `X`
+  actually passed to the predictive PLS engine (so
+  `pls_.predict(filter_transform(X))` matches `predict(X)`); useful for diagnostics
+  and downstream modelling.
 
 - Zensical documentation site (`zensical.toml`, mkdocstrings, numpy docstring style)
   with a `zensical build` CI gate and a GitHub Pages (Actions) deploy workflow.

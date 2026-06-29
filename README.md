@@ -40,8 +40,16 @@ model = OPLS(n_components=1, n_orthogonal=2, scale="standard").fit(X, y)
 model.predict(X)              # predictions
 model.transform(X)            # predictive scores
 model.transform_orthogonal(X) # orthogonal scores
+model.filter_transform(X)     # preprocessed, orthogonal-filtered X fed to the engine
 model.r2x_, model.r2y_        # fit summaries
 model.vip_                    # variable importance (predictive), lazy property
+```
+
+The whole fitted pipeline (scaling → orthogonal filter → predictive PLS) is linear,
+so it collapses to coefficients on the raw input space:
+
+```python
+y_hat = (X @ model.coef_raw_.T + model.intercept_raw_).ravel()  # == model.predict(X)
 ```
 
 Let cross-validated Q2 choose the number of orthogonal components with
