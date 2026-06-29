@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 import pytest
 from sklearn.base import clone
@@ -199,3 +201,57 @@ def test_no_probability_param():
     assert "probability" not in OPLSDA().get_params()
     model = OPLSDA(n_orthogonal=1).fit(*_classification_data())
     assert not hasattr(model, "predict_proba")
+
+
+def test_oplsda_dataframe_predict_has_no_feature_name_warning():
+    pd = pytest.importorskip("pandas")
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        rng.normal(size=(20, 4)),
+        columns=["a", "b", "c", "d"],
+    )
+    y = np.array([0, 1] * 10)
+
+    clf = OPLSDA().fit(X, y)
+
+    import warnings
+
+    with warnings.catch_warnings(record=True) as record:
+        clf.predict(X)
+
+    messages = [str(w.message) for w in record]
+    print(messages)
+    assert not any("feature names" in message for message in messages)
+
+
+def test_oplsda_rejects_mismatched_dataframe_feature_names():
+    pd = pytest.importorskip("pandas")
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        rng.normal(size=(20, 4)),
+        columns=["a", "b", "c", "d"],
+    )
+    y = np.array([0, 1] * 10)
+
+    clf = OPLSDA().fit(X, y)
+
+    X_bad = X.rename(columns={"d": "wrong"})
+
+    with pytest.raises(ValueError, match=re.escape("feature names")):
+        clf.predict(X_bad)
+
+
+def test_oplsda_inner_opls_receives_feature_names_for_plotting_helpers():
+    pd = pytest.importorskip("pandas")
+    rng = np.random.default_rng(0)
+    X = pd.DataFrame(
+        rng.normal(size=(20, 4)),
+        columns=["a", "b", "c", "d"],
+    )
+    y = np.array([0, 1] * 10)
+
+    clf = OPLSDA().fit(X, y)
+
+    assert hasattr(clf, "feature_names_in_")
+    assert hasattr(clf.opls_, "feature_names_in_")
+    np.testing.assert_array_equal(clf.opls_.feature_names_in_, clf.feature_names_in_)

@@ -46,7 +46,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
     classes_ : ndarray
         The two class labels seen during fit.
     opls_ : OPLS
-        The fitted underlying OPLS regressor (against a -1/+1 dummy response).
+        The fitted underlying OPLS regressor against a -1/+1 dummy response.
     vip_, ortho_vip_ : ndarray of shape (n_features,)
         Predictive / orthogonal Variable Importance in Projection scores computed
         by the inner :attr:`opls_`. Use with
@@ -88,7 +88,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         X : array-like of shape (n_samples, n_features)
             Training predictors.
         y : array-like of shape (n_samples,)
-            Binary class labels (exactly two classes).
+            Binary class labels.
 
         Returns
         -------
@@ -99,29 +99,37 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             raise ValueError("n_components must be an integer, not bool.")
         if isinstance(self.n_orthogonal, bool):
             raise ValueError("n_orthogonal must be an integer, not bool.")
-        self._validate_params()
-        # validate_data ravels a column-vector y and rejects multi-column y.
-        X, y = validate_data(
-            self, X, y, dtype=np.float64, ensure_min_samples=2, copy=self.copy
-        )
-        check_classification_targets(y)
 
-        # LabelEncoder gives a stable 0/1 representation while preserving the
-        # original class labels for predict().
-        self._label_encoder = LabelEncoder().fit(y)
+        self._validate_params()
+
+        # validate_data(..., reset=True) records n_features_in_ and, for DataFrame
+        # inputs with string columns, feature_names_in_ on the OUTER estimator.
+        # The returned X is an ndarray, which is what we intentionally pass to the
+        # inner OPLS so OPLSDA owns the public input validation contract.
+        X_valid, y_valid = validate_data(
+            self,
+            X,
+            y,
+            dtype=np.float64,
+            ensure_min_samples=2,
+            copy=self.copy,
+            reset=True,
+        )
+        check_classification_targets(y_valid)
+
+        self._label_encoder = LabelEncoder().fit(y_valid)
         self.classes_ = self._label_encoder.classes_
+
         if self.classes_.shape[0] != 2:
-            y_type = type_of_target(y, input_name="y")
+            y_type = type_of_target(y_valid, input_name="y")
             raise ValueError(
                 "Only binary classification is supported. "
                 f"The type of the target is {y_type}."
             )
 
-        y_encoded = self._label_encoder.transform(y)
+        y_encoded = self._label_encoder.transform(y_valid)
 
         counts = np.bincount(y_encoded)
-        # Each class needs at least two samples for OPLS regression to have
-        # non-constant dummy labels across validation-like splits and diagnostics.
         if np.any(counts < 2):
             raise ValueError("OPLSDA requires at least two samples per class.")
 
@@ -134,9 +142,34 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             n_orthogonal=self.n_orthogonal,
             scale=self.scale,
             copy=self.copy,
-        ).fit(X, y_dummy)
+        ).fit(X_valid, y_dummy)
+
+        # The inner OPLS was deliberately fitted on a validated ndarray. Mirror the
+        # public feature metadata onto it so plotting/helper code that uses
+        # self.opls_ directly still gets consistent feature-name checks.
+        self.opls_.n_features_in_ = self.n_features_in_
+        if hasattr(self, "feature_names_in_"):
+            self.opls_.feature_names_in_ = self.feature_names_in_.copy()
+        elif hasattr(self.opls_, "feature_names_in_"):
+            del self.opls_.feature_names_in_
+
         self.n_orthogonal_ = self.opls_.n_orthogonal_
         return self
+
+    def _validate_x_predict(self, X: ArrayLike) -> NDArray[np.float64]:
+        """Validate prediction input against the outer OPLSDA fit contract."""
+        check_is_fitted(self)
+
+        # validate_data(..., reset=False) checks n_features_in_ and feature_names_in_
+        # against OPLSDA, then returns a nameless ndarray. Passing that ndarray to
+        # the inner OPLS avoids the spurious "fitted without feature names" warning.
+        return validate_data(
+            self,
+            X,
+            dtype=np.float64,
+            copy=self.copy,
+            reset=False,
+        )
 
     def decision_function(self, X: ArrayLike) -> NDArray[np.float64]:
         """Raw signed OPLS regression output; positive favours ``classes_[1]``.
@@ -152,9 +185,8 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             Signed confidence; ``> 0`` predicts ``classes_[1]``. Scores equal to
             zero are assigned to ``classes_[0]`` by :meth:`predict`.
         """
-        check_is_fitted(self)
-        # The inner regressor returns the signed dummy-response prediction.
-        return np.asarray(self.opls_.predict(X), dtype=np.float64).ravel()
+        X_valid = self._validate_x_predict(X)
+        return np.asarray(self.opls_.predict(X_valid), dtype=np.float64).ravel()
 
     def predict(self, X: ArrayLike) -> NDArray:
         """Predict class labels.
@@ -169,26 +201,24 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         y_pred : ndarray of shape (n_samples,)
             Predicted labels drawn from ``classes_``.
         """
-        # ``> 0`` intentionally sends exact-zero scores to the first class.
         indices = (self.decision_function(X) > 0.0).astype(int)
         return self.classes_[indices]
 
     @property
     def vip_(self) -> NDArray[np.float64]:
-        """Predictive VIP per feature (delegates to the inner OPLS)."""
+        """Predictive VIP per feature, delegated to the inner OPLS."""
         check_is_fitted(self)
         return self.opls_.vip_
 
     @property
     def ortho_vip_(self) -> NDArray[np.float64]:
-        """Orthogonal VIP per feature (delegates to the inner OPLS)."""
+        """Orthogonal VIP per feature, delegated to the inner OPLS."""
         check_is_fitted(self)
         return self.opls_.ortho_vip_
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
         tags.classifier_tags.multi_class = False
-        # Binary classifier: y is required and sparse X is unsupported.
         tags.target_tags.required = True
         tags.input_tags.sparse = False
         tags.non_deterministic = False
