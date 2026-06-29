@@ -1,6 +1,10 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "scikit-opls"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Orthogonal PLS (OPLS / OPLS-DA) with a scikit-learn interface"
 readme = "README.md"
 requires-python = ">=3.12"
@@ -39,15 +43,25 @@ dev = [
     "zensical>=0.0.46",
 ]
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+[tool.hatch.version]
+path = "src/scikit_opls/version.py"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/scikit_opls"]
 
+[tool.hatch.build.targets.sdist]
+include = [
+    "src/scikit_opls",
+    "tests",
+    "docs",
+    "LICENSE",
+    "README.md",
+    "CHANGES.md",
+    "pyproject.toml",
+]
+
 [tool.ruff]
-# scratch/ is out of scope (see CLAUDE.md) and never linted.
+# scratch/ is out of scope and never linted.
 extend-exclude = ["scratch"]
 # Lint/format against the support floor, not the local 3.13 interpreter, so
 # pyupgrade-style fixes never introduce 3.13-only syntax.
@@ -90,6 +104,6 @@ exclude_lines = [
 ]
 
 [tool.pyright]
-# Type-check against the support floor. We develop on 3.13 (see .python-version)
-# but the package supports 3.12+, so pin the analysis to catch 3.13-only APIs.
+# Type-check against the support floor. We develop on 3.13 locally, but the
+# package supports 3.12+, so pin the analysis to catch 3.13-only APIs.
 pythonVersion = "3.12"

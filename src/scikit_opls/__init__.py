@@ -3,8 +3,7 @@
 from scikit_opls._o2pls import O2PLS
 from scikit_opls._opls import OPLS
 from scikit_opls._opls_da import OPLSDA
-
-__version__ = "0.1.0"
+from scikit_opls.version import __version__
 
 __all__ = [
     "O2PLS",
