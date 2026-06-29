@@ -56,6 +56,12 @@ and default-value changes will be documented here.
 
 ### Added
 
+- `O2PLS`, a dense two-block O2PLS estimator with X/Y preprocessing, sequential
+  X- and Y-orthogonal filtering, final joint-subspace re-estimation, and
+  bidirectional `predict` / `predict_x` methods. The v1 implementation is dense
+  only and exposes `coef_filtered_` for scaled, X-filtered inputs rather than a
+  raw-space `coef_` alias.
+
 - `OPLS.coef_raw_` / `OPLS.intercept_raw_`: linear coefficients on the original raw
   input feature space, collapsing scaling, the orthogonal filter and the predictive
   PLS into one map, so `X @ coef_raw_.T + intercept_raw_` reproduces `predict(X)`.

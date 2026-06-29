@@ -105,8 +105,9 @@ def test_invalid_n_orthogonal_raises(bad):
         OPLS(n_orthogonal=bad).fit(X, y)
 
 
-def test_clone_and_params():
-    model = OPLS(n_components=2, n_orthogonal=3, scale="pareto")
+@pytest.mark.parametrize("scale", ["standard", "pareto"])
+def test_clone_and_params(scale):
+    model = OPLS(n_components=2, n_orthogonal=3, scale=scale)
     cloned = clone(model)
     assert isinstance(cloned, OPLS)
     assert cloned.get_params() == model.get_params()
@@ -281,7 +282,7 @@ def test_opls_multi_component_parity():
     # PLSRegression(n_components=2, scale=False) after standard preprocessing.
     X, y = _regression_data(seed=42)
 
-    opls = OPLS(n_components=2, n_orthogonal=0, scale="pareto").fit(X, y)
+    opls = OPLS(n_components=2, n_orthogonal=0).fit(X, y)
 
     # manual preprocess
     from scikit_opls._preprocessing import apply_scaling
