@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
+from numbers import Integral
 
 import numpy as np
 from numpy.typing import NDArray
@@ -71,6 +72,34 @@ def _effective_rank(s: NDArray[np.float64], tol: float) -> int:
     return int(np.sum(singular_values > tol * singular_values[0]))
 
 
+def _validate_positive_int(name: str, value: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise TypeError(f"{name} must be an integer, got {type(value).__name__}.")
+    if value < 1:
+        raise ValueError(f"{name} must be >= 1, got {value}.")
+    return int(value)
+
+
+def _validate_nonnegative_int(name: str, value: int) -> int:
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise TypeError(f"{name} must be an integer, got {type(value).__name__}.")
+    if value < 0:
+        raise ValueError(f"{name} must be >= 0, got {value}.")
+    return int(value)
+
+
+def _validate_tol(tol: float) -> float:
+    try:
+        tol = float(tol)
+    except (TypeError, ValueError) as exc:
+        raise TypeError(
+            f"tol must be a positive finite float, got {type(tol).__name__}."
+        ) from exc
+    if not np.isfinite(tol) or tol <= 0.0:
+        raise ValueError(f"tol must be a positive finite float, got {tol}.")
+    return tol
+
+
 def _cross_cov_svd_x_to_y(
     Xs: NDArray[np.float64], Ys: NDArray[np.float64], k: int
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
@@ -79,6 +108,7 @@ def _cross_cov_svd_x_to_y(
     Returns X-side weights ``W`` with shape ``(p, k)``, Y-side weights ``C`` with
     shape ``(q, k)``, and all singular values from the thin cross-covariance SVD.
     """
+    k = _validate_nonnegative_int("k", k)
     X = np.asarray(Xs, dtype=np.float64)
     Y = np.asarray(Ys, dtype=np.float64)
     if X.ndim != 2:
@@ -95,20 +125,31 @@ def _cross_cov_svd_x_to_y(
     if not np.all(np.isfinite(Y)):
         raise ValueError("Ys must contain only finite values.")
     max_components = min(X.shape[1], Y.shape[1])
-    if k < 0 or k > max_components:
+    if k > max_components:
         raise ValueError(f"k must be between 0 and {max_components}, got {k}.")
 
-    U, s, Vt = np.linalg.svd(X.T @ Y, full_matrices=False)
+    try:
+        U, s, Vt = np.linalg.svd(X.T @ Y, full_matrices=False)
+    except np.linalg.LinAlgError as exc:
+        raise ValueError("SVD failed while computing X.T @ Y.") from exc
     U, Vt = svd_flip(U, Vt)
     return U[:, :k], Vt[:k].T, s
 
 
-def _lstsq_loadings(
+def _lstsq_map(
     scores: NDArray[np.float64], block: NDArray[np.float64]
 ) -> NDArray[np.float64]:
-    """Least-squares map from score columns to a target block."""
+    """Return the least-squares map B solving scores @ B ≈ block.
+
+    The returned array has shape (n_score_columns, n_block_columns).
+    This is not transposed into a feature-by-component loading matrix.
+    """
     coef, *_ = np.linalg.lstsq(scores, block, rcond=None)
     return coef
+
+
+# Alias for backward compatibility / test suite
+_lstsq_loadings = _lstsq_map
 
 
 def _extract_one_orthogonal_component(
@@ -119,6 +160,7 @@ def _extract_one_orthogonal_component(
     tol: float = _TOL,
 ) -> OrthogonalBlockComponent | None:
     """Extract one sequential O2PLS orthogonal component from ``block``."""
+    tol = _validate_tol(tol)
     X = np.asarray(block, dtype=np.float64)
     T = np.asarray(joint_scores, dtype=np.float64)
     W = np.asarray(joint_weights, dtype=np.float64)
@@ -145,7 +187,7 @@ def _extract_one_orthogonal_component(
         U, s, _ = np.linalg.svd(cross, full_matrices=False)
     except np.linalg.LinAlgError:
         return None
-    if s.size == 0 or s[0] <= tol * max(s[0], 1.0):
+    if s.size == 0 or s[0] <= 0.0:
         return None
 
     weight = U[:, 0]
@@ -260,14 +302,15 @@ def o2pls_fit(
         raise ValueError("Xs must contain only finite values.")
     if not np.all(np.isfinite(Y0)):
         raise ValueError("Ys must contain only finite values.")
-    if n_components < 1:
-        raise ValueError("n_components must be >= 1.")
-    if n_x_orthogonal < 0:
-        raise ValueError("n_x_orthogonal must be >= 0.")
-    if n_y_orthogonal < 0:
-        raise ValueError("n_y_orthogonal must be >= 0.")
+
+    n_components = _validate_positive_int("n_components", n_components)
+    n_x_orthogonal = _validate_nonnegative_int("n_x_orthogonal", n_x_orthogonal)
+    n_y_orthogonal = _validate_nonnegative_int("n_y_orthogonal", n_y_orthogonal)
+    tol = _validate_tol(tol)
 
     n_samples, n_x_features = X0.shape
+    if n_samples < 2:
+        raise ValueError("O2PLS requires at least 2 samples.")
     _, n_y_features = Y0.shape
     max_components = min(n_x_features, n_y_features)
     if n_components > max_components:
@@ -339,8 +382,8 @@ def o2pls_fit(
 
     T = X_work @ W
     U = Y_work @ C
-    B_T = _lstsq_loadings(T, U)
-    B_U = _lstsq_loadings(U, T)
+    B_T = _lstsq_map(T, U)
+    B_U = _lstsq_map(U, T)
 
     X_orth_weights = _stack_columns(x_weights, n_x_features, 0)
     X_orth_scores = _stack_columns(x_scores, n_samples, 0)

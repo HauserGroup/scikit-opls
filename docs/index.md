@@ -11,6 +11,8 @@ cleaned `X`. With `n_orthogonal=0` it reduces exactly to `PLSRegression`.
 ## Highlights
 
 - [`OPLS`](api/opls.md) — regressor and supervised transformer.
+- [`O2PLS`](api/o2pls.md) — two-block joint/orthogonal decomposition with
+  bidirectional prediction.
 - Cross-validated `n_orthogonal` selection via scikit-learn's `GridSearchCV`
   (see [Quickstart](quickstart.md)).
 - [`OPLSDA`](api/opls_da.md) — binary classifier composing `OPLS`.
