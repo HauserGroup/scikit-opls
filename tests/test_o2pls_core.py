@@ -222,6 +222,14 @@ def test_o2pls_low_level_component_count_validation_representative(bad):
     with pytest.raises(TypeError):
         o2pls_fit(X, Y, bad, 0, 0)
 
+    # Negative integer values should raise ValueError
+    with pytest.raises(ValueError, match="k must be >= 0"):
+        _cross_cov_svd_x_to_y(X, Y, -1)
+    with pytest.raises(ValueError, match="n_components must be >= 1"):
+        o2pls_fit(X, Y, 0, 0, 0)
+    with pytest.raises(ValueError, match="n_x_orthogonal must be >= 0"):
+        o2pls_fit(X, Y, 1, -1, 0)
+
 
 def test_o2pls_fit_requires_two_samples():
     rng = np.random.default_rng(0)
@@ -229,3 +237,30 @@ def test_o2pls_fit_requires_two_samples():
     Y = rng.normal(size=(1, 3))
     with pytest.raises(ValueError, match="at least 2 samples"):
         o2pls_fit(X, Y, 1, 0, 0)
+
+
+def test_o2pls_validate_tol_rejects_nonpositive_or_nonfinite():
+    """Verify that _validate_tol rejects non-positive or non-finite values."""
+    from scikit_opls._o2pls_core import _validate_tol
+
+    for bad in [-0.5, 0.0, np.nan, np.inf]:
+        with pytest.raises(ValueError, match="tol"):
+            _validate_tol(bad)
+
+    for bad_type in [[1.0], "abc"]:
+        with pytest.raises(TypeError, match="tol must be a positive finite float"):
+            _validate_tol(bad_type)
+
+
+def test_lstsq_map_extra_validation():
+    """Verify extra validations in _lstsq_map helper."""
+    scores = np.ones((5, 2))
+    block = np.ones((5, 3))
+    # mismatched row counts
+    with pytest.raises(ValueError, match="row count"):
+        _lstsq_map(scores[1:], block)
+    # non-finite block
+    block_bad = block.copy()
+    block_bad[0, 0] = np.inf
+    with pytest.raises(ValueError, match="block must contain only finite values"):
+        _lstsq_map(scores, block_bad)

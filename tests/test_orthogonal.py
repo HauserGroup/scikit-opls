@@ -309,3 +309,36 @@ def test_orthogonal_filter_accepts_array_like():
     y = [1.0, 2.0, 3.0]
     out = opls_filter(X, y, 1)
     assert out.x_filtered.shape == (3, 2)
+
+
+def test_predictive_weight_svd_failure_raises_clear_value_error(monkeypatch):
+    """Verify that SVD failure raises ValueError."""
+    X = np.random.default_rng(0).normal(size=(10, 5))
+    Y = np.random.default_rng(1).normal(size=(10, 2))
+    import scikit_opls._orthogonal as ort
+
+    def fail_svd(*args, **kwargs):
+        raise np.linalg.LinAlgError("mock failure")
+
+    monkeypatch.setattr(ort.np.linalg, "svd", fail_svd)
+    with pytest.raises(ValueError, match="SVD failed"):
+        predictive_weight(X, Y)
+
+
+def test_orthogonal_filter_nonfinite_direction_raises():
+    """Verify that a non-finite predictive direction raises ValueError."""
+    X = np.random.default_rng(0).normal(size=(10, 5))
+    with pytest.raises(
+        ValueError, match="predictive_direction must contain only finite values"
+    ):
+        orthogonal_filter(X, np.array([1.0, np.nan, 1.0, 1.0, 1.0]), 1)
+
+
+def test_orthogonal_filter_tt_threshold_early_exit():
+    """Verify orthogonal_filter early exit on zero score variance."""
+    X = np.random.default_rng(0).normal(size=(10, 5))
+    # Make direction completely orthogonal to X (by zeroing first column)
+    X[:, 0] = 0.0
+    direction = np.array([1.0, 0.0, 0.0, 0.0, 0.0])
+    res = orthogonal_filter(X, direction, 1)
+    assert res.x_ortho_scores.shape[1] == 0

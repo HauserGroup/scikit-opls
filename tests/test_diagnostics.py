@@ -333,3 +333,24 @@ def test_oplsda_diagnostics_expect_raw_x_not_prescaled_x():
         model.q_residuals(X),
         model.q_residuals(X_scaled),
     )
+
+
+def test_component_r2_from_cumulative_empty_and_differences():
+    """Verify component_r2_from_cumulative with empty and non-empty inputs."""
+    from scikit_opls._inspection import component_r2_from_cumulative
+
+    assert component_r2_from_cumulative(np.array([])).shape == (0,)
+    np.testing.assert_allclose(
+        component_r2_from_cumulative(np.array([0.2, 0.5, 0.8])),
+        [0.2, 0.3, 0.3],
+    )
+
+
+def test_cumulative_r2_from_residuals_decreases_with_smaller_residuals():
+    """Verify cumulative_r2_from_residuals decreases as residuals decrease."""
+    from scikit_opls._inspection import cumulative_r2_from_residuals
+
+    X = np.eye(4)
+    out = cumulative_r2_from_residuals(X, [0.5 * X, 0.1 * X])
+    assert out[1] > out[0]
+    assert np.all((0.0 <= out) & (out <= 1.0))
