@@ -35,9 +35,20 @@ features = [
     "navigation.tabs",
     "navigation.sections",
     "navigation.top",
+    "navigation.indexes",
+    "navigation.footer",
+    "navigation.instant",
+    "navigation.tracking",
+    "navigation.path",
     "content.code.copy",
+    "content.code.annotate",
+    "content.code.select",
+    "content.tabs.link",
+    "content.tooltips",
     "search.suggest",
     "search.highlight",
+    "content.action.edit",
+    "content.action.view",
 ]
 
 [[project.theme.palette]]

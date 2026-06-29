@@ -59,6 +59,7 @@ def _orthogonal_filter_matrix(
     eye = np.eye(n_features, dtype=np.float64)
     F = eye.copy()
     for i in range(W.shape[1]):
+        # Compose filters in the same order they were fitted and replayed.
         F = F @ (eye - np.outer(W[:, i], P[:, i]))
     return F
 
@@ -87,9 +88,11 @@ def _compose_raw_coefficients(
     b_filtered = coef_arr.T
 
     f_matrix = _orthogonal_filter_matrix(x_ortho_weights, x_ortho_loadings)
+    # First collapse the sequential orthogonal filter into scaled feature space.
     b_scaled = f_matrix @ b_filtered
 
     inv_scale = 1.0 / np.asarray(x_std, dtype=np.float64)
+    # Then fold in the original column scaling to obtain raw-X coefficients.
     b_raw = inv_scale[:, None] * b_scaled
 
     offset_scaled = np.asarray(x_mean, dtype=np.float64) * inv_scale
@@ -236,6 +239,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self : OPLS
             The fitted estimator.
         """
+        # Refits must invalidate lazily cached VIP arrays because fitted weights may
+        # change even when the same Python estimator instance is reused.
         for _attr in ("_vip_", "_ortho_vip_"):
             self.__dict__.pop(_attr, None)
         if isinstance(self.n_components, bool):
@@ -261,10 +266,14 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
         self.x_mean_, self.x_std_ = compute_scaling(X, self.scale)
         Xs = apply_scaling(X, self.x_mean_, self.x_std_)
+        # The predictive direction and downstream PLS model both require resolvable
+        # variation after preprocessing.
         if not _has_nonzero_variation(Xs, axis=0):
             raise ValueError("X has no non-zero variation after preprocessing.")
 
         # opls_filter handles n_orthogonal=0 (pass-through) and truncation itself.
+        # y is centered only for direction extraction; the predictive PLS engine
+        # below still fits against the original y scale.
         ofit = opls_filter(Xs, y - y.mean(), self.n_orthogonal)
         X_filtered = ofit.x_filtered
         if not _has_nonzero_variation(X_filtered, axis=0):
@@ -287,6 +296,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.x_ortho_scores_ = ofit.x_ortho_scores
         self.n_orthogonal_ = ofit.n_components
 
+        # The sklearn PLS engine sees only the preprocessed, orthogonally filtered X.
         self.pls_ = PLSRegression(n_components=self.n_components, scale=False)
         self.pls_.fit(X_filtered, y)
         # transform() returns the predictive scores: one output column per component.
@@ -315,6 +325,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             self.x_ortho_loadings_,
         )
 
+        # Diagnostics are computed on the training data in the same coordinate
+        # systems exposed by the fitted attributes.
         y_fit = self.pls_.predict(X_filtered)
         self.r2x_ = explained_x_variance(Xs, self.x_scores_, self.x_loadings_)
         self.r2x_ortho_ = explained_x_variance(
@@ -338,6 +350,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Predicted target values.
         """
         check_is_fitted(self)
+        # Reuse the same preprocessing/filtering path as transform() so prediction
+        # matches the fitted PLS coordinate system.
         X_filtered, _ = self._filter(X)
         return self.pls_.predict(X_filtered).ravel()
 
@@ -410,6 +424,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self)
         if not hasattr(self, "_vip_"):
+            # Cache on first access; fit() clears this attribute before refitting.
             self._vip_ = predictive_vip(
                 self.x_weights_, self.x_scores_, self.y_loadings_
             )
@@ -423,6 +438,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self)
         if not hasattr(self, "_ortho_vip_"):
+            # Cache on first access; fit() clears this attribute before refitting.
             self._ortho_vip_ = orthogonal_vip(
                 self.x_ortho_weights_, self.x_ortho_scores_, self.x_ortho_loadings_
             )
@@ -484,6 +500,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """
         X = validate_data(self, X, reset=False, dtype=np.float64)
         Xs = apply_scaling(X, self.x_mean_, self.x_std_)
+        # apply_orthogonal_filter returns both the filtered matrix for prediction
+        # and the replayed orthogonal scores for transform_orthogonal().
         return apply_orthogonal_filter(
             Xs, self.x_ortho_weights_, self.x_ortho_loadings_
         )
