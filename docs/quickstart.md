@@ -38,6 +38,10 @@ model.transform_y(Y)   # Y-side joint scores
 `O2PLS.coef_filtered_` maps scaled, X-orthogonally-filtered `X` to scaled
 predicted `Y`; it is not a raw-space sklearn `coef_` alias. The joint loadings use
 the O2PLS orthonormal convention, so joint loadings equal joint weights.
+Requested orthogonal components may be truncated with a `ConvergenceWarning` when
+the enlarged preliminary subspace leaves no numerically resolvable block-specific
+residual variation, especially when the requested component total approaches a
+block's rank or feature dimension.
 
 ## Choosing `n_orthogonal` by cross-validation
 

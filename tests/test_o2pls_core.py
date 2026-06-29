@@ -94,6 +94,26 @@ def test_lstsq_map_matches_numpy_lstsq():
     assert_allclose(_lstsq_map(scores, block), expected)
 
 
+def test_lstsq_map_validates_shapes_and_finite_values():
+    scores = np.ones((5, 2))
+    block = np.ones((5, 3))
+
+    with pytest.raises(ValueError, match="2D"):
+        _lstsq_map(scores[:, 0], block)
+    with pytest.raises(ValueError, match="same row count"):
+        _lstsq_map(scores, block[:-1])
+
+    scores_bad = scores.copy()
+    scores_bad[0, 0] = np.nan
+    with pytest.raises(ValueError, match="scores"):
+        _lstsq_map(scores_bad, block)
+
+    block_bad = block.copy()
+    block_bad[0, 0] = np.inf
+    with pytest.raises(ValueError, match="block"):
+        _lstsq_map(scores, block_bad)
+
+
 def test_replay_zero_components_returns_2d_empty_scores():
     rng = np.random.default_rng(2)
     X = rng.normal(size=(12, 4))

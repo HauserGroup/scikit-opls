@@ -80,6 +80,15 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     r2x_, r2y_, r2x_ortho_, r2y_ortho_ : float
         Training-set diagnostic sum-of-squares ratios on preprocessed blocks.
         These are not guaranteed additive variance partitions.
+
+    Notes
+    -----
+    Requested orthogonal components may be truncated with a
+    :class:`sklearn.exceptions.ConvergenceWarning` when the enlarged preliminary
+    subspace leaves no numerically resolvable block-specific residual variation.
+    This is most common when
+    ``n_components + max(n_x_orthogonal, n_y_orthogonal)`` approaches the rank or
+    feature dimension of one block.
     """
 
     n_features_in_: int
@@ -141,7 +150,22 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.copy = copy
 
     def fit(self, X: ArrayLike, Y: ArrayLike) -> O2PLS:
-        """Fit the O2PLS model."""
+        """Fit the O2PLS model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training vectors, where `n_samples` is the number of samples and
+            `n_features` is the number of predictors.
+        Y : array-like of shape (n_samples, n_targets)
+            Target vectors, where `n_samples` is the number of samples and
+            `n_targets` is the number of response variables.
+
+        Returns
+        -------
+        self : object
+            Fitted estimator.
+        """
         if isinstance(self.n_components, bool):
             raise ValueError("n_components must be an integer, not bool.")
         if isinstance(self.n_x_orthogonal, bool):
@@ -220,7 +244,18 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return self
 
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Predict Y from X, reconstructing only the joint Y structure."""
+        """Predict Y from X, reconstructing only the joint Y structure.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to predict.
+
+        Returns
+        -------
+        y_pred : ndarray of shape (n_samples, n_targets)
+            Predicted values reconstructed from the joint X structure.
+        """
         check_is_fitted(self)
         X_filtered = self.filter_transform_x(X)
         y_scaled = X_filtered @ self.coef_filtered_
@@ -228,7 +263,18 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return self._restore_y_shape(y_pred)
 
     def predict_x(self, Y: ArrayLike) -> NDArray[np.float64]:
-        """Predict X from Y, reconstructing only the joint X structure."""
+        """Predict X from Y, reconstructing only the joint X structure.
+
+        Parameters
+        ----------
+        Y : array-like of shape (n_samples, n_targets)
+            Target samples.
+
+        Returns
+        -------
+        x_pred : ndarray of shape (n_samples, n_features)
+            Predicted X values reconstructed from the joint Y structure.
+        """
         check_is_fitted(self)
         Y_filtered = self.filter_transform_y(Y)
         U = Y_filtered @ self.y_joint_weights_
@@ -237,43 +283,135 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return x_scaled * self.x_std_ + self.x_mean_
 
     def transform(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Return X-side joint scores after replaying the fitted X-orthogonal filter."""
+        """Return X-side joint scores after replaying the fitted X-orthogonal filter.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to transform.
+
+        Returns
+        -------
+        X_scores : ndarray of shape (n_samples, n_components)
+            Joint X scores on the filtered blocks.
+        """
         check_is_fitted(self)
         return self.filter_transform_x(X) @ self.x_joint_weights_
 
     def transform_y(self, Y: ArrayLike) -> NDArray[np.float64]:
-        """Return Y-side joint scores after replaying the fitted Y-orthogonal filter."""
+        """Return Y-side joint scores after replaying the fitted Y-orthogonal filter.
+
+        Parameters
+        ----------
+        Y : array-like of shape (n_samples, n_targets)
+            Targets to transform.
+
+        Returns
+        -------
+        Y_scores : ndarray of shape (n_samples, n_components)
+            Joint Y scores on the filtered blocks.
+        """
         check_is_fitted(self)
         return self.filter_transform_y(Y) @ self.y_joint_weights_
 
     def transform_pair(
         self, X: ArrayLike, Y: ArrayLike
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Return ``(transform(X), transform_y(Y))``."""
+        """Return ``(transform(X), transform_y(Y))``.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to transform.
+        Y : array-like of shape (n_samples, n_targets)
+            Targets to transform.
+
+        Returns
+        -------
+        X_scores : ndarray of shape (n_samples, n_components)
+            Joint X scores on the filtered blocks.
+        Y_scores : ndarray of shape (n_samples, n_components)
+            Joint Y scores on the filtered blocks.
+        """
         return self.transform(X), self.transform_y(Y)
 
     def transform_orthogonal_x(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Return sequential X-specific orthogonal scores."""
+        """Return sequential X-specific orthogonal scores.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to transform.
+
+        Returns
+        -------
+        X_orth_scores : ndarray of shape (n_samples, n_x_orthogonal)
+            Orthogonal X scores.
+        """
         check_is_fitted(self)
         return self._filter_x(X)[1]
 
     def transform_orthogonal_y(self, Y: ArrayLike) -> NDArray[np.float64]:
-        """Return sequential Y-specific orthogonal scores."""
+        """Return sequential Y-specific orthogonal scores.
+
+        Parameters
+        ----------
+        Y : array-like of shape (n_samples, n_targets)
+            Targets to transform.
+
+        Returns
+        -------
+        Y_orth_scores : ndarray of shape (n_samples, n_y_orthogonal)
+            Orthogonal Y scores.
+        """
         check_is_fitted(self)
         return self._filter_y(Y)[1]
 
     def filter_transform_x(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Return preprocessed X after the fitted X-orthogonal filter."""
+        """Return preprocessed X after the fitted X-orthogonal filter.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to filter.
+
+        Returns
+        -------
+        X_filtered : ndarray of shape (n_samples, n_features)
+            Filtered X block.
+        """
         check_is_fitted(self)
         return self._filter_x(X)[0]
 
     def filter_transform_y(self, Y: ArrayLike) -> NDArray[np.float64]:
-        """Return preprocessed Y after the fitted Y-orthogonal filter."""
+        """Return preprocessed Y after the fitted Y-orthogonal filter.
+
+        Parameters
+        ----------
+        Y : array-like of shape (n_samples, n_targets)
+            Targets to filter.
+
+        Returns
+        -------
+        Y_filtered : ndarray of shape (n_samples, n_targets)
+            Filtered Y block.
+        """
         check_is_fitted(self)
         return self._filter_y(Y)[0]
 
     def get_feature_names_out(self, input_features=None) -> NDArray[np.object_]:
-        """Output names for :meth:`transform` joint-score columns."""
+        """Output names for :meth:`transform` joint-score columns.
+
+        Parameters
+        ----------
+        input_features : array-like of str or None, default=None
+            Input features.
+
+        Returns
+        -------
+        feature_names_out : ndarray of str objects
+            Transformed feature names.
+        """
         check_is_fitted(self, "n_features_out_")
         _check_feature_names_in(self, input_features)
         return np.asarray(
@@ -281,7 +419,22 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         )
 
     def score(self, X: ArrayLike, y: ArrayLike, sample_weight=None) -> float:
-        """Coefficient of determination R² of ``predict(X)`` against ``y``."""
+        """Coefficient of determination R² of ``predict(X)`` against ``y``.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Test samples.
+        y : array-like of shape (n_samples, n_targets)
+            True values for X.
+        sample_weight : array-like of shape (n_samples,), default=None
+            Sample weights.
+
+        Returns
+        -------
+        score : float
+            R² of ``self.predict(X)`` wrt. `y`.
+        """
         return float(r2_score(y, self.predict(X), sample_weight=sample_weight))
 
     @staticmethod

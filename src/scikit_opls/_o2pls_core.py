@@ -105,8 +105,23 @@ def _cross_cov_svd_x_to_y(
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """SVD of ``Xs.T @ Ys`` with paired deterministic signs.
 
-    Returns X-side weights ``W`` with shape ``(p, k)``, Y-side weights ``C`` with
-    shape ``(q, k)``, and all singular values from the thin cross-covariance SVD.
+    Parameters
+    ----------
+    Xs : ndarray of shape (n_samples, n_x_features)
+        Scaled X block.
+    Ys : ndarray of shape (n_samples, n_y_features)
+        Scaled Y block.
+    k : int
+        Number of components to compute.
+
+    Returns
+    -------
+    W : ndarray of shape (n_x_features, k)
+        X-side weights.
+    C : ndarray of shape (n_y_features, k)
+        Y-side weights.
+    s : ndarray
+        Singular values from the thin cross-covariance SVD.
     """
     k = _validate_nonnegative_int("k", k)
     X = np.asarray(Xs, dtype=np.float64)
@@ -143,7 +158,29 @@ def _lstsq_map(
 
     The returned array has shape (n_score_columns, n_block_columns).
     This is not transposed into a feature-by-component loading matrix.
+
+    Parameters
+    ----------
+    scores : ndarray of shape (n_samples, n_score_columns)
+        Predictor scores.
+    block : ndarray of shape (n_samples, n_block_columns)
+        Target block.
+
+    Returns
+    -------
+    coef : ndarray of shape (n_score_columns, n_block_columns)
+        Least-squares coefficient matrix.
     """
+    scores = np.asarray(scores, dtype=np.float64)
+    block = np.asarray(block, dtype=np.float64)
+    if scores.ndim != 2 or block.ndim != 2:
+        raise ValueError("scores and block must be 2D.")
+    if scores.shape[0] != block.shape[0]:
+        raise ValueError("scores and block must have the same row count.")
+    if not np.all(np.isfinite(scores)):
+        raise ValueError("scores must contain only finite values.")
+    if not np.all(np.isfinite(block)):
+        raise ValueError("block must contain only finite values.")
     coef, *_ = np.linalg.lstsq(scores, block, rcond=None)
     return coef
 
@@ -155,7 +192,31 @@ def _extract_one_orthogonal_component(
     *,
     tol: float = _TOL,
 ) -> OrthogonalBlockComponent | None:
-    """Extract one sequential O2PLS orthogonal component from ``block``."""
+    """Extract one sequential O2PLS orthogonal component from ``block``.
+
+    The residual first removes the enlarged preliminary joint subspace from the
+    current block. The leading left singular vector of
+    ``residual.T @ joint_scores`` gives the feature-space direction of
+    block-specific variation most associated with the preliminary joint score
+    space. The resulting score/loading pair is deflated from the current block
+    and stored so the same sequential filter can be replayed on new data.
+
+    Parameters
+    ----------
+    block : ndarray of shape (n_samples, n_features)
+        Current data block to deflate.
+    joint_scores : ndarray of shape (n_samples, n_components)
+        Preliminary joint scores.
+    joint_weights : ndarray of shape (n_features, n_components)
+        Preliminary joint weights.
+    tol : float, default=_TOL
+        Tolerance for numerical rank and variance deflation.
+
+    Returns
+    -------
+    component : OrthogonalBlockComponent or None
+        The extracted component, or None if no resolvable variation remains.
+    """
     tol = _validate_tol(tol)
     X = np.asarray(block, dtype=np.float64)
     T = np.asarray(joint_scores, dtype=np.float64)
@@ -221,7 +282,24 @@ def _replay_orthogonal_filter(
     weights: NDArray[np.float64],
     loadings: NDArray[np.float64],
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """Replay stored sequential orthogonal deflation on ``block``."""
+    """Replay stored sequential orthogonal deflation on ``block``.
+
+    Parameters
+    ----------
+    block : ndarray of shape (n_samples, n_features)
+        Scaled data block to filter.
+    weights : ndarray of shape (n_features, n_orthogonal)
+        Fitted orthogonal weights.
+    loadings : ndarray of shape (n_features, n_orthogonal)
+        Fitted orthogonal loadings.
+
+    Returns
+    -------
+    filtered : ndarray of shape (n_samples, n_features)
+        Deflated data block.
+    scores : ndarray of shape (n_samples, n_orthogonal)
+        Orthogonal scores computed during deflation.
+    """
     X = np.asarray(block, dtype=np.float64)
     W = np.asarray(weights, dtype=np.float64)
     P = np.asarray(loadings, dtype=np.float64)
@@ -282,7 +360,28 @@ def o2pls_fit(
     *,
     tol: float = _TOL,
 ) -> O2PLSComponents:
-    """Fit dense O2PLS components on already preprocessed blocks."""
+    """Fit dense O2PLS components on already preprocessed blocks.
+
+    Parameters
+    ----------
+    Xs : ndarray of shape (n_samples, n_x_features)
+        Preprocessed X block.
+    Ys : ndarray of shape (n_samples, n_y_features)
+        Preprocessed Y block.
+    n_components : int
+        Number of joint components.
+    n_x_orthogonal : int
+        Number of X-specific orthogonal components.
+    n_y_orthogonal : int
+        Number of Y-specific orthogonal components.
+    tol : float, default=_TOL
+        Numerical tolerance.
+
+    Returns
+    -------
+    fit : O2PLSComponents
+        Dataclass containing all fitted matrices and diagnostics.
+    """
     X0 = np.asarray(Xs, dtype=np.float64)
     Y0 = np.asarray(Ys, dtype=np.float64)
     if X0.ndim != 2:

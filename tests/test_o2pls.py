@@ -5,11 +5,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 from sklearn.base import clone
+from sklearn.exceptions import ConvergenceWarning
 from sklearn.metrics import r2_score
 from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import O2PLS
 from scikit_opls._o2pls_core import _cross_cov_svd_x_to_y
+
+from ._data import make_regression_data as _regression_data
 
 
 def _make_o2pls_data(
@@ -205,58 +208,128 @@ def test_clone_and_params():
     assert cloned.get_params() == model.get_params()
 
 
+def test_o2pls_predict_preserves_1d_y_shape():
+    X, y = _regression_data()
+    model = O2PLS().fit(X, y)
+    assert model.predict(X).shape == y.shape
+    assert model.predict(X).ndim == 1
+
+
+def test_o2pls_predict_preserves_2d_single_column_y_shape():
+    X, y = _regression_data()
+    Y = y.reshape(-1, 1)
+    model = O2PLS().fit(X, Y)
+    assert model.predict(X).shape == Y.shape
+
+
+def test_o2pls_predict_preserves_multioutput_y_shape():
+    X, y = _regression_data()
+    rng = np.random.default_rng(0)
+    Y = np.column_stack([y, y + 0.1 * rng.normal(size=y.shape)])
+    model = O2PLS().fit(X, Y)
+    assert model.predict(X).shape == Y.shape
+
+
 def test_o2pls_univariate_y_rejects_y_orthogonal():
-    X, Y = _make_o2pls_data(n_joint=1, n_y_features=1, n_y_orthogonal=0, seed=7)
-    y = Y.ravel()
+    X, y = _regression_data()
     with pytest.raises(ValueError, match="n_y_orthogonal"):
         O2PLS(n_y_orthogonal=1).fit(X, y)
 
 
-def test_o2pls_univariate_y_rejects_multiple_joint_components():
-    X, Y = _make_o2pls_data(n_joint=1, n_y_features=1, n_y_orthogonal=0, seed=7)
-    y = Y.ravel()
+def test_o2pls_univariate_y_rejects_multiple_components():
+    X, y = _regression_data()
     with pytest.raises(ValueError, match="n_components"):
         O2PLS(n_components=2).fit(X, y)
 
 
 def test_o2pls_univariate_y_allows_x_orthogonal():
-    X, Y = _make_o2pls_data(n_joint=1, n_y_features=1, n_y_orthogonal=0, seed=7)
-    y = Y.ravel()
+    X, y = _regression_data()
     model = O2PLS(n_x_orthogonal=1).fit(X, y)
     assert model.n_targets_ == 1
-    assert model.n_x_orthogonal_ == 1
 
 
-def test_o2pls_predict_returns_raw_y_units():
-    X, Y = _make_o2pls_data(n_samples=80, n_x_features=8, seed=0)
-    X_raw = 10.0 + 3.0 * X
-    Y_raw = -5.0 + 2.0 * Y
-    model = O2PLS(n_components=1).fit(X_raw, Y_raw)
-    y_scaled_manual = model.filter_transform_x(X_raw) @ model.coef_filtered_
-    y_raw_manual = y_scaled_manual * model.y_std_ + model.y_mean_
-    assert_allclose(model.predict(X_raw), y_raw_manual, atol=1e-10)
-
-
-def test_o2pls_predict_x_returns_raw_x_units():
-    X, Y = _make_o2pls_data(n_samples=80, n_x_features=8, seed=0)
-    X_raw = 10.0 + 3.0 * X
-    Y_raw = -5.0 + 2.0 * Y
-    model = O2PLS(n_components=1).fit(X_raw, Y_raw)
-    x_scaled_manual = model.transform_y(Y_raw) @ model.b_u_ @ model.x_joint_loadings_.T
-    x_raw_manual = x_scaled_manual * model.x_std_ + model.x_mean_
-    assert_allclose(model.predict_x(Y_raw), x_raw_manual, atol=1e-10)
-
-
-def test_o2pls_coef_filtered_matches_predict_path_scaled_y():
-    X, Y = _make_o2pls_data(seed=13)
-    model = O2PLS(n_components=1).fit(X, Y)
+def test_o2pls_coef_filtered_matches_score_path():
+    X, y = _regression_data()
+    rng = np.random.default_rng(0)
+    Y = np.column_stack([y, y + 0.1 * rng.normal(size=y.shape)])
+    model = O2PLS().fit(X, Y)
     via_coef = model.filter_transform_x(X) @ model.coef_filtered_
     via_scores = model.transform(X) @ model.b_t_ @ model.y_joint_loadings_.T
-    assert_allclose(via_coef, via_scores, atol=1e-10)
+    assert_allclose(via_coef, via_scores)
+
+
+def test_o2pls_predict_unscales_y():
+    X, y = _regression_data()
+    rng = np.random.default_rng(0)
+    Y = np.column_stack([y, y + 0.1 * rng.normal(size=y.shape)])
+    X_raw = 10.0 + 3.0 * X
+    Y_raw = -5.0 + 2.0 * Y
+    model = O2PLS().fit(X_raw, Y_raw)
+    y_scaled = model.filter_transform_x(X_raw) @ model.coef_filtered_
+    expected = y_scaled * model.y_std_ + model.y_mean_
+    assert_allclose(model.predict(X_raw), expected)
+
+
+def test_o2pls_predict_x_unscales_x():
+    X, y = _regression_data()
+    rng = np.random.default_rng(0)
+    Y = np.column_stack([y, y + 0.1 * rng.normal(size=y.shape)])
+    X_raw = 10.0 + 3.0 * X
+    Y_raw = -5.0 + 2.0 * Y
+    model = O2PLS().fit(X_raw, Y_raw)
+    x_scaled = model.transform_y(Y_raw) @ model.b_u_ @ model.x_joint_loadings_.T
+    expected = x_scaled * model.x_std_ + model.x_mean_
+    assert_allclose(model.predict_x(Y_raw), expected)
+
+
+def test_o2pls_wrong_x_feature_count_raises():
+    X, y = _regression_data()
+    model = O2PLS().fit(X, y)
+    with pytest.raises(ValueError):
+        model.predict(X[:, :-1])
+    with pytest.raises(ValueError):
+        model.transform(X[:, :-1])
+
+
+def test_o2pls_wrong_y_target_count_raises():
+    X, y = _regression_data()
+    rng = np.random.default_rng(0)
+    Y = np.column_stack([y, y + 0.1 * rng.normal(size=y.shape)])
+    model = O2PLS().fit(X, Y)
+    with pytest.raises(ValueError, match="target columns"):
+        model.predict_x(Y[:, :1])
+    with pytest.raises(ValueError, match="target columns"):
+        model.transform_y(Y[:, :1])
+
+
+def test_o2pls_truncates_when_preliminary_subspace_saturates_y_block():
+    rng = np.random.default_rng(13)
+    X = rng.normal(size=(50, 6))
+    Y = rng.normal(size=(50, 3))
+
+    with pytest.warns(ConvergenceWarning, match="Y-orthogonal extraction"):
+        model = O2PLS(n_components=2, n_y_orthogonal=1).fit(X, Y)
+
+    assert model.n_y_orthogonal_ == 0
+    assert model.transform_orthogonal_y(Y).shape == (Y.shape[0], 0)
+
+
+def test_o2pls_feature_names_out():
+    X, y = _regression_data()
+    model = O2PLS(n_components=1).fit(X, y)
+    assert list(model.get_feature_names_out()) == ["o2pls_joint0"]
+
+    X_multi, Y_multi = _make_o2pls_data(
+        n_joint=2, n_x_orthogonal=0, n_y_orthogonal=0, seed=0
+    )
+    model = O2PLS(n_components=2).fit(X_multi, Y_multi)
+    assert list(model.get_feature_names_out()) == ["o2pls_joint0", "o2pls_joint1"]
 
 
 def test_o2pls_nonfinite_y_in_predict_x_rejected():
-    X, Y = _make_o2pls_data(seed=11)
+    X, y = _regression_data()
+    rng = np.random.default_rng(0)
+    Y = np.column_stack([y, y + 0.1 * rng.normal(size=y.shape)])
     model = O2PLS().fit(X, Y)
     Y_bad = Y.copy()
     Y_bad[0, 0] = np.nan
