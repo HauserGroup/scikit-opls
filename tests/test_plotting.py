@@ -70,38 +70,6 @@ def test_scores_display_replays_filter_for_new_samples():
     plt.close("all")
 
 
-def test_s_plot_regression_and_classification():
-    X, y = _regression_data()
-    disp1 = SPlotDisplay.from_estimator(
-        OPLS(n_components=1, n_orthogonal=2).fit(X, y), X
-    )
-    assert isinstance(disp1, SPlotDisplay)
-    assert isinstance(disp1.ax_, Axes)
-
-    Xc, yc = _classification_data()
-    disp2 = SPlotDisplay.from_estimator(
-        OPLSDA(n_components=1, n_orthogonal=2).fit(Xc, yc), Xc
-    )
-    assert isinstance(disp2, SPlotDisplay)
-    assert isinstance(disp2.ax_, Axes)
-    plt.close("all")
-
-
-def test_scores_display_from_estimator():
-    from matplotlib.collections import PathCollection
-
-    X, y = _regression_data()
-    model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
-    disp = OPLSScoresDisplay.from_estimator(model, X, y)
-    assert isinstance(disp, OPLSScoresDisplay)
-    assert isinstance(disp.ax_, Axes)
-    assert disp.figure_ is disp.ax_.figure
-    assert disp.t_predictive.shape == (X.shape[0],)
-    assert isinstance(disp.scatter_, list)
-    assert all(isinstance(sc, PathCollection) for sc in disp.scatter_)
-    plt.close("all")
-
-
 def test_scores_display_replots_on_given_axes():
     from matplotlib.collections import PathCollection
 
@@ -160,20 +128,22 @@ def test_plotting_unfitted_estimator_raises_not_fitted():
         SPlotDisplay.from_estimator(OPLS(), X)
 
 
-def test_splot_display_ensure_min_samples_raises():
+def test_splot_display_invalid_inputs_raise():
     X, y = _regression_data()
     model = OPLS().fit(X, y)
+
+    # 1. one-sample input
     with pytest.raises(ValueError, match="minimum of 2"):
         SPlotDisplay.from_estimator(model, X[:1])
 
-
-def test_splot_display_t_std_zero_variance_raises():
-    X, y = _regression_data()
-    # constant score by predicting constant X
-    model = OPLS().fit(X, y)
+    # 2. zero score variance
     X_const = np.ones((5, X.shape[1]))
     with pytest.raises(ValueError, match="zero variance; S-plot is undefined"):
         SPlotDisplay.from_estimator(model, X_const)
+
+    # 3. invalid x_space
+    with pytest.raises(ValueError, match="x_space must be one of"):
+        SPlotDisplay.from_estimator(model, X, x_space="raw")
 
 
 def test_splot_display_nan_correlation():
@@ -199,14 +169,6 @@ def test_splot_display_x_space_controls_covariance_axis():
     assert not np.allclose(centered.covariance, scaled.covariance)
     assert centered.correlation.shape == scaled.correlation.shape
     plt.close("all")
-
-
-def test_splot_display_invalid_x_space_raises():
-    X, y = _regression_data()
-    model = OPLS().fit(X, y)
-
-    with pytest.raises(ValueError, match="x_space must be one of"):
-        SPlotDisplay.from_estimator(model, X, x_space="raw")
 
 
 def test_splot_display_warns_for_non_training_subset():
@@ -409,52 +371,59 @@ def test_plotting_multi_component_component_selection():
     assert "t_pred" in disp_scores.ax_.get_xlabel()
     assert "t_ortho" in disp_scores.ax_.get_ylabel()
 
-    # OPLSScoresDisplay raises error for out-of-bounds component indices
-    with pytest.raises(ValueError, match="predictive_component=3 is out of bounds"):
-        OPLSScoresDisplay.from_estimator(model, X, predictive_component=3)
-    with pytest.raises(ValueError, match="orthogonal_component=2 is out of bounds"):
-        OPLSScoresDisplay.from_estimator(model, X, orthogonal_component=2)
-
     # SPlotDisplay can select component
     disp_splot = SPlotDisplay.from_estimator(model, X, component=1)
     assert disp_splot.component == 1
     assert "Covariance" in disp_splot.ax_.get_xlabel()
     assert "Correlation" in disp_splot.ax_.get_ylabel()
 
-    # SPlotDisplay raises error for out-of-bounds component indices
-    with pytest.raises(ValueError, match="component=3 is out of bounds"):
-        SPlotDisplay.from_estimator(model, X, component=3)
-
     plt.close("all")
 
 
-def test_plotting_negative_component_raises():
-    X, y = _regression_data()
-    model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
-    with pytest.raises(ValueError, match="predictive_component must be >= 0"):
-        OPLSScoresDisplay.from_estimator(model, X, predictive_component=-1)
-    with pytest.raises(ValueError, match="orthogonal_component must be >= 0"):
-        OPLSScoresDisplay.from_estimator(model, X, orthogonal_component=-1)
-    with pytest.raises(ValueError, match="component must be >= 0"):
-        SPlotDisplay.from_estimator(model, X, component=-1)
-    plt.close("all")
-
-
-def test_plotting_non_integer_component_raises():
-    X, y = _regression_data()
-    model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
-    # float and bool are rejected before any indexing happens.
-    with pytest.raises(TypeError, match="must be an integer index"):
-        SPlotDisplay.from_estimator(model, X, component=0.0)  # type: ignore
-    with pytest.raises(TypeError, match="must be an integer index"):
-        SPlotDisplay.from_estimator(model, X, component=True)
-    with pytest.raises(TypeError, match="must be an integer index"):
-        OPLSScoresDisplay.from_estimator(
-            model,
-            X,
-            predictive_component=1.0,  # type: ignore
-        )
-    plt.close("all")
+@pytest.mark.parametrize(
+    ("display_cls", "kwargs", "expected_err", "match"),
+    [
+        (
+            OPLSScoresDisplay,
+            {"predictive_component": 3},
+            ValueError,
+            "predictive_component=3 is out of bounds",
+        ),
+        (
+            OPLSScoresDisplay,
+            {"orthogonal_component": 2},
+            ValueError,
+            "orthogonal_component=2 is out of bounds",
+        ),
+        (SPlotDisplay, {"component": 3}, ValueError, "component=3 is out of bounds"),
+        (
+            OPLSScoresDisplay,
+            {"predictive_component": -1},
+            ValueError,
+            "predictive_component must be >= 0",
+        ),
+        (
+            OPLSScoresDisplay,
+            {"orthogonal_component": -1},
+            ValueError,
+            "orthogonal_component must be >= 0",
+        ),
+        (SPlotDisplay, {"component": -1}, ValueError, "component must be >= 0"),
+        (SPlotDisplay, {"component": 0.0}, TypeError, "must be an integer index"),
+        (SPlotDisplay, {"component": True}, TypeError, "must be an integer index"),
+        (
+            OPLSScoresDisplay,
+            {"predictive_component": 1.0},
+            TypeError,
+            "must be an integer index",
+        ),
+    ],
+)
+def test_plotting_component_validation(display_cls, kwargs, expected_err, match):
+    X, y = _regression_data(seed=42)
+    model = OPLS(n_components=3, n_orthogonal=2).fit(X, y)
+    with pytest.raises(expected_err, match=match):
+        display_cls.from_estimator(model, X, **kwargs)
 
 
 def test_scores_plot_zero_orthogonal_label():

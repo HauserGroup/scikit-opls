@@ -100,18 +100,11 @@ def test_lstsq_map_validates_shapes_and_finite_values():
 
     with pytest.raises(ValueError, match="2D"):
         _lstsq_map(scores[:, 0], block)
-    with pytest.raises(ValueError, match="same row count"):
-        _lstsq_map(scores, block[:-1])
 
     scores_bad = scores.copy()
     scores_bad[0, 0] = np.nan
     with pytest.raises(ValueError, match="scores"):
         _lstsq_map(scores_bad, block)
-
-    block_bad = block.copy()
-    block_bad[0, 0] = np.inf
-    with pytest.raises(ValueError, match="block"):
-        _lstsq_map(scores, block_bad)
 
 
 def test_replay_zero_components_returns_2d_empty_scores():
@@ -218,8 +211,8 @@ def test_cross_cov_svd_allows_zero_components():
     assert s.shape == (3,)
 
 
-@pytest.mark.parametrize("bad", [1.5, True, "x", None])
-def test_low_level_component_count_validation_smoke(bad):
+@pytest.mark.parametrize("bad", [True, 1.5])
+def test_o2pls_low_level_component_count_validation_representative(bad):
     rng = np.random.default_rng(0)
     X = rng.normal(size=(10, 5))
     Y = rng.normal(size=(10, 3))

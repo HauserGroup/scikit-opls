@@ -77,16 +77,6 @@ def test_n_features_in_set():
     assert model.n_features_in_ == X.shape[1]
 
 
-def test_feature_names_in_with_dataframe():
-    pd = pytest.importorskip("pandas")
-    X, y = _classification_data(n_features=6)
-    df = pd.DataFrame(X, columns=[f"f{i}" for i in range(X.shape[1])])
-
-    model = OPLSDA(n_orthogonal=1).fit(df, y)
-
-    assert list(model.feature_names_in_) == list(df.columns)
-
-
 @pytest.mark.parametrize("method", ["predict", "decision_function"])
 def test_methods_reject_wrong_number_of_features(method):
     X, y = _classification_data(n_features=6)

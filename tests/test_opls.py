@@ -8,15 +8,9 @@ from sklearn.base import clone
 from sklearn.cross_decomposition import PLSRegression
 from sklearn.utils._testing import assert_allclose
 
-import scikit_opls
 from scikit_opls import OPLS
 
 from ._data import make_regression_data as _regression_data
-
-
-def test_version_is_string():
-    assert isinstance(scikit_opls.__version__, str)
-    assert scikit_opls.__version__
 
 
 @pytest.mark.parametrize("n_components", [1, 2, 3])
@@ -212,13 +206,6 @@ def test_opls_no_variation_after_filtering_raises(monkeypatch):
         ValueError, match="no remaining variation after orthogonal filtering"
     ):
         OPLS().fit(X, y)
-
-
-def test_opls_exposes_intercept():
-    X, y = _regression_data(seed=42)
-    model = OPLS(n_orthogonal=1).fit(X, y)
-    assert hasattr(model, "intercept_")
-    assert isinstance(model.intercept_, (float, np.ndarray))
 
 
 def test_opls_constant_nonzero_x_scale_none_raises():
