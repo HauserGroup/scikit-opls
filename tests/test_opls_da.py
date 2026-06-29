@@ -151,8 +151,9 @@ def test_non_binary_raises():
         OPLSDA().fit(X, y)
 
 
-def test_clone_and_params():
-    model = OPLSDA(n_components=1, n_orthogonal=3, scale="pareto")
+@pytest.mark.parametrize("scale", ["standard", "pareto"])
+def test_clone_and_params(scale):
+    model = OPLSDA(n_components=1, n_orthogonal=3, scale=scale)
     cloned = clone(model)
     assert isinstance(cloned, OPLSDA)
     assert cloned.get_params() == model.get_params()

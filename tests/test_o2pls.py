@@ -200,8 +200,9 @@ def test_o2pls_rejects_non_finite_input():
         O2PLS(n_components=2).fit(X, Y)
 
 
-def test_clone_and_params():
-    model = O2PLS(n_components=2, n_x_orthogonal=1, n_y_orthogonal=1, scale="pareto")
+@pytest.mark.parametrize("scale", ["standard", "pareto"])
+def test_clone_and_params(scale):
+    model = O2PLS(n_components=2, n_x_orthogonal=1, n_y_orthogonal=1, scale=scale)
     cloned = clone(model)
 
     assert isinstance(cloned, O2PLS)
