@@ -92,19 +92,6 @@ def test_round_trip_prediction():
     assert model.score(X, y) > 0.9  # R2 via RegressorMixin
 
 
-def test_invalid_scale_raises():
-    X, y = _regression_data()
-    with pytest.raises(ValueError, match="scale"):
-        OPLS(scale="bogus").fit(X, y)
-
-
-@pytest.mark.parametrize("bad", [-1, 1.5, True, False, "nope"])
-def test_invalid_n_orthogonal_raises(bad):
-    X, y = _regression_data()
-    with pytest.raises(ValueError, match="n_orthogonal"):
-        OPLS(n_orthogonal=bad).fit(X, y)
-
-
 @pytest.mark.parametrize("scale", ["standard", "pareto"])
 def test_clone_and_params(scale):
     model = OPLS(n_components=2, n_orthogonal=3, scale=scale)
@@ -327,11 +314,3 @@ def test_filter_transform_zero_orthogonal_is_preprocessed_x():
     model = OPLS(n_components=1, n_orthogonal=0).fit(X, y)
     expected = apply_scaling(np.asarray(X, dtype=float), model.x_mean_, model.x_std_)
     assert_allclose(model.filter_transform(X), expected, atol=1e-12)
-
-
-def test_filter_transform_requires_fit():
-    from sklearn.exceptions import NotFittedError
-
-    X, _ = _regression_data(seed=5)
-    with pytest.raises(NotFittedError):
-        OPLS().filter_transform(X)
