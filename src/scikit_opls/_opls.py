@@ -37,7 +37,13 @@ from sklearn.utils.validation import (
     validate_data,
 )
 
-from scikit_opls._inspection import explained_x_variance, orthogonal_vip, predictive_vip
+from scikit_opls._inspection import (
+    component_explained_x_variance,
+    component_r2y_from_scores,
+    explained_x_variance,
+    orthogonal_vip,
+    predictive_vip,
+)
 from scikit_opls._orthogonal import apply_orthogonal_filter, opls_filter
 from scikit_opls._preprocessing import VALID_SCALING, apply_scaling, compute_scaling
 from scikit_opls._utils import _has_nonzero_variation
@@ -181,6 +187,14 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     :class:`~sklearn.feature_selection.VarianceThreshold` in a
     :class:`~sklearn.pipeline.Pipeline`.
     """
+
+    r2x_components_: NDArray[np.float64]
+    r2x_ortho_components_: NDArray[np.float64]
+    r2y_components_: NDArray[np.float64]
+    x_residual_ss_: float
+    y_residual_ss_: float
+    q_residuals_train_: NDArray[np.float64]
+    q_residuals_predictive_train_: NDArray[np.float64]
 
     n_features_in_: int
     feature_names_in_: NDArray[np.str_]
@@ -334,6 +348,38 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         )
         self.r2y_ = float(r2_score(y, y_fit))
         self.rmse_ = float(root_mean_squared_error(y, y_fit))
+
+        self.r2x_components_ = component_explained_x_variance(
+            X_filtered,
+            self.x_scores_,
+            self.x_loadings_,
+        )
+        self.r2x_ortho_components_ = component_explained_x_variance(
+            Xs,
+            self.x_ortho_scores_,
+            self.x_ortho_loadings_,
+        )
+        self.r2y_components_ = component_r2y_from_scores(
+            y,
+            self.x_scores_,
+            self.y_loadings_,
+        )
+
+        X_model_full, X_hat_full = self._full_reconstruction_validated(X)
+        self.q_residuals_train_ = np.sum((X_model_full - X_hat_full) ** 2, axis=1)
+        self.x_residual_ss_ = float(np.sum(self.q_residuals_train_))
+
+        X_model_pred, X_hat_pred = self._predictive_reconstruction_validated(X)
+        self.q_residuals_predictive_train_ = np.sum(
+            (X_model_pred - X_hat_pred) ** 2, axis=1
+        )
+
+        y_fit_arr = np.asarray(y_fit, dtype=np.float64)
+        y_arr = np.asarray(y, dtype=np.float64)
+        if y_arr.ndim == 1:
+            y_arr = y_arr.reshape(-1, 1)
+        self.y_residual_ss_ = float(np.sum((y_arr - y_fit_arr) ** 2))
+
         return self
 
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
@@ -349,10 +395,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         y_pred : ndarray of shape (n_samples,)
             Predicted target values.
         """
-        check_is_fitted(self)
-        # Reuse the same preprocessing/filtering path as transform() so prediction
-        # matches the fitted PLS coordinate system.
-        X_filtered, _ = self._filter(X)
+        X_valid = self._validate_X_predict(X)
+        X_filtered, _ = self._filter_validated(X_valid)
         return self.pls_.predict(X_filtered).ravel()
 
     def transform(self, X: ArrayLike) -> NDArray[np.float64]:
@@ -368,8 +412,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         x_scores : ndarray of shape (n_samples, n_components)
             Predictive scores.
         """
-        check_is_fitted(self)
-        X_filtered, _ = self._filter(X)
+        X_valid = self._validate_X_predict(X)
+        X_filtered, _ = self._filter_validated(X_valid)
         return self.pls_.transform(X_filtered)
 
     def transform_orthogonal(self, X: ArrayLike) -> NDArray[np.float64]:
@@ -387,8 +431,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         x_ortho_scores : ndarray of shape (n_samples, n_orthogonal_)
             Orthogonal scores.
         """
-        check_is_fitted(self)
-        return self._filter(X)[1]
+        X_valid = self._validate_X_predict(X)
+        return self._filter_validated(X_valid)[1]
 
     def filter_transform(self, X: ArrayLike) -> NDArray[np.float64]:
         """Return ``X`` after preprocessing and orthogonal filtering.
@@ -409,8 +453,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         X_filtered : ndarray of shape (n_samples, n_features)
             Preprocessed ``X`` with the fitted orthogonal variation removed.
         """
-        check_is_fitted(self)
-        return self._filter(X)[0]
+        X_valid = self._validate_X_predict(X)
+        return self._filter_validated(X_valid)[0]
 
     @property
     def vip_(self) -> NDArray[np.float64]:
@@ -514,6 +558,158 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return apply_orthogonal_filter(
             Xs, self.x_ortho_weights_, self.x_ortho_loadings_
         )
+
+    def _score_distance_from_scores(
+        self,
+        scores: NDArray[np.float64],
+        reference_scores: NDArray[np.float64],
+    ) -> NDArray[np.float64]:
+        """Mahalanobis-like distance in latent score space."""
+        T = np.asarray(scores, dtype=np.float64)
+        T_ref = np.asarray(reference_scores, dtype=np.float64)
+        if T.ndim == 1:
+            T = T.reshape(-1, 1)
+        if T_ref.ndim == 1:
+            T_ref = T_ref.reshape(-1, 1)
+        center = T_ref.mean(axis=0, keepdims=True)
+        T_centered = T - center
+        T_ref_centered = T_ref - center
+        if T_ref.shape[1] == 1:
+            var = float(np.var(T_ref_centered[:, 0], ddof=1))
+            var = max(var, np.finfo(np.float64).eps)
+            return (T_centered[:, 0] ** 2) / var
+        cov = np.cov(T_ref_centered, rowvar=False)
+        inv_cov = np.linalg.pinv(cov)
+        return np.sum((T_centered @ inv_cov) * T_centered, axis=1)
+
+    def score_distance(
+        self,
+        X: ArrayLike,
+        *,
+        kind: str = "predictive",
+    ) -> NDArray[np.float64]:
+        """Return Hotelling-like score distances for samples.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples in the same raw feature space used for fitting. Pass raw X.
+            Do not manually center or scale before calling diagnostics. The estimator
+            applies its fitted preprocessing internally.
+        kind : {"predictive", "orthogonal", "all"}, default="predictive"
+            Which latent score space to use.
+
+        Returns
+        -------
+        distance : ndarray of shape (n_samples,)
+            Squared Mahalanobis-like distance in the selected fitted score space.
+        """
+        X_valid = self._validate_X_predict(X)
+        return self._score_distance_validated(X_valid, kind=kind)
+
+    def _score_distance_validated(
+        self,
+        X_valid: NDArray[np.float64],
+        kind: str = "predictive",
+    ) -> NDArray[np.float64]:
+        """Compute score distance internally, assuming X is already validated."""
+        if kind == "predictive":
+            X_filtered, _ = self._filter_validated(X_valid)
+            scores = self.pls_.transform(X_filtered)
+            reference = self.x_scores_
+        elif kind == "orthogonal":
+            if self.n_orthogonal_ == 0:
+                return np.zeros(X_valid.shape[0], dtype=np.float64)
+            scores = self._filter_validated(X_valid)[1]
+            reference = self.x_ortho_scores_
+        elif kind == "all":
+            X_filtered, ortho = self._filter_validated(X_valid)
+            pred = self.pls_.transform(X_filtered)
+            if self.n_orthogonal_ == 0:
+                scores = pred
+                reference = self.x_scores_
+            else:
+                scores = np.hstack([pred, ortho])
+                reference = np.hstack([self.x_scores_, self.x_ortho_scores_])
+        else:
+            raise ValueError("kind must be one of {'predictive', 'orthogonal', 'all'}.")
+        return self._score_distance_from_scores(scores, reference)
+
+    def _scaled_x_validated(self, X_valid: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Return X in the fitted scaled/centered model space."""
+        return apply_scaling(X_valid, self.x_mean_, self.x_std_)
+
+    def _predictive_reconstruction_validated(
+        self,
+        X_valid: NDArray[np.float64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Return filtered X and its predictive PLS reconstruction."""
+        X_filtered, _ = self._filter_validated(X_valid)
+        T = self.pls_.transform(X_filtered)
+        X_hat = T @ self.x_loadings_.T
+        return X_filtered, X_hat
+
+    def _full_reconstruction_validated(
+        self,
+        X_valid: NDArray[np.float64],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Return scaled X and reconstruction from orthogonal + predictive structure."""
+        Xs = self._scaled_x_validated(X_valid)
+        # Orthogonal part reconstructed in scaled X-space.
+        if self.n_orthogonal_ > 0:
+            T_ortho = self._filter_validated(X_valid)[1]
+            X_ortho_hat = T_ortho @ self.x_ortho_loadings_.T
+        else:
+            X_ortho_hat = np.zeros_like(Xs)
+        # Predictive reconstruction after orthogonal filtering.
+        X_filtered, X_pred_hat = self._predictive_reconstruction_validated(X_valid)
+        # The model reconstructs scaled X as orthogonal + predictive filtered part.
+        X_hat = X_ortho_hat + X_pred_hat
+        return Xs, X_hat
+
+    def q_residuals(
+        self,
+        X: ArrayLike,
+        *,
+        space: str = "full",
+    ) -> NDArray[np.float64]:
+        """Return Q residuals, i.e. squared X residual norm per sample.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples in raw feature space. Pass raw X. Do not manually center or scale
+            before calling diagnostics. The estimator applies its fitted preprocessing
+            internally.
+        space : {"full", "predictive"}, default="full"
+            Which model reconstruction space to use:
+
+            - ``"full"`` reconstructs scaled X from predictive + orthogonal structure.
+            - ``"predictive"`` reconstructs the orthogonally filtered X from predictive
+              PLS structure only.
+
+        Returns
+        -------
+        q : ndarray of shape (n_samples,)
+            Squared residual norm per sample.
+        """
+        X_valid = self._validate_X_predict(X)
+        return self._q_residuals_validated(X_valid, space=space)
+
+    def _q_residuals_validated(
+        self,
+        X_valid: NDArray[np.float64],
+        space: str = "full",
+    ) -> NDArray[np.float64]:
+        """Compute Q residuals internally, assuming X is already validated."""
+        if space == "full":
+            X_model, X_hat = self._full_reconstruction_validated(X_valid)
+        elif space == "predictive":
+            X_model, X_hat = self._predictive_reconstruction_validated(X_valid)
+        else:
+            raise ValueError("space must be one of {'full', 'predictive'}.")
+        resid = X_model - X_hat
+        return np.sum(resid**2, axis=1)
 
     def _filter(self, X: ArrayLike) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """Preprocess and orthogonal-filter new ``X`` exactly as at fit time.
