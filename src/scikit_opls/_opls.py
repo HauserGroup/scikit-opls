@@ -350,7 +350,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.rmse_ = float(root_mean_squared_error(y, y_fit))
 
         self.r2x_components_ = component_explained_x_variance(
-            X_filtered,
+            Xs,
             self.x_scores_,
             self.x_loadings_,
         )
@@ -369,10 +369,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.q_residuals_train_ = np.sum((X_model_full - X_hat_full) ** 2, axis=1)
         self.x_residual_ss_ = float(np.sum(self.q_residuals_train_))
 
-        X_model_pred, X_hat_pred = self._predictive_reconstruction_validated(X)
-        self.q_residuals_predictive_train_ = np.sum(
-            (X_model_pred - X_hat_pred) ** 2, axis=1
-        )
+        _, X_hat_pred = self._predictive_reconstruction_validated(X)
+        self.q_residuals_predictive_train_ = np.sum((Xs - X_hat_pred) ** 2, axis=1)
 
         y_fit_arr = np.asarray(y_fit, dtype=np.float64)
         y_arr = np.asarray(y, dtype=np.float64)
@@ -685,8 +683,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Which model reconstruction space to use:
 
             - ``"full"`` reconstructs scaled X from predictive + orthogonal structure.
-            - ``"predictive"`` reconstructs the orthogonally filtered X from predictive
-              PLS structure only.
+            - ``"predictive"`` reconstructs scaled X from predictive PLS structure
+              only, treating orthogonal variation as part of the residual.
 
         Returns
         -------
@@ -705,7 +703,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         if space == "full":
             X_model, X_hat = self._full_reconstruction_validated(X_valid)
         elif space == "predictive":
-            X_model, X_hat = self._predictive_reconstruction_validated(X_valid)
+            X_model = self._scaled_x_validated(X_valid)
+            _, X_hat = self._predictive_reconstruction_validated(X_valid)
         else:
             raise ValueError("space must be one of {'full', 'predictive'}.")
         resid = X_model - X_hat

@@ -209,44 +209,37 @@ def test_clone_and_params(scale):
     assert cloned.get_params() == model.get_params()
 
 
-def test_o2pls_predict_preserves_1d_y_shape():
+@pytest.mark.parametrize(
+    "Y_transformer",
+    [
+        lambda y: y.ravel(),
+        lambda y: y.reshape(-1, 1),
+        lambda y: np.column_stack(
+            [y, y + 0.1 * np.random.default_rng(0).normal(size=y.shape)]
+        ),
+    ],
+    ids=["1d", "2d_single", "multioutput"],
+)
+def test_o2pls_predict_shape_preservation(Y_transformer):
     X, y = _regression_data()
-    model = O2PLS().fit(X, y)
-    assert model.predict(X).shape == y.shape
-    assert model.predict(X).ndim == 1
-
-
-def test_o2pls_predict_preserves_2d_single_column_y_shape():
-    X, y = _regression_data()
-    Y = y.reshape(-1, 1)
+    Y = Y_transformer(y)
     model = O2PLS().fit(X, Y)
     assert model.predict(X).shape == Y.shape
+    if Y.ndim == 1:
+        assert model.predict(X).ndim == 1
 
 
-def test_o2pls_predict_preserves_multioutput_y_shape():
+def test_o2pls_univariate_y_validation_checks():
     X, y = _regression_data()
-    rng = np.random.default_rng(0)
-    Y = np.column_stack([y, y + 0.1 * rng.normal(size=y.shape)])
-    model = O2PLS().fit(X, Y)
-    assert model.predict(X).shape == Y.shape
 
+    model = O2PLS(n_x_orthogonal=1).fit(X, y)
+    assert model.n_targets_ == 1
 
-def test_o2pls_univariate_y_rejects_y_orthogonal():
-    X, y = _regression_data()
     with pytest.raises(ValueError, match="n_y_orthogonal"):
         O2PLS(n_y_orthogonal=1).fit(X, y)
 
-
-def test_o2pls_univariate_y_rejects_multiple_components():
-    X, y = _regression_data()
     with pytest.raises(ValueError, match="n_components"):
         O2PLS(n_components=2).fit(X, y)
-
-
-def test_o2pls_univariate_y_allows_x_orthogonal():
-    X, y = _regression_data()
-    model = O2PLS(n_x_orthogonal=1).fit(X, y)
-    assert model.n_targets_ == 1
 
 
 def test_o2pls_coef_filtered_matches_score_path():
