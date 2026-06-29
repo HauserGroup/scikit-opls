@@ -20,6 +20,8 @@ _TOL = 1e-12
 
 
 def _validate_n_components(n_components: int) -> int:
+    # ``bool`` behaves like an integer in Python, but True/False are ambiguous as
+    # component counts and should be treated as invalid user input.
     if isinstance(n_components, bool) or not isinstance(n_components, Integral):
         raise TypeError(
             "n_components must be a non-negative integer, "
@@ -97,7 +99,8 @@ def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
     if not np.all(np.isfinite(Y)):
         raise ValueError("Y must contain only finite values.")
 
-    # Special-case univariate Y (1D or 2D with a single column)
+    # Special-case univariate Y (1D or 2D with a single column). This follows the
+    # original OPLS direction w_p proportional to X.T @ y.
     if Y.ndim == 1 or (Y.ndim == 2 and Y.shape[1] == 1):
         y = Y.ravel()
         if len(y) != X.shape[0]:
@@ -114,7 +117,8 @@ def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
             )
         return w / norm_w
 
-    # Multivariate Y
+    # Multivariate Y uses the dominant singular vector of the cross-covariance as
+    # the X-side direction with maximum joint covariance.
     if Y.ndim != 2:
         raise ValueError(f"Y must be 1D or 2D, got shape {Y.shape}")
     if Y.shape[0] != X.shape[0]:
@@ -213,6 +217,9 @@ def orthogonal_filter(
         tt = float(t @ t)
         if tt <= _TOL * res_norm_sq:
             break
+        # ``p`` describes how the current residual X loads onto the predictive
+        # score. Removing its projection onto w_pred leaves only X variation
+        # orthogonal to the predictive direction.
         p = X_res.T @ t / tt
         w_o = p - float(w_pred @ p) * w_pred  # part of the loading orthogonal to w_pred
         w_norm = float(np.linalg.norm(w_o))
@@ -225,6 +232,8 @@ def orthogonal_filter(
         if too <= _TOL * res_norm_sq:
             break
         p_o = X_res.T @ t_o / too
+        # Sequentially deflate the fitted orthogonal score/loading pair so the next
+        # component is extracted from the remaining X variation.
         X_res -= np.outer(t_o, p_o)
         W[:, i] = w_o
         T[:, i] = t_o
@@ -291,6 +300,7 @@ def opls_filter(X: ArrayLike, Y: ArrayLike, n_components: int) -> OrthogonalComp
     if n_components > 0:
         direction = predictive_weight(X, Y)
     else:
+        # Shape placeholder returned for introspection; it is not used for filtering.
         direction = np.zeros(X.shape[1])
     return orthogonal_filter(X, direction, n_components)
 
@@ -348,6 +358,8 @@ def apply_orthogonal_filter(
     T = np.zeros((n_samples, n_components))
     for i in range(n_components):
         w_o = W[:, i]
+        # Scores are computed after all previous fitted deflations have been
+        # applied, matching the sequential state seen during training.
         t_o = X_copy @ w_o  # weights are unit-normalised at fit time
         X_copy -= np.outer(t_o, P[:, i])
         T[:, i] = t_o

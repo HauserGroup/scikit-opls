@@ -73,6 +73,8 @@ def _effective_rank(s: NDArray[np.float64], tol: float) -> int:
 
 
 def _validate_positive_int(name: str, value: int) -> int:
+    # ``bool`` is a subclass of ``int``; reject it explicitly so True/False are not
+    # silently accepted as component counts.
     if isinstance(value, bool) or not isinstance(value, Integral):
         raise TypeError(f"{name} must be an integer, got {type(value).__name__}.")
     if value < 1:
@@ -81,6 +83,7 @@ def _validate_positive_int(name: str, value: int) -> int:
 
 
 def _validate_nonnegative_int(name: str, value: int) -> int:
+    # Keep the same bool handling as the positive-integer validator above.
     if isinstance(value, bool) or not isinstance(value, Integral):
         raise TypeError(f"{name} must be an integer, got {type(value).__name__}.")
     if value < 0:
@@ -143,6 +146,8 @@ def _cross_cov_svd_x_to_y(
     if k > max_components:
         raise ValueError(f"k must be between 0 and {max_components}, got {k}.")
 
+    # The cross-covariance SVD is the joint X/Y subspace estimate. ``svd_flip``
+    # removes arbitrary sign flips so repeated runs expose stable fitted arrays.
     try:
         U, s, Vt = np.linalg.svd(X.T @ Y, full_matrices=False)
     except np.linalg.LinAlgError as exc:
@@ -181,6 +186,8 @@ def _lstsq_map(
         raise ValueError("scores must contain only finite values.")
     if not np.all(np.isfinite(block)):
         raise ValueError("block must contain only finite values.")
+    # Use least squares rather than an explicit inverse so rank-deficient score
+    # matrices fall back to NumPy's stable minimum-norm solution.
     coef, *_ = np.linalg.lstsq(scores, block, rcond=None)
     return coef
 
@@ -232,10 +239,13 @@ def _extract_one_orthogonal_component(
     if not _has_nonzero_variation(T, axis=0):
         return None
 
+    # First remove the preliminary joint space from the current block. Anything
+    # still associated with T is block-specific structure that should be filtered.
     residual = X - T @ W.T
     if not _has_nonzero_variation(residual, axis=0):
         return None
 
+    # The leading left singular vector gives a feature-space orthogonal direction.
     cross = residual.T @ T
     if _ssq(cross) <= (tol**2) * max(_ssq(residual) * _ssq(T), 1.0):
         return None
@@ -253,6 +263,8 @@ def _extract_one_orthogonal_component(
         return None
     weight = weight / weight_norm
 
+    # Deflate the original current block, not just ``residual``. This preserves the
+    # sequential filter that will later be replayed on new samples.
     score = X @ weight
     score_ssq = float(score @ score)
     block_ssq = max(_ssq(X), 1.0)
@@ -266,6 +278,7 @@ def _extract_one_orthogonal_component(
     filtered = X - np.outer(score, loading)
     if not np.all(np.isfinite(filtered)):
         return None
+    # Refuse components that do not measurably reduce the block sum of squares.
     if _ssq(filtered) >= _ssq(X) - tol * max(_ssq(X), 1.0):
         return None
 
@@ -326,6 +339,8 @@ def _replay_orthogonal_filter(
     filtered = X.copy()
     scores = np.zeros((X.shape[0], W.shape[1]), dtype=np.float64)
     for i in range(W.shape[1]):
+        # Scores must be computed from the progressively deflated block, matching
+        # the order used during fitting.
         score = filtered @ W[:, i]
         filtered -= np.outer(score, P[:, i])
         scores[:, i] = score
@@ -414,6 +429,8 @@ def o2pls_fit(
             f"{max_components}."
         )
 
+    # Rank is judged on the original cross-covariance before any orthogonal
+    # filtering; the requested final joint space cannot exceed this.
     _, _, s_initial_full = _cross_cov_svd_x_to_y(X0, Y0, max_components)
     rank = _effective_rank(s_initial_full, tol)
     if rank < n_components:
@@ -422,6 +439,8 @@ def o2pls_fit(
             f"({rank})."
         )
 
+    # The preliminary joint subspace is deliberately enlarged so there is room to
+    # identify block-specific directions before the final joint fit is recomputed.
     k_initial = min(n_components + max(n_x_orthogonal, n_y_orthogonal), rank)
     W_init, C_init, _ = _cross_cov_svd_x_to_y(X0, Y0, k_initial)
 
@@ -430,6 +449,8 @@ def o2pls_fit(
     x_scores: list[NDArray[np.float64]] = []
     x_loadings: list[NDArray[np.float64]] = []
     for i in range(n_x_orthogonal):
+        # Recompute preliminary scores from the current deflated block; the weights
+        # stay fixed from the enlarged initial cross-covariance.
         T_init = X_work @ W_init
         component = _extract_one_orthogonal_component(X_work, T_init, W_init, tol=tol)
         if component is None:
@@ -451,6 +472,7 @@ def o2pls_fit(
     y_scores: list[NDArray[np.float64]] = []
     y_loadings: list[NDArray[np.float64]] = []
     for i in range(n_y_orthogonal):
+        # Mirror the same sequential extraction on the Y block.
         U_init = Y_work @ C_init
         component = _extract_one_orthogonal_component(Y_work, U_init, C_init, tol=tol)
         if component is None:
@@ -467,6 +489,8 @@ def o2pls_fit(
         y_loadings.append(component.loading)
         Y_work = component.filtered_block
 
+    # Once block-specific variation is removed, refit the actual joint model on
+    # the filtered blocks.
     W, C, s_final = _cross_cov_svd_x_to_y(X_work, Y_work, n_components)
     final_rank = _effective_rank(s_final, tol)
     if final_rank < n_components:
@@ -477,6 +501,7 @@ def o2pls_fit(
 
     T = X_work @ W
     U = Y_work @ C
+    # B_T maps X joint scores to Y joint scores; B_U is the reverse map.
     B_T = _lstsq_map(T, U)
     B_U = _lstsq_map(U, T)
 
@@ -487,6 +512,8 @@ def o2pls_fit(
     Y_orth_scores = _stack_columns(y_scores, n_samples, 0)
     Y_orth_loadings = _stack_columns(y_loadings, n_y_features, 0)
 
+    # Reconstruct nominal joint, orthogonal and residual parts in the original
+    # preprocessed coordinates for diagnostics and estimator attributes.
     X_joint = T @ W.T
     Y_joint = U @ C.T
     X_orth = X_orth_scores @ X_orth_loadings.T

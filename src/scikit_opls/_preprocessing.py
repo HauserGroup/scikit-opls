@@ -51,6 +51,8 @@ def compute_scaling(
     n_features = X.shape[1]
 
     if mode == "none":
+        # Identity preprocessing is represented as zero centering and unit scaling
+        # so apply_scaling can use one code path for every mode.
         return (
             np.zeros(n_features, dtype=np.float64),
             np.ones(n_features, dtype=np.float64),
@@ -64,9 +66,13 @@ def compute_scaling(
         std = X.std(axis=0, ddof=1)
     else:
         std = np.ones(n_features)
+    # Keep constant columns aligned with the original feature matrix. They remain
+    # constant after scaling instead of causing division by zero.
     std = np.where(std <= _EPS, 1.0, std)
 
     if mode == "pareto":
+        # Pareto scaling divides by sqrt(sample std), reducing large-variance
+        # features without forcing every feature to unit variance.
         return mean_, np.sqrt(std)
     return mean_, std  # standard
 

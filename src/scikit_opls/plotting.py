@@ -35,6 +35,7 @@ if TYPE_CHECKING:
 
 
 def _check_matplotlib_support(caller: str):
+    # Keep matplotlib optional at import time; only plotting methods require it.
     try:
         import matplotlib.pyplot as plt
     except ImportError as exc:
@@ -70,6 +71,7 @@ def _unwrap_estimator_and_data(
             "Search meta-estimators must be fitted with refit=True so plotting "
             "can use best_estimator_."
         )
+    # Search estimators keep the selected pipeline/model on best_estimator_.
     inner = getattr(estimator, "best_estimator_", estimator)
 
     if isinstance(inner, Pipeline):
@@ -79,11 +81,14 @@ def _unwrap_estimator_and_data(
         final_estimator = inner.steps[-1][1]
         upstream = inner[:-1]
         if len(upstream.steps) > 0:
+            # Plot in the feature space that the final OPLS-family step actually
+            # saw during fitting.
             X = upstream.transform(X)
         inner = final_estimator
 
     if isinstance(inner, OPLSDA):
         check_is_fitted(inner)
+        # OPLSDA is a classifier wrapper; its latent space lives on the inner OPLS.
         base = inner.opls_
     elif isinstance(inner, OPLS):
         base = inner
@@ -205,6 +210,7 @@ class OPLSScoresDisplay:
         if y is None:
             y_arr = None
         else:
+            # Labels are only used for colouring, not for recomputing scores.
             y_arr = np.asarray(y).ravel()
             if y_arr.shape[0] != X_trans.shape[0]:
                 raise ValueError("y must have the same length as X.")
@@ -229,6 +235,8 @@ class OPLSScoresDisplay:
                 f"estimator with {n_ortho} orthogonal component(s)."
             )
 
+        # Project supplied data through the fitted filter before asking the PLS
+        # engine for predictive scores.
         X_filtered, t_ortho = base._filter(X_trans)
         scores = base.pls_.transform(X_filtered)
         if isinstance(scores, tuple):
@@ -268,6 +276,7 @@ class OPLSScoresDisplay:
         else:
             self.scatter_ = []
             for label in np.unique(self.y):
+                # Plot each label separately so matplotlib can build a clean legend.
                 mask = self.y == label
                 sc = ax.scatter(
                     self.t_predictive[mask], self.t_orthogonal[mask], label=str(label)
@@ -376,9 +385,13 @@ class SPlotDisplay:
                 f"{n_pred} predictive component(s)."
             )
 
+        # S-plots are computed in the final OPLS input space, after applying the
+        # same scaling used at fit time and centering the provided sample subset.
         Xs = apply_scaling(X_trans, base.x_mean_, base.x_std_)
         Xs = Xs - Xs.mean(axis=0)
 
+        # Use the fitted predictive score for the selected component as the common
+        # reference vector for both covariance and correlation.
         t = np.asarray(base.transform(X_trans))[:, component]
         t = t - t.mean()
         n = t.shape[0]
@@ -392,6 +405,7 @@ class SPlotDisplay:
         denom = x_std * t_std
         correlation = np.full_like(covariance, np.nan)
         valid = denom > 1e-12
+        # Constant features have zero denominator; leave their correlations as NaN.
         correlation[valid] = covariance[valid] / denom[valid]
 
         if np.any(~valid):
