@@ -29,6 +29,8 @@ def _has_nonzero_variation(
         return False
     if not np.all(np.isfinite(arr)):
         return False
+    # Measure variation after removing the requested mean, then compare with the
+    # magnitude of the uncentered data to avoid false positives from float noise.
     centered = arr - np.mean(arr, axis=axis, keepdims=True)
     spread = float(np.max(np.abs(centered)))
     scale = float(np.max(np.abs(arr)))

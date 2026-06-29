@@ -174,6 +174,8 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
             raise ValueError("n_y_orthogonal must be an integer, not bool.")
         self._validate_params()
 
+        # Preserve whether the user supplied 1D or 2D Y so predict() can mirror the
+        # fitted output convention after all internal work has used a 2D block.
         self._y_ndim = np.asarray(Y).ndim
         X, Y_valid = validate_data(
             self,
@@ -186,6 +188,8 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         )
         Y2 = self._as_2d_target(Y_valid)
         self.n_targets_ = Y2.shape[1]
+        # A univariate Y block has no separate Y-feature subspace, so keep v1 to the
+        # single stable joint component and no Y-orthogonal extraction.
         if self.n_targets_ == 1:
             if self.n_components != 1:
                 raise ValueError("O2PLS v1 requires n_components=1 for univariate Y.")
@@ -196,6 +200,7 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.y_mean_, self.y_std_ = compute_scaling(Y2, self.scale)
         Xs = apply_scaling(X, self.x_mean_, self.x_std_)
         Ys = apply_scaling(Y2, self.y_mean_, self.y_std_)
+        # Constant blocks make both joint and orthogonal directions undefined.
         if not _has_nonzero_variation(Xs, axis=0):
             raise ValueError("X has no non-zero variation after preprocessing.")
         if not _has_nonzero_variation(Ys, axis=0):
@@ -237,6 +242,8 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.n_y_orthogonal_ = fit.n_y_orthogonal
         self.singular_values_initial_ = fit.singular_values_initial
         self.singular_values_final_ = fit.singular_values_final
+        # In scaled/filtered coordinates, prediction is score projection
+        # X @ W, score mapping B_T, then reconstruction through Y loadings.
         self.coef_filtered_ = (
             self.x_joint_weights_ @ self.b_t_ @ self.y_joint_loadings_.T
         )
@@ -257,6 +264,8 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Predicted values reconstructed from the joint X structure.
         """
         check_is_fitted(self)
+        # Only X-specific structure is filtered when predicting Y from X; the Y-side
+        # orthogonal model is used by predict_x() and transform_y().
         X_filtered = self.filter_transform_x(X)
         y_scaled = X_filtered @ self.coef_filtered_
         y_pred = self._unscale_y(y_scaled)
@@ -277,6 +286,7 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self)
         Y_filtered = self.filter_transform_y(Y)
+        # Project filtered Y into joint score space, map to X scores, then rebuild X.
         U = Y_filtered @ self.y_joint_weights_
         T_pred = U @ self.b_u_
         x_scaled = T_pred @ self.x_joint_loadings_.T
@@ -449,6 +459,8 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
     def _validate_y_block(self, Y: ArrayLike) -> NDArray[np.float64]:
         """Validate a Y-like block for Y-side methods."""
+        # check_array is used directly because validate_data is tied to X feature
+        # counts; Y-side public methods validate target-column counts separately.
         arr = check_array(
             Y,
             dtype=np.float64,
@@ -470,6 +482,8 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """Scale and replay the fitted X-orthogonal filter."""
         X_valid = validate_data(self, X, reset=False, dtype=np.float64)
         Xs = apply_scaling(X_valid, self.x_mean_, self.x_std_)
+        # Replay uses stored weights/loadings in fit order so new data is filtered
+        # exactly like the training block.
         return _replay_orthogonal_filter(
             Xs, self.x_orthogonal_weights_, self.x_orthogonal_loadings_
         )
@@ -480,6 +494,8 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """Scale and replay the fitted Y-orthogonal filter."""
         Y_valid = self._validate_y_block(Y)
         Ys = apply_scaling(Y_valid, self.y_mean_, self.y_std_)
+        # This may be a no-op with zero columns, but keeping the same path preserves
+        # shapes and score outputs for all fitted configurations.
         return _replay_orthogonal_filter(
             Ys, self.y_orthogonal_weights_, self.y_orthogonal_loadings_
         )
@@ -490,6 +506,7 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
     def _restore_y_shape(self, Y: NDArray[np.float64]) -> NDArray[np.float64]:
         """Return predictions with the fitted target dimensionality convention."""
+        # sklearn regressors normally return 1D predictions when fitted on a 1D y.
         if self._y_ndim == 1 and Y.shape[1] == 1:
             return Y.ravel()
         return Y

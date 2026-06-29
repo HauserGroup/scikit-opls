@@ -62,6 +62,8 @@ def explained_x_variance(
     total = float(np.sum(X**2))
     if total <= 0.0 or scores.shape[1] == 0:
         return 0.0
+    # Rebuild the part of X represented by this score/loading block and compare
+    # its sum of squares with the full preprocessed X block.
     approx = scores @ loadings.T
     return float(np.sum(approx**2) / total)
 
@@ -103,6 +105,8 @@ def _weighted_vip(
     total = float(ss.sum())
     if total <= 0.0:
         return np.zeros(n_features, dtype=np.float64)
+    # Normalize each component's weights before squaring so VIP is driven by the
+    # component importance weights, not arbitrary scaling of the weight columns.
     norms = np.linalg.norm(weights, axis=0, keepdims=True)
     unit = weights / np.where(norms < _EPS, 1.0, norms)
     contributions = (unit**2) @ ss
@@ -157,6 +161,8 @@ def predictive_vip(
     else:
         raise ValueError(f"y_loadings must be 1D or 2D, got shape {y_loadings.shape}.")
 
+    # Standard PLS VIP weights each component by the Y sum of squares explained by
+    # that component: loading strength times score energy.
     ssy = np.sum(y_loadings_2d**2, axis=0) * np.sum(x_scores**2, axis=0)
     return _weighted_vip(x_weights, ssy)
 
@@ -206,5 +212,7 @@ def orthogonal_vip(
             f"({n_features}, {n_components}), got {x_ortho_loadings.shape}."
         )
 
+    # Orthogonal VIP mirrors predictive VIP, but component importance comes from
+    # removed X sum of squares instead of explained Y sum of squares.
     ssx = np.sum(x_ortho_scores**2, axis=0) * np.sum(x_ortho_loadings**2, axis=0)
     return _weighted_vip(x_ortho_weights, ssx)

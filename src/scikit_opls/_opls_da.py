@@ -106,6 +106,8 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         )
         check_classification_targets(y)
 
+        # LabelEncoder gives a stable 0/1 representation while preserving the
+        # original class labels for predict().
         self._label_encoder = LabelEncoder().fit(y)
         self.classes_ = self._label_encoder.classes_
         if self.classes_.shape[0] != 2:
@@ -118,9 +120,13 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         y_encoded = self._label_encoder.transform(y)
 
         counts = np.bincount(y_encoded)
+        # Each class needs at least two samples for OPLS regression to have
+        # non-constant dummy labels across validation-like splits and diagnostics.
         if np.any(counts < 2):
             raise ValueError("OPLSDA requires at least two samples per class.")
 
+        # Fit regression against a symmetric coding so zero is the natural decision
+        # boundary: negative -> classes_[0], positive -> classes_[1].
         y_dummy = np.where(y_encoded == 1, 1.0, -1.0)
 
         self.opls_ = OPLS(
@@ -147,6 +153,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             zero are assigned to ``classes_[0]`` by :meth:`predict`.
         """
         check_is_fitted(self)
+        # The inner regressor returns the signed dummy-response prediction.
         return np.asarray(self.opls_.predict(X), dtype=np.float64).ravel()
 
     def predict(self, X: ArrayLike) -> NDArray:
@@ -162,6 +169,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         y_pred : ndarray of shape (n_samples,)
             Predicted labels drawn from ``classes_``.
         """
+        # ``> 0`` intentionally sends exact-zero scores to the first class.
         indices = (self.decision_function(X) > 0.0).astype(int)
         return self.classes_[indices]
 

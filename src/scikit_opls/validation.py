@@ -40,6 +40,8 @@ def _safe_r2_score(y_true: ArrayLike, y_pred: ArrayLike) -> float:
             f"got {y_true_arr.shape} and {y_pred_arr.shape}."
         )
     if not _has_nonzero_variation(y_true_arr):
+        # sklearn's r2_score defines constant-target cases awkwardly for model
+        # significance; NaN makes the undefined metric explicit downstream.
         return np.nan
     return float(r2_score(y_true_arr, y_pred_arr))
 
@@ -75,6 +77,8 @@ class PermutationResult:
 
 
 def _fitted_r2y(fitted: BaseEstimator) -> float:
+    # GridSearchCV and similar search estimators expose the selected model through
+    # best_estimator_; recurse until we reach the OPLS-like estimator itself.
     if hasattr(fitted, "r2y_"):
         return float(getattr(fitted, "r2y_"))
     if hasattr(fitted, "cv_results_") and not hasattr(fitted, "best_estimator_"):
@@ -101,6 +105,7 @@ def _permuted_scores(
 
 
 def _contains_classifier(estimator: BaseEstimator) -> bool:
+    # Walk simple meta-estimators such as CalibratedClassifierCV(estimator=...).
     if is_classifier(estimator):
         return True
     if hasattr(estimator, "estimator"):
@@ -187,6 +192,8 @@ def permutation_test(
 
     if cv is None:
         estimator_cv = getattr(estimator, "cv", None)
+        # Prefer an estimator-owned cv setting when present; otherwise keep folds
+        # valid for small data by capping the default at n_samples.
         cv = estimator_cv if estimator_cv is not None else min(5, len(y))
     # A one-shot iterable of splits would be consumed by the observed-Q2 pass and
     # leave nothing for the permutations; materialise it so every pass sees the
@@ -195,10 +202,13 @@ def permutation_test(
         cv = list(cv)
     cv_checked = check_cv(cv, y=y, classifier=False)
 
+    # Fit once on the true labels to establish the observed in-sample R2Y.
     fitted = clone(estimator).fit(X, y)
     observed_r2y = _fitted_r2y(fitted)
 
     rng = check_random_state(random_state)
+    # Q2 is always out-of-fold, so compute it through the same CV object used for
+    # every permutation.
     observed_q2 = _cross_val_q2(estimator, X, y, cv=cv_checked)
 
     # Draw all permutations serially from the RNG so the result is independent of
