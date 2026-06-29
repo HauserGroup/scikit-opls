@@ -493,18 +493,35 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """
         return super().score(X, y, sample_weight)
 
-    def _filter(self, X: ArrayLike) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Preprocess and orthogonal-filter new ``X`` exactly as at fit time.
+    def _validate_X_predict(self, X: ArrayLike) -> NDArray[np.float64]:  # noqa: N802
+        """Validate prediction/projection input against fitted OPLS metadata."""
+        check_is_fitted(self)
+        return validate_data(
+            self,
+            X,
+            dtype=np.float64,
+            copy=self.copy,
+            reset=False,
+        )
 
-        Returns the filtered ``X`` and the orthogonal scores.
-        """
-        X = validate_data(self, X, reset=False, dtype=np.float64)
+    def _filter_validated(
+        self, X: NDArray[np.float64]
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Filter an already validated dense array without checking names again."""
         Xs = apply_scaling(X, self.x_mean_, self.x_std_)
         # apply_orthogonal_filter returns both the filtered matrix for prediction
         # and the replayed orthogonal scores for transform_orthogonal().
         return apply_orthogonal_filter(
             Xs, self.x_ortho_weights_, self.x_ortho_loadings_
         )
+
+    def _filter(self, X: ArrayLike) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Preprocess and orthogonal-filter new ``X`` exactly as at fit time.
+
+        Returns the filtered ``X`` and the orthogonal scores.
+        """
+        X_valid = self._validate_X_predict(X)
+        return self._filter_validated(X_valid)
 
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()

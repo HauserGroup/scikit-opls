@@ -220,7 +220,6 @@ def test_oplsda_dataframe_predict_has_no_feature_name_warning():
         clf.predict(X)
 
     messages = [str(w.message) for w in record]
-    print(messages)
     assert not any("feature names" in message for message in messages)
 
 

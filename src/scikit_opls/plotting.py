@@ -8,12 +8,13 @@ a :meth:`plot` method that draws them, and stored ``ax_`` / ``figure_`` handles.
 imported lazily inside :meth:`plot`, so importing this module never requires it.
 """
 
-# check_array is under-typed (its dtype kwarg); suppress the resulting
-# static-checker false positives.
+# The sklearn validation helpers are under-typed; suppress false positives from
+# fittedness/metadata validation calls in this plotting adapter.
 # pyright: reportArgumentType=false
 
 from __future__ import annotations
 
+import warnings
 from numbers import Integral
 from typing import TYPE_CHECKING
 
@@ -22,7 +23,7 @@ from numpy.typing import ArrayLike, NDArray
 from scipy import sparse
 from sklearn.base import BaseEstimator
 from sklearn.pipeline import Pipeline
-from sklearn.utils.validation import check_array, check_is_fitted
+from sklearn.utils.validation import check_is_fitted
 
 from scikit_opls._opls import OPLS
 from scikit_opls._opls_da import OPLSDA
@@ -86,11 +87,23 @@ def _unwrap_estimator_and_data(
             X = upstream.transform(X)
         inner = final_estimator
 
+    if sparse.issparse(X):
+        raise TypeError(
+            "Input to OPLS plotting is sparse, but plotting requires a dense "
+            "matrix. If it came from a Pipeline, add a densifying transformer "
+            "before the final OPLS step."
+        )
+
     if isinstance(inner, OPLSDA):
         check_is_fitted(inner)
+        # Validate against the outer classifier first: it owns n_features_in_ and
+        # feature_names_in_ for user-facing OPLSDA calls.
+        X_checked = inner._validate_X_predict(X)
         # OPLSDA is a classifier wrapper; its latent space lives on the inner OPLS.
         base = inner.opls_
     elif isinstance(inner, OPLS):
+        check_is_fitted(inner)
+        X_checked = inner._validate_X_predict(X)
         base = inner
     else:
         raise TypeError(
@@ -103,13 +116,18 @@ def _unwrap_estimator_and_data(
     if not isinstance(base, OPLS):
         raise TypeError("estimator.opls_ must be a fitted OPLS instance.")
     check_is_fitted(base)
-    if sparse.issparse(X):
+    if sparse.issparse(X_checked):
         raise TypeError(
             "Input to OPLS plotting is sparse, but plotting requires a dense "
             "matrix. If it came from a Pipeline, add a densifying transformer "
             "before the final OPLS step."
         )
-    return base, check_array(X, dtype=np.float64, ensure_min_samples=ensure_min_samples)
+    if X_checked.shape[0] < ensure_min_samples:
+        raise ValueError(
+            f"Found array with {X_checked.shape[0]} sample(s), while a minimum "
+            f"of {ensure_min_samples} is required."
+        )
+    return base, X_checked
 
 
 class OPLSScoresDisplay:
@@ -237,7 +255,7 @@ class OPLSScoresDisplay:
 
         # Project supplied data through the fitted filter before asking the PLS
         # engine for predictive scores.
-        X_filtered, t_ortho = base._filter(X_trans)
+        X_filtered, t_ortho = base._filter_validated(X_trans)
         scores = base.pls_.transform(X_filtered)
         if isinstance(scores, tuple):
             t_pred_arr = scores[0]
@@ -353,6 +371,7 @@ class SPlotDisplay:
         X: ArrayLike,
         *,
         component: int = 0,
+        x_space: str = "centered",
         ax: matplotlib.axes.Axes | None = None,
     ) -> SPlotDisplay:
         """Compute the S-plot arrays from a fitted ``estimator`` and plot them.
@@ -367,6 +386,11 @@ class SPlotDisplay:
             Samples to project.
         component : int, default=0
             The index of the predictive PLS component to plot.
+        x_space : {"centered", "scaled", "subset-centered"}, default="centered"
+            Feature space used for the covariance/correlation axes. ``"centered"``
+            uses original feature units centered by the fitted training mean,
+            ``"scaled"`` uses the model-scaled feature space, and
+            ``"subset-centered"`` centers the provided X subset by its own mean.
         ax : matplotlib Axes, default=None
             Target axes; a new figure/axes is created when ``None``.
 
@@ -384,20 +408,42 @@ class SPlotDisplay:
                 f"component={component} is out of bounds for estimator with "
                 f"{n_pred} predictive component(s)."
             )
+        if x_space not in {"centered", "scaled", "subset-centered"}:
+            raise ValueError(
+                "x_space must be one of {'centered', 'scaled', 'subset-centered'}."
+            )
+        if X_trans.shape[0] != base.x_scores_.shape[0]:
+            warnings.warn(
+                "SPlotDisplay is usually intended for the training data. "
+                "The provided X has a different number of samples than the fitted "
+                "data; covariance and correlation will be computed on this subset.",
+                UserWarning,
+                stacklevel=2,
+            )
 
-        # S-plots are computed in the final OPLS input space, after applying the
-        # same scaling used at fit time and centering the provided sample subset.
-        Xs = apply_scaling(X_trans, base.x_mean_, base.x_std_)
-        Xs = Xs - Xs.mean(axis=0)
+        # Scores always come from the fitted model preprocessing/filtering. The
+        # S-plot axes can use original-unit or model-scaled feature space.
+        if x_space == "centered":
+            X_for_splot = X_trans - base.x_mean_
+        elif x_space == "scaled":
+            X_for_splot = apply_scaling(X_trans, base.x_mean_, base.x_std_)
+        else:
+            X_for_splot = X_trans - X_trans.mean(axis=0)
 
         # Use the fitted predictive score for the selected component as the common
         # reference vector for both covariance and correlation.
-        t = np.asarray(base.transform(X_trans))[:, component]
+        X_filtered, _ = base._filter_validated(X_trans)
+        scores = base.pls_.transform(X_filtered)
+        if isinstance(scores, tuple):
+            t_arr = scores[0]
+        else:
+            t_arr = scores
+        t = np.asarray(t_arr)[:, component]
         t = t - t.mean()
         n = t.shape[0]
 
-        covariance = Xs.T @ t / max(n - 1, 1)
-        x_std = Xs.std(axis=0, ddof=1)
+        covariance = X_for_splot.T @ t / max(n - 1, 1)
+        x_std = X_for_splot.std(axis=0, ddof=1)
         t_std = float(t.std(ddof=1))
         if t_std <= 1e-12:
             raise ValueError("Predictive score has zero variance; S-plot is undefined.")
@@ -409,8 +455,6 @@ class SPlotDisplay:
         correlation[valid] = covariance[valid] / denom[valid]
 
         if np.any(~valid):
-            import warnings
-
             warnings.warn(
                 "Some features have zero variance; their S-plot correlations are NaN.",
                 RuntimeWarning,
