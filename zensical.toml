@@ -4,6 +4,7 @@ site_description = "Orthogonal PLS (OPLS / OPLS-DA) with a scikit-learn interfac
 site_url = "https://hausergroup.github.io/scikit-opls/"
 repo_url = "https://github.com/HauserGroup/scikit-opls"
 repo_name = "HauserGroup/scikit-opls"
+edit_uri = "edit/main/docs/"
 
 # docs/ is watched automatically; add the source tree (for mkdocstrings) and the
 # changelog snippet source.
@@ -51,12 +52,23 @@ features = [
     "content.action.view",
 ]
 
+[project.theme.icon]
+repo = "fontawesome/brands/github"
+edit = "material/pencil"
+view = "material/eye"
+
+[project.theme.font]
+text = "Nunito"
+code = "JetBrains Mono"
+
 [[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
 scheme = "default"
 toggle.icon = "material/weather-night"
 toggle.name = "Switch to dark mode"
 
 [[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
 scheme = "slate"
 toggle.icon = "material/weather-sunny"
 toggle.name = "Switch to light mode"
@@ -70,11 +82,15 @@ toggle.name = "Switch to light mode"
 permalink = true
 [project.markdown_extensions.pymdownx.superfences]
 [project.markdown_extensions.pymdownx.highlight]
+[project.markdown_extensions.pymdownx.inlinehilite]
 [project.markdown_extensions.pymdownx.snippets]
 base_path = ["."]
 check_paths = true
 [project.markdown_extensions.pymdownx.arithmatex]
 generic = true
+
+[project.plugins.search]
+[project.plugins.social]
 
 # ----------------------------------------------------------------------------
 # mkdocstrings: API reference generated from the numpy-style docstrings.
