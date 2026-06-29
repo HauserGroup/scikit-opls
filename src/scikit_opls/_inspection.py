@@ -24,6 +24,83 @@ from numpy.typing import NDArray
 _EPS = np.finfo(np.float64).eps
 
 
+def _safe_total_ss(X: NDArray[np.float64]) -> float:
+    """Total sum of squares with a nonzero guard."""
+    total = float(np.sum(np.asarray(X, dtype=np.float64) ** 2))
+    return max(total, np.finfo(np.float64).eps)
+
+
+def component_explained_x_variance(
+    X: NDArray[np.float64],
+    scores: NDArray[np.float64],
+    loadings: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Per-component fraction of X sum-of-squares explained.
+
+    X must already be in the model space used to fit the scores/loadings.
+    """
+    X_arr = np.asarray(X, dtype=np.float64)
+    T = np.asarray(scores, dtype=np.float64)
+    P = np.asarray(loadings, dtype=np.float64)
+    if T.ndim != 2 or P.ndim != 2:
+        raise ValueError("scores and loadings must be 2D arrays.")
+    if T.shape[1] != P.shape[1]:
+        raise ValueError("scores and loadings must have the same number of components.")
+    total = _safe_total_ss(X_arr)
+    out = np.empty(T.shape[1], dtype=np.float64)
+    for i in range(T.shape[1]):
+        Xi = T[:, [i]] @ P[:, [i]].T
+        out[i] = np.sum(Xi**2) / total
+    return out
+
+
+def cumulative_r2_from_residuals(
+    original: NDArray[np.float64],
+    residuals_by_component: list[NDArray[np.float64]],
+) -> NDArray[np.float64]:
+    """Cumulative R² from a sequence of residual matrices."""
+    total = _safe_total_ss(original)
+    return np.asarray(
+        [1.0 - float(np.sum(resid**2)) / total for resid in residuals_by_component],
+        dtype=np.float64,
+    )
+
+
+def component_r2_from_cumulative(
+    cumulative: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Convert cumulative R² to per-component increments."""
+    cumulative = np.asarray(cumulative, dtype=np.float64)
+    if cumulative.size == 0:
+        return cumulative
+    return np.diff(np.r_[0.0, cumulative])
+
+
+def component_r2y_from_scores(
+    y: NDArray[np.float64],
+    scores: NDArray[np.float64],
+    y_loadings: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Per-component Y R² increments from PLS scores/loadings.
+
+    This follows the PLS deflation view: each component explains part of Y through
+    ``t_i q_i.T``.
+    """
+    y_arr = np.asarray(y, dtype=np.float64)
+    if y_arr.ndim == 1:
+        y_arr = y_arr.reshape(-1, 1)
+    T = np.asarray(scores, dtype=np.float64)
+    Q = np.asarray(y_loadings, dtype=np.float64)
+    if Q.ndim == 1:
+        Q = Q.reshape(-1, 1)
+    total = _safe_total_ss(y_arr - y_arr.mean(axis=0, keepdims=True))
+    out = np.empty(T.shape[1], dtype=np.float64)
+    for i in range(T.shape[1]):
+        Yi = T[:, [i]] @ Q[:, [i]].T
+        out[i] = np.sum(Yi**2) / total
+    return out
+
+
 def explained_x_variance(
     X: NDArray[np.float64],
     scores: NDArray[np.float64],

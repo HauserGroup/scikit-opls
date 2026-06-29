@@ -222,6 +222,26 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         check_is_fitted(self)
         return self.opls_.ortho_vip_
 
+    def score_distance(
+        self,
+        X: ArrayLike,
+        *,
+        kind: str = "predictive",
+    ) -> NDArray[np.float64]:
+        """Return Hotelling-like score distances from the inner OPLS model."""
+        X_valid = self._validate_X_predict(X)
+        return self.opls_._score_distance_validated(X_valid, kind=kind)
+
+    def q_residuals(
+        self,
+        X: ArrayLike,
+        *,
+        space: str = "full",
+    ) -> NDArray[np.float64]:
+        """Return Q residuals from the inner OPLS model."""
+        X_valid = self._validate_X_predict(X)
+        return self.opls_._q_residuals_validated(X_valid, space=space)
+
     def __sklearn_tags__(self):
         tags = super().__sklearn_tags__()
         tags.classifier_tags.multi_class = False
