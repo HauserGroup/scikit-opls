@@ -128,18 +128,20 @@ def test_q_residuals_full_matches_manual_reconstruction():
     model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
     Xs = apply_scaling(X, model.x_mean_, model.x_std_)
     X_ortho_hat = model.x_ortho_scores_ @ model.x_ortho_loadings_.T
-    X_pred_hat = model.x_scores_ @ model.x_loadings_.T
+    pls_x_mean = np.asarray(getattr(model.pls_, "_x_mean", 0.0), dtype=np.float64)
+    X_pred_hat = pls_x_mean + model.x_scores_ @ model.x_loadings_.T
     expected = np.sum((Xs - X_ortho_hat - X_pred_hat) ** 2, axis=1)
     np.testing.assert_allclose(model.q_residuals(X, space="full"), expected)
 
 
-def test_q_residuals_predictive_matches_manual_filtered_reconstruction():
-    """Verify predictive Q residuals against manual filtered reconstruction."""
+def test_q_residuals_predictive_matches_scaled_x_predictive_only_reconstruction():
+    """Verify predictive Q residuals against manual predictive reconstruction."""
     X, y = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
     Xs = apply_scaling(X, model.x_mean_, model.x_std_)
-    X_hat = model.x_scores_ @ model.x_loadings_.T
-    expected = np.sum((Xs - X_hat) ** 2, axis=1)
+    pls_x_mean = np.asarray(getattr(model.pls_, "_x_mean", 0.0), dtype=np.float64)
+    X_pred_hat = pls_x_mean + model.x_scores_ @ model.x_loadings_.T
+    expected = np.sum((Xs - X_pred_hat) ** 2, axis=1)
     np.testing.assert_allclose(model.q_residuals(X, space="predictive"), expected)
 
 
@@ -237,6 +239,25 @@ def test_full_q_residuals_capture_predictive_plus_orthogonal_structure():
     q_full = np.mean(model.q_residuals(X, space="full"))
     q_pred = np.mean(model.q_residuals(X, space="predictive"))
     assert q_full < q_pred
+
+
+def test_q_residuals_rank_one_offset_data_scale_none_near_zero():
+    """Verify that offset data with scale=none has near-zero Q residuals."""
+    rng = np.random.default_rng(0)
+    t = rng.normal(size=(40, 1))
+    p = rng.normal(size=(6, 1))
+    X = 10.0 + t @ p.T
+    y = t.ravel()
+    model = OPLS(n_components=1, n_orthogonal=0, scale="none").fit(X, y)
+    assert np.mean(model.q_residuals(X, space="full")) < 1e-10
+
+
+def test_pls_engine_exposes_internal_x_mean_for_reconstruction():
+    """Verify the fitted PLS engine exposes _x_mean for reconstruction compatibility."""
+    X, y = _regression_data()
+    model = OPLS(n_components=1, n_orthogonal=0, scale="none").fit(X, y)
+    assert hasattr(model.pls_, "_x_mean")
+    assert model.pls_._x_mean.shape == (X.shape[1],)
 
 
 # ==============================================================================

@@ -319,9 +319,10 @@ class SPlotDisplay:
     """S-plot: covariance vs correlation of each feature with the predictive score.
 
     .. note::
-        SPlotDisplay is intended for the fitted training data. If a test/new data subset
-        is provided, the covariance and correlation are computed after centering that
-        subset by its own mean.
+        SPlotDisplay is intended for the fitted training data.
+        For x_space="centered", X is centered by the fitted model mean.
+        For x_space="scaled", X is centered/scaled by the fitted model preprocessing.
+        For x_space="subset-centered", X is centered by the provided subset mean.
 
         When ``estimator`` is a pipeline, the S-plot is computed in the feature
         space received by the final OPLS-family step after upstream transformations.
