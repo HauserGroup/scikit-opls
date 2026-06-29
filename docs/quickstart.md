@@ -17,6 +17,28 @@ model.transform_orthogonal(X) # orthogonal scores
 model.r2y_, model.rmse_       # training-fit summaries
 ```
 
+## Two-block O2PLS
+
+```python
+import numpy as np
+from scikit_opls import O2PLS
+
+rng = np.random.default_rng(1)
+Z = rng.normal(size=(80, 2))
+X = Z @ rng.normal(size=(2, 20)) + 0.1 * rng.normal(size=(80, 20))
+Y = Z @ rng.normal(size=(2, 10)) + 0.1 * rng.normal(size=(80, 10))
+
+model = O2PLS(n_components=2, n_x_orthogonal=1, n_y_orthogonal=1).fit(X, Y)
+model.predict(X)       # predicted joint Y structure, raw Y units
+model.predict_x(Y)     # predicted joint X structure, raw X units
+model.transform(X)     # X-side joint scores
+model.transform_y(Y)   # Y-side joint scores
+```
+
+`O2PLS.coef_filtered_` maps scaled, X-orthogonally-filtered `X` to scaled
+predicted `Y`; it is not a raw-space sklearn `coef_` alias. The joint loadings use
+the O2PLS orthonormal convention, so joint loadings equal joint weights.
+
 ## Choosing `n_orthogonal` by cross-validation
 
 Use scikit-learn's `GridSearchCV` directly — `OPLS` has no path structure, so a

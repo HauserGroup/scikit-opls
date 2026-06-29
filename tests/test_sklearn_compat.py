@@ -1,16 +1,18 @@
-"""scikit-learn estimator-contract compliance for OPLS and OPLSDA."""
+"""scikit-learn estimator-contract compliance for scikit-opls estimators."""
 
 from __future__ import annotations
 
 import pytest
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
-from scikit_opls import OPLS, OPLSDA
+from scikit_opls import O2PLS, OPLS, OPLSDA
 
 
 @pytest.mark.filterwarnings("ignore::sklearn.exceptions.ConvergenceWarning")
 @parametrize_with_checks(
     [
+        O2PLS(),
+        O2PLS(scale="pareto"),
         OPLS(),
         OPLS(n_orthogonal=0),
         OPLS(scale="pareto"),

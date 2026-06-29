@@ -148,10 +148,6 @@ def _lstsq_map(
     return coef
 
 
-# Alias for backward compatibility / test suite
-_lstsq_loadings = _lstsq_map
-
-
 def _extract_one_orthogonal_component(
     block: NDArray[np.float64],
     joint_scores: NDArray[np.float64],

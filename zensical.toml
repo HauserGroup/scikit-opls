@@ -18,6 +18,7 @@ nav = [
     { "Quickstart" = "quickstart.md" },
     { "API Reference" = [
         { "OPLS" = "api/opls.md" },
+        { "O2PLS" = "api/o2pls.md" },
         { "OPLS-DA" = "api/opls_da.md" },
         { "Plotting" = "api/plotting.md" },
         { "Validation" = "api/validation.md" },
