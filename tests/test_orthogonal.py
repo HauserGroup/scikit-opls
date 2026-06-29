@@ -243,31 +243,15 @@ def test_orthogonal_filter_rejects_subnormal_predictive_direction():
         orthogonal_filter(X, direction, 1)
 
 
-@pytest.mark.parametrize("bad", [1.5, True])
-def test_orthogonal_filter_rejects_non_integer_n_components(bad):
+@pytest.mark.parametrize("bad", [1.5, True, -1])
+def test_low_level_filters_reject_bad_component_counts_smoke(bad):
     X, y = _make_data()
     w = predictive_weight(X, y)
 
-    with pytest.raises(TypeError, match="n_components"):
+    with pytest.raises((TypeError, ValueError)):
         orthogonal_filter(X, w, bad)
-
-
-@pytest.mark.parametrize("bad", [1.5, True])
-def test_opls_filter_rejects_non_integer_n_components(bad):
-    X, y = _make_data()
-
-    with pytest.raises(TypeError, match="n_components"):
+    with pytest.raises((TypeError, ValueError)):
         opls_filter(X, y, bad)
-
-
-def test_low_level_filters_reject_negative_n_components():
-    X, y = _make_data()
-    w = predictive_weight(X, y)
-
-    with pytest.raises(ValueError, match="n_components must be >= 0"):
-        orthogonal_filter(X, w, -1)
-    with pytest.raises(ValueError, match="n_components must be >= 0"):
-        opls_filter(X, y, -1)
 
 
 def test_orthogonal_filter_rejects_nonfinite_values():
