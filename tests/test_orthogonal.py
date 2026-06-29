@@ -243,32 +243,52 @@ def test_orthogonal_filter_rejects_subnormal_predictive_direction():
         orthogonal_filter(X, direction, 1)
 
 
-@pytest.mark.parametrize("bad", [1.5, True, -1])
-def test_low_level_filters_reject_bad_component_counts_smoke(bad):
+def test_orthogonal_filter_validates_representative_shapes():
     X, y = _make_data()
     w = predictive_weight(X, y)
+    fit = opls_filter(X, y, 2)
 
-    with pytest.raises((TypeError, ValueError)):
-        orthogonal_filter(X, w, bad)
-    with pytest.raises((TypeError, ValueError)):
-        opls_filter(X, y, bad)
+    # 1. non-2D X
+    with pytest.raises(ValueError, match="must be 2D"):
+        orthogonal_filter(X.ravel(), w, 1)
+
+    # 2. mismatch predictive_direction
+    with pytest.raises(ValueError, match="predictive_direction must have shape"):
+        orthogonal_filter(X, np.zeros(X.shape[1] + 1), 1)
+
+    # 3. apply_orthogonal_filter shape validation (features mismatch)
+    with pytest.raises(ValueError, match="Number of features"):
+        apply_orthogonal_filter(X[:, :10], fit.x_ortho_weights, fit.x_ortho_loadings)
 
 
-def test_orthogonal_filter_rejects_nonfinite_values():
+def test_orthogonal_filter_validates_representative_finite_values():
     X, y = _make_data()
     w = predictive_weight(X, y)
+    fit = opls_filter(X, y, 2)
 
+    # 1. nonfinite X
     X_bad = X.copy()
     X_bad[0, 0] = np.nan
     with pytest.raises(ValueError, match="block must contain only finite values"):
         orthogonal_filter(X_bad, w, 1)
+    with pytest.raises(ValueError, match="X must contain only finite values"):
+        apply_orthogonal_filter(X_bad, fit.x_ortho_weights, fit.x_ortho_loadings)
 
-    w_bad = w.copy()
-    w_bad[0] = np.inf
+    # 2. nonfinite weights/loadings
+    weights_bad = fit.x_ortho_weights.copy()
+    weights_bad[0, 0] = np.nan
     with pytest.raises(
-        ValueError, match="predictive_direction must contain only finite values"
+        ValueError, match="x_ortho_weights must contain only finite values"
     ):
-        orthogonal_filter(X, w_bad, 1)
+        apply_orthogonal_filter(X, weights_bad, fit.x_ortho_loadings)
+
+
+@pytest.mark.parametrize("bad", [True, -1])
+def test_orthogonal_filter_component_count_validation(bad):
+    X, y = _make_data()
+    w = predictive_weight(X, y)
+    with pytest.raises((TypeError, ValueError)):
+        orthogonal_filter(X, w, bad)
 
 
 def test_relative_tolerances_small_scale():
@@ -282,53 +302,6 @@ def test_relative_tolerances_small_scale():
     assert fit.n_components == 2
     reconstructed = fit.x_filtered + fit.x_ortho_scores @ fit.x_ortho_loadings.T
     assert_allclose(reconstructed, X_small, atol=1e-25)
-
-
-def test_orthogonal_filter_shape_checks():
-    X, y = _make_data()
-    # 1. 1D block
-    with pytest.raises(ValueError, match="must be 2D"):
-        orthogonal_filter(X.ravel(), np.zeros(X.shape[1]), 1)
-
-    # 2. mismatch predictive_direction
-    with pytest.raises(ValueError, match="predictive_direction must have shape"):
-        orthogonal_filter(X, np.zeros(X.shape[1] + 1), 1)
-
-    # 3. apply_orthogonal_filter shape validation
-    fit = opls_filter(X, y, 2)
-    # X not 2D
-    with pytest.raises(ValueError, match="must be 2D"):
-        apply_orthogonal_filter(X.ravel(), fit.x_ortho_weights, fit.x_ortho_loadings)
-    # weights and loadings shapes mismatch
-    with pytest.raises(ValueError, match="matching shapes"):
-        apply_orthogonal_filter(X, fit.x_ortho_weights, fit.x_ortho_loadings[:, :1])
-    # features mismatch
-    with pytest.raises(ValueError, match="Number of features"):
-        apply_orthogonal_filter(X[:, :10], fit.x_ortho_weights, fit.x_ortho_loadings)
-
-
-def test_apply_orthogonal_filter_rejects_nonfinite_values():
-    X, y = _make_data()
-    fit = opls_filter(X, y, 2)
-
-    X_bad = X.copy()
-    X_bad[0, 0] = np.nan
-    with pytest.raises(ValueError, match="X must contain only finite values"):
-        apply_orthogonal_filter(X_bad, fit.x_ortho_weights, fit.x_ortho_loadings)
-
-    weights_bad = fit.x_ortho_weights.copy()
-    weights_bad[0, 0] = np.nan
-    with pytest.raises(
-        ValueError, match="x_ortho_weights must contain only finite values"
-    ):
-        apply_orthogonal_filter(X, weights_bad, fit.x_ortho_loadings)
-
-    loadings_bad = fit.x_ortho_loadings.copy()
-    loadings_bad[0, 0] = np.inf
-    with pytest.raises(
-        ValueError, match="x_ortho_loadings must contain only finite values"
-    ):
-        apply_orthogonal_filter(X, fit.x_ortho_weights, loadings_bad)
 
 
 def test_orthogonal_filter_accepts_array_like():

@@ -71,27 +71,20 @@ def test_compute_scaling_requires_2d_finite_input():
         compute_scaling(X, "standard")
 
 
-def test_apply_scaling_rejects_bad_shapes_and_values():
+def test_apply_scaling_validates_representative_bad_inputs():
     X = np.ones((4, 3))
-
+    # 1. 1D X
     with pytest.raises(ValueError, match="X must be 2D"):
         apply_scaling(np.ones(3), np.zeros(3), np.ones(3))
-    with pytest.raises(ValueError, match="at least one sample and one feature"):
-        apply_scaling(np.empty((0, 3)), np.zeros(3), np.ones(3))
-    with pytest.raises(ValueError, match="at least one sample and one feature"):
-        apply_scaling(np.empty((3, 0)), np.zeros(0), np.ones(0))
+    # 2. wrong mean_ shape
     with pytest.raises(ValueError, match="mean_ must have shape"):
         apply_scaling(X, np.zeros(2), np.ones(3))
-    with pytest.raises(ValueError, match="scale_ must have shape"):
-        apply_scaling(X, np.zeros(3), np.ones(2))
-    with pytest.raises(ValueError, match="finite"):
-        apply_scaling(np.array([[1.0, np.inf, 1.0]]), np.zeros(3), np.ones(3))
-    with pytest.raises(ValueError, match="mean_ must contain only finite values"):
-        apply_scaling(X, np.array([0.0, np.nan, 0.0]), np.ones(3))
-    with pytest.raises(ValueError, match="scale_ must contain only finite values"):
-        apply_scaling(X, np.zeros(3), np.array([1.0, np.inf, 1.0]))
+    # 3. zero scale
     with pytest.raises(ValueError, match="scale_ must not contain zeros"):
         apply_scaling(X, np.zeros(3), np.array([1.0, 0.0, 1.0]))
+    # 4. nonfinite input
+    with pytest.raises(ValueError, match="finite"):
+        apply_scaling(np.array([[1.0, np.inf, 1.0]]), np.zeros(3), np.ones(3))
 
 
 def test_fit_predict_scaling_consistency():

@@ -13,19 +13,21 @@ from scikit_opls import O2PLS, OPLS, OPLSDA
 from ._data import make_regression_data as _regression_data
 
 
-def test_opls_basic_param_validation_smoke():
+@pytest.mark.parametrize(
+    "estimator, is_cls",
+    [
+        (OPLS(n_components=0), False),
+        (OPLSDA(n_orthogonal=-1), True),
+        (O2PLS(n_components=0), False),
+    ],
+)
+def test_estimators_call_param_validation(estimator, is_cls):
     """Verify that estimators call scikit-learn's _validate_params."""
     X, y = _regression_data()
+    if is_cls:
+        y = np.where(y > y.mean(), 1, 0)
     with pytest.raises(ValueError):
-        OPLS(n_components=0).fit(X, y)
-
-
-def test_oplsda_rejects_invalid_n_orthogonal():
-    """Smoke test for OPLSDA parameter validation."""
-    X, y = _regression_data()
-    y_bin = np.where(y > y.mean(), 1, 0)
-    with pytest.raises(ValueError):
-        OPLSDA(n_orthogonal=-1).fit(X, y_bin)
+        estimator.fit(X, y)
 
 
 def test_n_features_in_set():

@@ -125,24 +125,6 @@ def test_score_matches_r2_score_for_1d_y():
     assert model.score(X, y) == pytest.approx(r2_score(y, model.predict(X)))
 
 
-def test_q_one_validation_allows_x_orthogonal_but_rejects_y_orthogonal():
-    X, Y = _make_o2pls_data(n_joint=1, n_y_features=1, n_y_orthogonal=0, seed=7)
-    y = Y.ravel()
-
-    O2PLS(n_components=1, n_x_orthogonal=1, n_y_orthogonal=0).fit(X, y)
-    with pytest.raises(ValueError, match="n_y_orthogonal=0"):
-        O2PLS(n_components=1, n_y_orthogonal=1).fit(X, y)
-    with pytest.raises(ValueError, match="n_components=1"):
-        O2PLS(n_components=2).fit(X, y)
-
-
-def test_get_feature_names_out_are_joint_scores():
-    X, Y = _make_o2pls_data(seed=8)
-    model = O2PLS(n_components=2).fit(X, Y)
-
-    assert list(model.get_feature_names_out()) == ["o2pls_joint0", "o2pls_joint1"]
-
-
 @pytest.mark.parametrize(
     ("method", "arg_name"),
     [

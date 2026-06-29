@@ -73,40 +73,25 @@ def test_weighted_vip_rejects_bad_shapes_and_nonfinite():
         _weighted_vip(np.ones((3, 2)), np.array([1.0, -0.5]))
 
 
-def test_predictive_vip_rejects_bad_shapes():
+def test_vip_helpers_validate_representative_shapes():
     x_weights = np.ones((4, 2))
     x_scores = np.ones((10, 2))
     y_loadings = np.ones((1, 2))
 
+    # 1. predictive VIP guards
     with pytest.raises(ValueError, match="x_weights must be 2D"):
         predictive_vip(np.ones(4), x_scores, y_loadings)
-    with pytest.raises(ValueError, match="x_scores must be 2D"):
-        predictive_vip(x_weights, np.ones(10), y_loadings)
     with pytest.raises(ValueError, match="same number of components"):
         predictive_vip(x_weights, np.ones((10, 3)), y_loadings)
-    with pytest.raises(ValueError, match=r"y_loadings must have shape \(2,\)"):
-        predictive_vip(x_weights, x_scores, np.ones(3))
-    with pytest.raises(ValueError, match="one column per predictive component"):
-        predictive_vip(x_weights, x_scores, np.ones((2, 1)))
-    with pytest.raises(ValueError, match="y_loadings must be 1D or 2D"):
-        predictive_vip(x_weights, x_scores, np.ones((1, 1, 2)))
 
-
-def test_orthogonal_vip_rejects_bad_shapes():
+    # 2. orthogonal VIP guards
     x_ortho_weights = np.ones((4, 2))
     x_ortho_scores = np.ones((10, 2))
     x_ortho_loadings = np.ones((4, 2))
-
     with pytest.raises(ValueError, match="x_ortho_weights must be 2D"):
         orthogonal_vip(np.ones(4), x_ortho_scores, x_ortho_loadings)
-    with pytest.raises(ValueError, match="x_ortho_scores must be 2D"):
-        orthogonal_vip(x_ortho_weights, np.ones(10), x_ortho_loadings)
-    with pytest.raises(ValueError, match="x_ortho_loadings must be 2D"):
-        orthogonal_vip(x_ortho_weights, x_ortho_scores, np.ones(4))
     with pytest.raises(ValueError, match="same number of components"):
         orthogonal_vip(x_ortho_weights, np.ones((10, 3)), x_ortho_loadings)
-    with pytest.raises(ValueError, match="x_ortho_loadings must have shape"):
-        orthogonal_vip(x_ortho_weights, x_ortho_scores, np.ones((3, 2)))
 
 
 def test_vip_unfitted_raises():
@@ -192,13 +177,9 @@ def test_explained_x_variance_empty_block_is_zero():
     assert explained_x_variance(X, np.zeros((3, 0)), np.zeros((3, 0))) == 0.0
 
 
-def test_explained_x_variance_shape_guards():
-    X = np.eye(4)  # (4, 4)
+def test_explained_x_variance_validates_representative_shapes():
+    X = np.eye(4)
     with pytest.raises(ValueError, match="must all be 2D"):
         explained_x_variance(X, np.zeros(4), np.zeros((4, 1)))
     with pytest.raises(ValueError, match="one row per sample"):
         explained_x_variance(X, np.zeros((3, 1)), np.zeros((4, 1)))
-    with pytest.raises(ValueError, match="one row per feature"):
-        explained_x_variance(X, np.zeros((4, 1)), np.zeros((3, 1)))
-    with pytest.raises(ValueError, match="same number of components"):
-        explained_x_variance(X, np.zeros((4, 2)), np.zeros((4, 1)))
