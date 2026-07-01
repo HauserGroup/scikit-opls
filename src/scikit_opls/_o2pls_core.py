@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from numbers import Integral
 
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils.extmath import svd_flip
 
-from scikit_opls._utils import _has_nonzero_variation
+from scikit_opls._utils import _has_nonzero_variation, _validate_int
 
 _TOL = 1e-12
 
@@ -73,22 +72,11 @@ def _effective_rank(s: NDArray[np.float64], tol: float) -> int:
 
 
 def _validate_positive_int(name: str, value: int) -> int:
-    # ``bool`` is a subclass of ``int``; reject it explicitly so True/False are not
-    # silently accepted as component counts.
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"{name} must be an integer, got {type(value).__name__}.")
-    if value < 1:
-        raise ValueError(f"{name} must be >= 1, got {value}.")
-    return int(value)
+    return _validate_int(name, value, minimum=1)
 
 
 def _validate_nonnegative_int(name: str, value: int) -> int:
-    # Keep the same bool handling as the positive-integer validator above.
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"{name} must be an integer, got {type(value).__name__}.")
-    if value < 0:
-        raise ValueError(f"{name} must be >= 0, got {value}.")
-    return int(value)
+    return _validate_int(name, value, minimum=0)
 
 
 def _validate_tol(tol: float) -> float:

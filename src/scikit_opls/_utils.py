@@ -2,10 +2,42 @@
 
 from __future__ import annotations
 
+from numbers import Integral
+
 import numpy as np
 from numpy.typing import ArrayLike
 
 _EPS = np.finfo(np.float64).eps
+
+
+def _reject_bool_param(name: str, value: object) -> None:
+    """Raise if ``value`` is ``bool`` for a sklearn Integral-constrained parameter.
+
+    ``bool`` is a subclass of ``int``, so sklearn's ``Interval(Integral, ...)``
+    constraint accepts ``True``/``False`` silently. Call this before
+    ``self._validate_params()`` for each Integral-constrained hyperparameter.
+    """
+    if isinstance(value, bool):
+        raise ValueError(f"{name} must be an integer, not bool.")
+
+
+def _validate_int(
+    name: str,
+    value: object,
+    *,
+    minimum: int,
+    type_phrase: str = "an integer",
+) -> int:
+    """Reject non-``Integral``, ``bool``, and below-``minimum`` values.
+
+    ``bool`` is a subclass of ``int``; reject it explicitly so ``True``/``False``
+    are not silently accepted as counts or indices.
+    """
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise TypeError(f"{name} must be {type_phrase}, got {type(value).__name__}.")
+    if value < minimum:
+        raise ValueError(f"{name} must be >= {minimum}, got {value}.")
+    return int(value)
 
 
 def _has_nonzero_variation(

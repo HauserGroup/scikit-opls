@@ -10,26 +10,20 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from numbers import Integral
 
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from sklearn.exceptions import ConvergenceWarning
 
+from scikit_opls._utils import _validate_int
+
 _TOL = 1e-12
 
 
 def _validate_n_components(n_components: int) -> int:
-    # ``bool`` behaves like an integer in Python, but True/False are ambiguous as
-    # component counts and should be treated as invalid user input.
-    if isinstance(n_components, bool) or not isinstance(n_components, Integral):
-        raise TypeError(
-            "n_components must be a non-negative integer, "
-            f"got {type(n_components).__name__}."
-        )
-    if n_components < 0:
-        raise ValueError(f"n_components must be >= 0, got {n_components}.")
-    return int(n_components)
+    return _validate_int(
+        "n_components", n_components, minimum=0, type_phrase="a non-negative integer"
+    )
 
 
 @dataclass
@@ -111,7 +105,7 @@ def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
         w = X.T @ y
         norm_w = float(np.linalg.norm(w))
         ref = float(np.linalg.norm(X) * np.linalg.norm(y))
-        if norm_w <= _TOL * ref or norm_w == 0.0:
+        if norm_w <= _TOL * ref:
             raise ValueError(
                 "X is numerically orthogonal to Y; predictive direction is undefined."
             )
@@ -130,7 +124,7 @@ def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
     S = X.T @ Y  # (n_features, n_targets)
     s_norm = float(np.linalg.norm(S))
     ref = float(np.linalg.norm(X) * np.linalg.norm(Y))
-    if s_norm <= _TOL * ref or s_norm == 0.0:
+    if s_norm <= _TOL * ref:
         raise ValueError(
             "X is numerically orthogonal to Y; predictive direction is undefined."
         )
@@ -224,7 +218,7 @@ def orthogonal_filter(
         w_o = p - float(w_pred @ p) * w_pred  # part of the loading orthogonal to w_pred
         w_norm = float(np.linalg.norm(w_o))
         p_norm = float(np.linalg.norm(p))
-        if w_norm <= _TOL * p_norm or w_norm == 0.0:
+        if w_norm <= _TOL * p_norm:
             break  # no orthogonal variation left
         w_o /= w_norm
         t_o = X_res @ w_o

@@ -30,6 +30,7 @@ from sklearn.utils.validation import check_is_fitted, validate_data
 
 from scikit_opls._opls import OPLS
 from scikit_opls._preprocessing import VALID_SCALING
+from scikit_opls._utils import _reject_bool_param
 
 
 class OPLSDA(ClassifierMixin, BaseEstimator):
@@ -95,10 +96,8 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         self : OPLSDA
             The fitted estimator.
         """
-        if isinstance(self.n_components, bool):
-            raise ValueError("n_components must be an integer, not bool.")
-        if isinstance(self.n_orthogonal, bool):
-            raise ValueError("n_orthogonal must be an integer, not bool.")
+        _reject_bool_param("n_components", self.n_components)
+        _reject_bool_param("n_orthogonal", self.n_orthogonal)
 
         self._validate_params()
 
@@ -172,10 +171,6 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         )
         return np.asarray(X_valid, dtype=np.float64)
 
-    def _validated_inner_x(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Validate and return inner X."""
-        return self._validate_X_predict(X)
-
     def decision_function(self, X: ArrayLike) -> NDArray[np.float64]:
         """Raw signed OPLS regression output; positive favours ``classes_[1]``.
 
@@ -190,7 +185,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             Signed confidence; ``> 0`` predicts ``classes_[1]``. Scores equal to
             zero are assigned to ``classes_[0]`` by :meth:`predict`.
         """
-        X_valid = self._validated_inner_x(X)
+        X_valid = self._validate_X_predict(X)
         proj = self.opls_._project_validated(X_valid)
         return np.asarray(
             self.opls_.pls_.predict(proj.X_filtered), dtype=np.float64
@@ -246,7 +241,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         score_dist : ndarray of shape (n_samples,)
             Computed Hotelling-like distance per sample.
         """
-        X_valid = self._validated_inner_x(X)
+        X_valid = self._validate_X_predict(X)
         return self.opls_._score_distance_validated(X_valid, kind=kind)
 
     def q_residuals(
@@ -271,7 +266,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         q : ndarray of shape (n_samples,)
             Squared residual norm per sample.
         """
-        X_valid = self._validated_inner_x(X)
+        X_valid = self._validate_X_predict(X)
         return self.opls_._q_residuals_validated(X_valid, space=space)
 
     def __sklearn_tags__(self):
