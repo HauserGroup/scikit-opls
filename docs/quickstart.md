@@ -125,9 +125,8 @@ permutation_test(OPLS(n_orthogonal=2), X, y)
 ```
 
 !!! note "Pipeline support in plotting"
-Diagnostic plotting displays support `OPLS`, `OPLSDA`, pipelines ending in one,
-and fitted search meta-estimators exposing `best_estimator_` around either shape.
-When passing a pipeline, pass raw `X` as expected by the pipeline. When passing the
-final OPLS step directly, pass the already transformed matrix. For pipeline
-S-plots, points are in the transformed feature space received by the final OPLS
-step.
+Diagnostic plotting displays support `OPLS`, `OPLSDA`, and pipelines ending in
+one. For tuned models, pass `search.best_estimator_` explicitly. When passing a
+pipeline, pass raw `X` as expected by the pipeline. When passing the final OPLS
+step directly, pass the already transformed matrix. For pipeline S-plots, points
+are in the transformed feature space received by the final OPLS step.

@@ -61,6 +61,25 @@ def test_permutation_test_mismatched_lengths_raise():
         permutation_test(OPLS(n_orthogonal=1), X, y[:-1])
 
 
+def test_permutation_test_accepts_single_column_y():
+    X, y = _regression_data(seed=8)
+    result = permutation_test(
+        OPLS(n_orthogonal=1),
+        X,
+        y.reshape(-1, 1),
+        n_permutations=5,
+        random_state=0,
+    )
+    assert result.r2y is not None
+
+
+def test_permutation_test_rejects_multioutput_y():
+    X, y = _regression_data(seed=8)
+    Y = np.column_stack([y, y])
+    with pytest.raises(ValueError, match="univariate response|multi-output"):
+        permutation_test(OPLS(n_orthogonal=1), X, Y, n_permutations=5, random_state=0)
+
+
 def test_permutation_test_n_jobs_is_reproducible():
     """Parallel execution must match serial: permutations are drawn up front."""
     X, y = _regression_data(seed=9)

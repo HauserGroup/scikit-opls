@@ -24,9 +24,9 @@ from sklearn.model_selection import (
     cross_val_predict,
 )
 from sklearn.utils import check_random_state
-from sklearn.utils.validation import check_array, check_consistent_length
+from sklearn.utils.validation import check_array, check_consistent_length, column_or_1d
 
-from scikit_opls._utils import _has_nonzero_variation
+from scikit_opls._utils import _has_nonzero_variation, _validate_int
 
 _CVType = int | BaseCrossValidator | BaseShuffleSplit | Iterable | None
 
@@ -136,8 +136,8 @@ def permutation_test(
         An unfitted OPLS-like estimator (cloned internally for each fit).
     X : array-like of shape (n_samples, n_features)
         Predictors.
-    y : array-like of shape (n_samples,)
-        Response.
+    y : array-like of shape (n_samples,) or (n_samples, 1)
+        Univariate response. Multi-output targets are rejected.
     n_permutations : int, default=20
         Number of label permutations.
     cv : int, cross-validation generator or None, default=None
@@ -172,15 +172,16 @@ def permutation_test(
             "permutation_test is for regression models; "
             "classifiers like OPLSDA are not supported."
         )
-    if isinstance(n_permutations, bool) or not isinstance(n_permutations, Integral):
-        raise TypeError(
-            f"n_permutations must be an integer, got {type(n_permutations).__name__}"
-        )
-    if n_permutations < 1:
-        raise ValueError(f"n_permutations must be >= 1, got {n_permutations}")
+    n_permutations = _validate_int("n_permutations", n_permutations, minimum=1)
 
     X = check_array(X, dtype=np.float64)
-    y = np.asarray(y, dtype=np.float64).ravel()
+    try:
+        y = column_or_1d(np.asarray(y, dtype=np.float64), warn=False)
+    except ValueError as exc:
+        raise ValueError(
+            "permutation_test currently requires a univariate response; "
+            "multi-output targets are not supported."
+        ) from exc
     check_consistent_length(X, y)
     if not np.all(np.isfinite(y)):
         raise ValueError("y must contain only finite values.")

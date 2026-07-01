@@ -29,7 +29,7 @@ from scikit_opls._o2pls_core import (
     o2pls_fit,
 )
 from scikit_opls._preprocessing import VALID_SCALING, apply_scaling, compute_scaling
-from scikit_opls._utils import _has_nonzero_variation
+from scikit_opls._utils import _has_nonzero_variation, _reject_bool_param
 
 
 class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
@@ -166,12 +166,9 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self : object
             Fitted estimator.
         """
-        if isinstance(self.n_components, bool):
-            raise ValueError("n_components must be an integer, not bool.")
-        if isinstance(self.n_x_orthogonal, bool):
-            raise ValueError("n_x_orthogonal must be an integer, not bool.")
-        if isinstance(self.n_y_orthogonal, bool):
-            raise ValueError("n_y_orthogonal must be an integer, not bool.")
+        _reject_bool_param("n_components", self.n_components)
+        _reject_bool_param("n_x_orthogonal", self.n_x_orthogonal)
+        _reject_bool_param("n_y_orthogonal", self.n_y_orthogonal)
         self._validate_params()
 
         # Preserve whether the user supplied 1D or 2D Y so predict() can mirror the

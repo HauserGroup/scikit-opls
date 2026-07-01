@@ -35,21 +35,19 @@ def component_explained_x_variance(
     scores: NDArray[np.float64],
     loadings: NDArray[np.float64],
 ) -> NDArray[np.float64]:
-    """Per-component fraction of X sum-of-squares explained.
-
-    X must already be in the model space used to fit the scores/loadings.
-    """
-    X_arr = np.asarray(X, dtype=np.float64)
-    T = np.asarray(scores, dtype=np.float64)
-    P = np.asarray(loadings, dtype=np.float64)
-    if T.ndim != 2 or P.ndim != 2:
-        raise ValueError("scores and loadings must be 2D arrays.")
-    if T.shape[1] != P.shape[1]:
+    """Per-component ``SS(t_i @ p_i.T) / SS(X)`` for fitted arrays."""
+    if X.ndim != 2 or scores.ndim != 2 or loadings.ndim != 2:
+        raise ValueError("X, scores and loadings must all be 2D arrays.")
+    if scores.shape[0] != X.shape[0]:
+        raise ValueError("scores must have one row per sample of X.")
+    if loadings.shape[0] != X.shape[1]:
+        raise ValueError("loadings must have one row per feature of X.")
+    if scores.shape[1] != loadings.shape[1]:
         raise ValueError("scores and loadings must have the same number of components.")
-    total = _safe_total_ss(X_arr)
-    out = np.empty(T.shape[1], dtype=np.float64)
-    for i in range(T.shape[1]):
-        Xi = T[:, [i]] @ P[:, [i]].T
+    total = _safe_total_ss(X)
+    out = np.empty(scores.shape[1], dtype=np.float64)
+    for i in range(scores.shape[1]):
+        Xi = scores[:, [i]] @ loadings[:, [i]].T
         out[i] = np.sum(Xi**2) / total
     return out
 
@@ -106,43 +104,21 @@ def explained_x_variance(
     scores: NDArray[np.float64],
     loadings: NDArray[np.float64],
 ) -> float:
-    """Fraction of the (preprocessed) ``X`` sum-of-squares captured by a block.
-
-    Used for both the predictive block (``R2X``) and the orthogonal block
-    (``R2X_ortho``): ``SS(scores @ loadingsᵀ) / SS(X)``.
-
-    Parameters
-    ----------
-    X : ndarray of shape (n_samples, n_features)
-        Preprocessed predictor matrix.
-    scores : ndarray of shape (n_samples, n_components)
-        Block scores.
-    loadings : ndarray of shape (n_features, n_components)
-        Block loadings.
-
-    Returns
-    -------
-    fraction : float
-        Captured nominal fraction; ``0.0`` if the block is empty or ``X``
-        has zero sum-of-squares. Can exceed 1.0 if the supplied scores/loadings do
-        not form an orthogonal sum-of-squares decomposition; callers should treat
-        it as a diagnostic summary.
-    """
+    """Nominal ``SS(T @ P.T) / SS(X)``; not clipped to ``[0, 1]``."""
     if X.ndim != 2 or scores.ndim != 2 or loadings.ndim != 2:
         raise ValueError("X, scores and loadings must all be 2D arrays.")
     if scores.shape[0] != X.shape[0]:
         raise ValueError("scores must have one row per sample of X.")
     if loadings.shape[0] != X.shape[1]:
         raise ValueError("loadings must have one row per feature of X.")
+    if scores.shape[1] == 0:
+        return 0.0
     if scores.shape[1] != loadings.shape[1]:
         raise ValueError("scores and loadings must have the same number of components.")
     total = float(np.sum(X**2))
-    if total <= 0.0 or scores.shape[1] == 0:
+    if total <= 0.0:
         return 0.0
-    # Rebuild the part of X represented by this score/loading block and compare
-    # its sum of squares with the full preprocessed X block.
-    approx = scores @ loadings.T
-    return float(np.sum(approx**2) / total)
+    return float(np.sum((scores @ loadings.T) ** 2) / total)
 
 
 def _weighted_vip(

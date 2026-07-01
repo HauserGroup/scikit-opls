@@ -4,14 +4,13 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass
-from numbers import Integral
 
 import numpy as np
 from numpy.typing import NDArray
 from sklearn.exceptions import ConvergenceWarning
 from sklearn.utils.extmath import svd_flip
 
-from scikit_opls._utils import _has_nonzero_variation
+from scikit_opls._utils import _has_nonzero_variation, _validate_int
 
 _TOL = 1e-12
 
@@ -73,22 +72,11 @@ def _effective_rank(s: NDArray[np.float64], tol: float) -> int:
 
 
 def _validate_positive_int(name: str, value: int) -> int:
-    # ``bool`` is a subclass of ``int``; reject it explicitly so True/False are not
-    # silently accepted as component counts.
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"{name} must be an integer, got {type(value).__name__}.")
-    if value < 1:
-        raise ValueError(f"{name} must be >= 1, got {value}.")
-    return int(value)
+    return _validate_int(name, value, minimum=1)
 
 
 def _validate_nonnegative_int(name: str, value: int) -> int:
-    # Keep the same bool handling as the positive-integer validator above.
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"{name} must be an integer, got {type(value).__name__}.")
-    if value < 0:
-        raise ValueError(f"{name} must be >= 0, got {value}.")
-    return int(value)
+    return _validate_int(name, value, minimum=0)
 
 
 def _validate_tol(tol: float) -> float:
@@ -106,25 +94,10 @@ def _validate_tol(tol: float) -> float:
 def _cross_cov_svd_x_to_y(
     Xs: NDArray[np.float64], Ys: NDArray[np.float64], k: int
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
-    """SVD of ``Xs.T @ Ys`` with paired deterministic signs.
+    """Deterministic-sign SVD of ``Xs.T @ Ys``.
 
-    Parameters
-    ----------
-    Xs : ndarray of shape (n_samples, n_x_features)
-        Scaled X block.
-    Ys : ndarray of shape (n_samples, n_y_features)
-        Scaled Y block.
-    k : int
-        Number of components to compute.
-
-    Returns
-    -------
-    W : ndarray of shape (n_x_features, k)
-        X-side weights.
-    C : ndarray of shape (n_y_features, k)
-        Y-side weights.
-    s : ndarray
-        Singular values from the thin cross-covariance SVD.
+    Returns X-side weights ``W`` of shape (n_x_features, k), Y-side weights
+    ``C`` of shape (n_y_features, k), and all singular values from the thin SVD.
     """
     k = _validate_nonnegative_int("k", k)
     X = np.asarray(Xs, dtype=np.float64)
@@ -159,22 +132,10 @@ def _cross_cov_svd_x_to_y(
 def _lstsq_map(
     scores: NDArray[np.float64], block: NDArray[np.float64]
 ) -> NDArray[np.float64]:
-    """Return the least-squares map B solving scores @ B ≈ block.
+    """Least-squares map ``B`` solving ``scores @ B ≈ block``.
 
-    The returned array has shape (n_score_columns, n_block_columns).
-    This is not transposed into a feature-by-component loading matrix.
-
-    Parameters
-    ----------
-    scores : ndarray of shape (n_samples, n_score_columns)
-        Predictor scores.
-    block : ndarray of shape (n_samples, n_block_columns)
-        Target block.
-
-    Returns
-    -------
-    coef : ndarray of shape (n_score_columns, n_block_columns)
-        Least-squares coefficient matrix.
+    Shape is (n_score_columns, n_block_columns); not transposed into a
+    feature-by-component loading matrix.
     """
     scores = np.asarray(scores, dtype=np.float64)
     block = np.asarray(block, dtype=np.float64)
@@ -199,7 +160,7 @@ def _extract_one_orthogonal_component(
     *,
     tol: float = _TOL,
 ) -> OrthogonalBlockComponent | None:
-    """Extract one sequential O2PLS orthogonal component from ``block``.
+    """Extract one replayable sequential orthogonal component from ``block``.
 
     The residual first removes the enlarged preliminary joint subspace from the
     current block. The leading left singular vector of
@@ -207,22 +168,7 @@ def _extract_one_orthogonal_component(
     block-specific variation most associated with the preliminary joint score
     space. The resulting score/loading pair is deflated from the current block
     and stored so the same sequential filter can be replayed on new data.
-
-    Parameters
-    ----------
-    block : ndarray of shape (n_samples, n_features)
-        Current data block to deflate.
-    joint_scores : ndarray of shape (n_samples, n_components)
-        Preliminary joint scores.
-    joint_weights : ndarray of shape (n_features, n_components)
-        Preliminary joint weights.
-    tol : float, default=_TOL
-        Tolerance for numerical rank and variance deflation.
-
-    Returns
-    -------
-    component : OrthogonalBlockComponent or None
-        The extracted component, or None if no resolvable variation remains.
+    Returns ``None`` if no resolvable variation remains.
     """
     tol = _validate_tol(tol)
     X = np.asarray(block, dtype=np.float64)
@@ -267,7 +213,8 @@ def _extract_one_orthogonal_component(
     # sequential filter that will later be replayed on new samples.
     score = X @ weight
     score_ssq = float(score @ score)
-    block_ssq = max(_ssq(X), 1.0)
+    x_ssq = _ssq(X)
+    block_ssq = max(x_ssq, 1.0)
     if score_ssq <= tol * block_ssq:
         return None
 
@@ -279,7 +226,7 @@ def _extract_one_orthogonal_component(
     if not np.all(np.isfinite(filtered)):
         return None
     # Refuse components that do not measurably reduce the block sum of squares.
-    if _ssq(filtered) >= _ssq(X) - tol * max(_ssq(X), 1.0):
+    if _ssq(filtered) >= x_ssq - tol * block_ssq:
         return None
 
     return OrthogonalBlockComponent(
@@ -348,12 +295,12 @@ def _replay_orthogonal_filter(
 
 
 def _stack_columns(
-    values: list[NDArray[np.float64]], n_rows: int, n_columns: int
+    values: list[NDArray[np.float64]], n_rows: int
 ) -> NDArray[np.float64]:
     """Column-stack values or return a correctly shaped empty matrix."""
     if values:
         return np.column_stack(values)
-    return np.zeros((n_rows, n_columns), dtype=np.float64)
+    return np.zeros((n_rows, 0), dtype=np.float64)
 
 
 def _reconstruction_r2(
@@ -375,27 +322,10 @@ def o2pls_fit(
     *,
     tol: float = _TOL,
 ) -> O2PLSComponents:
-    """Fit dense O2PLS components on already preprocessed blocks.
+    """Fit dense O2PLS components on already preprocessed X/Y blocks.
 
-    Parameters
-    ----------
-    Xs : ndarray of shape (n_samples, n_x_features)
-        Preprocessed X block.
-    Ys : ndarray of shape (n_samples, n_y_features)
-        Preprocessed Y block.
-    n_components : int
-        Number of joint components.
-    n_x_orthogonal : int
-        Number of X-specific orthogonal components.
-    n_y_orthogonal : int
-        Number of Y-specific orthogonal components.
-    tol : float, default=_TOL
-        Numerical tolerance.
-
-    Returns
-    -------
-    fit : O2PLSComponents
-        Dataclass containing all fitted matrices and diagnostics.
+    Uses an enlarged preliminary joint subspace, sequential X/Y orthogonal
+    filtering, and final joint SVD re-estimation on the filtered blocks.
     """
     X0 = np.asarray(Xs, dtype=np.float64)
     Y0 = np.asarray(Ys, dtype=np.float64)
@@ -505,12 +435,12 @@ def o2pls_fit(
     B_T = _lstsq_map(T, U)
     B_U = _lstsq_map(U, T)
 
-    X_orth_weights = _stack_columns(x_weights, n_x_features, 0)
-    X_orth_scores = _stack_columns(x_scores, n_samples, 0)
-    X_orth_loadings = _stack_columns(x_loadings, n_x_features, 0)
-    Y_orth_weights = _stack_columns(y_weights, n_y_features, 0)
-    Y_orth_scores = _stack_columns(y_scores, n_samples, 0)
-    Y_orth_loadings = _stack_columns(y_loadings, n_y_features, 0)
+    X_orth_weights = _stack_columns(x_weights, n_x_features)
+    X_orth_scores = _stack_columns(x_scores, n_samples)
+    X_orth_loadings = _stack_columns(x_loadings, n_x_features)
+    Y_orth_weights = _stack_columns(y_weights, n_y_features)
+    Y_orth_scores = _stack_columns(y_scores, n_samples)
+    Y_orth_loadings = _stack_columns(y_loadings, n_y_features)
 
     # Reconstruct nominal joint, orthogonal and residual parts in the original
     # preprocessed coordinates for diagnostics and estimator attributes.
