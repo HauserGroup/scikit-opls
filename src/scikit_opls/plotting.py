@@ -64,16 +64,9 @@ def _unwrap_estimator_and_data(
 ) -> tuple[OPLS, NDArray[np.float64]]:
     """Unwrap wrappers, returning fitted base model and the X seen by that model.
 
-    Accepts ``OPLS``/``OPLSDA``, a pipeline ending in one, or a fitted search
-    meta-estimator exposing ``best_estimator_`` around either shape.
+    Accepts ``OPLS``/``OPLSDA``, or a pipeline ending in one.
     """
-    if hasattr(estimator, "cv_results_") and not hasattr(estimator, "best_estimator_"):
-        raise TypeError(
-            "Search meta-estimators must be fitted with refit=True so plotting "
-            "can use best_estimator_."
-        )
-    # Search estimators keep the selected pipeline/model on best_estimator_.
-    inner = getattr(estimator, "best_estimator_", estimator)
+    inner = estimator
 
     if isinstance(inner, Pipeline):
         check_is_fitted(inner)
@@ -107,10 +100,8 @@ def _unwrap_estimator_and_data(
         base = inner
     else:
         raise TypeError(
-            "estimator must be a fitted OPLS, OPLSDA, Pipeline ending in one, "
-            "or a fitted search meta-estimator wrapping one. Ensemble and "
-            "meta-classifier wrappers are unsupported because they do not expose "
-            "one latent OPLS space."
+            "estimator must be a fitted OPLS, OPLSDA, or Pipeline ending in one. "
+            "Ensemble, search estimators, and meta-classifier wrappers are unsupported."
         )
 
     if not isinstance(base, OPLS):
@@ -133,9 +124,8 @@ def _unwrap_estimator_and_data(
 class OPLSScoresDisplay:
     """Predictive vs orthogonal score scatter for an OPLS-family model.
 
-    Works for :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, a pipeline
-    ending in one, or a fitted search meta-estimator exposing ``best_estimator_``
-    around either shape. Construct with :meth:`from_estimator`.
+    Works for :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, or a
+    pipeline ending in one. Construct with :meth:`from_estimator`.
 
     Parameters
     ----------
@@ -198,7 +188,7 @@ class OPLSScoresDisplay:
 
         Parameters
         ----------
-        estimator : OPLS, OPLSDA, Pipeline or search meta-estimator
+        estimator : OPLS, OPLSDA or Pipeline
             A fitted estimator. When passing a pipeline, pass raw ``X`` as expected
             by that pipeline. When passing the final OPLS-family step directly, pass
             the already transformed matrix seen by that step.
@@ -253,14 +243,10 @@ class OPLSScoresDisplay:
                 f"estimator with {n_ortho} orthogonal component(s)."
             )
 
-        # Project supplied data through the fitted filter before asking the PLS
-        # engine for predictive scores.
-        X_filtered, t_ortho = base._filter_validated(X_trans)
-        scores = base.pls_.transform(X_filtered)
-        if isinstance(scores, tuple):
-            t_pred_arr = scores[0]
-        else:
-            t_pred_arr = scores
+        # Project supplied data through the fitted preprocessing/filtering path.
+        proj = base._project_validated(X_trans)
+        t_pred_arr = proj.t_pred
+        t_ortho = proj.t_ortho
         t_pred = t_pred_arr[:, predictive_component]
         t_o = t_ortho[:, orthogonal_component] if n_ortho > 0 else np.zeros_like(t_pred)
         display = cls(
@@ -329,9 +315,8 @@ class SPlotDisplay:
         Points may therefore represent transformed features rather than original
         input columns.
 
-    Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, a pipeline
-    ending in one, or a fitted search meta-estimator exposing ``best_estimator_``
-    around either shape. Construct with :meth:`from_estimator`.
+    Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, or a pipeline
+    ending in one. Construct with :meth:`from_estimator`.
 
     Parameters
     ----------
@@ -379,7 +364,7 @@ class SPlotDisplay:
 
         Parameters
         ----------
-        estimator : OPLS, OPLSDA, Pipeline or search meta-estimator
+        estimator : OPLS, OPLSDA or Pipeline
             A fitted estimator. When passing a pipeline, pass raw ``X`` as expected
             by that pipeline. When passing the final OPLS-family step directly, pass
             the already transformed matrix seen by that step.
@@ -433,13 +418,8 @@ class SPlotDisplay:
 
         # Use the fitted predictive score for the selected component as the common
         # reference vector for both covariance and correlation.
-        X_filtered, _ = base._filter_validated(X_trans)
-        scores = base.pls_.transform(X_filtered)
-        if isinstance(scores, tuple):
-            t_arr = scores[0]
-        else:
-            t_arr = scores
-        t = np.asarray(t_arr)[:, component]
+        proj = base._project_validated(X_trans)
+        t = np.asarray(proj.t_pred)[:, component]
         t = t - t.mean()
         n = t.shape[0]
 

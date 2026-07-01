@@ -83,14 +83,18 @@ def test_scores_display_replots_on_given_axes():
     plt.close("all")
 
 
-def test_splot_display_from_estimator_with_cv():
+def test_splot_display_requires_best_estimator_for_cv():
     from matplotlib.collections import PathCollection
 
     X, y = _regression_data()
     model = GridSearchCV(
         OPLS(n_components=1), {"n_orthogonal": [0, 1, 2, 3]}, cv=4
     ).fit(X, y)
-    disp = SPlotDisplay.from_estimator(model, X)
+
+    with pytest.raises(TypeError, match="search estimators"):
+        SPlotDisplay.from_estimator(model, X)
+
+    disp = SPlotDisplay.from_estimator(model.best_estimator_, X)
     assert isinstance(disp, SPlotDisplay)
     assert disp.covariance.shape == (X.shape[1],)
     assert disp.correlation.shape == (X.shape[1],)
@@ -234,7 +238,7 @@ def test_splot_pipeline_feature_space_matches_transformed_features():
     plt.close("all")
 
 
-def test_scores_display_search_wrapper_around_pipeline():
+def test_scores_display_requires_best_estimator_for_search_pipeline():
     X, y = _regression_data()
     search = GridSearchCV(
         Pipeline(
@@ -247,7 +251,10 @@ def test_scores_display_search_wrapper_around_pipeline():
         cv=3,
     ).fit(X, y)
 
-    disp = OPLSScoresDisplay.from_estimator(search, X)
+    with pytest.raises(TypeError, match="search estimators"):
+        OPLSScoresDisplay.from_estimator(search, X)
+
+    disp = OPLSScoresDisplay.from_estimator(search.best_estimator_, X)
 
     assert isinstance(disp, OPLSScoresDisplay)
     assert disp.t_predictive.shape == (X.shape[0],)
@@ -302,7 +309,7 @@ def test_plotting_rejects_unsupported_pipeline_shapes():
         SPlotDisplay.from_estimator(non_opls_final, X)
 
 
-def test_plotting_search_refit_false_raises_clear_error():
+def test_plotting_search_wrapper_raises_clear_error():
     X, y = _regression_data()
     search = GridSearchCV(
         OPLS(n_components=1),
@@ -311,7 +318,7 @@ def test_plotting_search_refit_false_raises_clear_error():
         refit=False,
     ).fit(X, y)
 
-    with pytest.raises(TypeError, match="refit=True"):
+    with pytest.raises(TypeError, match="search estimators"):
         SPlotDisplay.from_estimator(search, X)
 
 
