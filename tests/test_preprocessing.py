@@ -153,3 +153,12 @@ def test_apply_scaling_extra_validation():
         apply_scaling(X, np.array([0.0, np.nan, 0.0]), np.ones(3))
     with pytest.raises(ValueError, match="finite"):
         apply_scaling(X, np.zeros(3), np.array([1.0, np.inf, 1.0]))
+
+
+def test_apply_scaling_rejects_negative_scale():
+    X = np.ones((3, 2))
+    mean = np.zeros(2)
+    scale = np.array([1.0, -1.0])
+
+    with pytest.raises(ValueError, match="positive"):
+        apply_scaling(X, mean, scale)
