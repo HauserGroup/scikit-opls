@@ -1,10 +1,4 @@
-"""OSC-style orthogonal filtering for OPLS.
-
-The public OPLS estimator passes a preprocessed ``X`` and a single centered
-response ``y``. The low-level predictive-direction helper also accepts a
-multivariate response block for tests and internal reuse, but OPLS itself is
-univariate.
-"""
+"""OSC-style orthogonal filtering primitives for OPLS."""
 
 from __future__ import annotations
 
@@ -30,23 +24,8 @@ def _validate_n_components(n_components: int) -> int:
 class OrthogonalComponents:
     """Result of :func:`opls_filter`.
 
-    Attributes
-    ----------
-    x_ortho_weights : ndarray of shape (n_features, n_components)
-        Orthogonal weight vectors ``w_o``.
-    x_ortho_scores : ndarray of shape (n_samples, n_components)
-        Orthogonal scores ``t_o``.
-    x_ortho_loadings : ndarray of shape (n_features, n_components)
-        Orthogonal loadings ``p_o``.
-    x_filtered : ndarray of shape (n_samples, n_features)
-        ``X`` with the orthogonal variation removed.
-    x_predictive_weight : ndarray of shape (n_features,)
-        Normalised predictive weight direction ``w_p`` when computed. For
-        ``opls_filter(..., n_components=0)``, this is a zero vector because the
-        predictive direction is unused.
-    n_components : int
-        Number of orthogonal components actually extracted (may be smaller than
-        requested if ``X`` ran out of orthogonal variation).
+    ``n_components`` may be smaller than requested if ``X`` ran out of orthogonal
+    variation. ``x_predictive_weight`` is a zero vector when ``n_components=0``.
     """
 
     x_ortho_weights: NDArray[np.float64]
@@ -58,36 +37,17 @@ class OrthogonalComponents:
 
 
 def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
-    """Leading joint X–Y direction (unit norm).
+    """Return the unit X-side direction of maximal X/Y covariance.
 
-    Generalises ``w_p ∝ Xᵀy`` to multivariate ``Y`` via the dominant left singular
-    vector of ``S = Xᵀ Y``. For a single-column ``Y`` this reduces exactly to the
-    normalised ``Xᵀy`` (up to sign), so single-``y`` OPLS is unchanged. The public
-    OPLS estimator passes a single centered response; multivariate ``Y`` is
-    accepted here only because the predictive-direction computation is
-    block-agnostic.
-
-    Parameters
-    ----------
-    X : ndarray of shape (n_samples, n_features)
-        Preprocessed predictor matrix.
-    Y : ndarray of shape (n_samples,) or (n_samples, n_targets)
-        Centered response(s).
-
-    Returns
-    -------
-    w_p : ndarray of shape (n_features,)
-        Unit-normalised predictive direction.
-
-    Raises
-    ------
-    ValueError
-        If ``X`` is orthogonal to ``Y`` (the predictive direction is undefined).
+    For univariate ``Y`` this is normalized ``X.T @ y``; for multivariate ``Y``,
+    it is the leading left singular vector of ``X.T @ Y``.
     """
     X = np.asarray(X, dtype=np.float64)
     Y = np.asarray(Y, dtype=np.float64)
     if X.ndim != 2:
         raise ValueError(f"X must be 2D, got shape {X.shape}")
+    if X.shape[1] == 0:
+        raise ValueError("X must contain at least one feature.")
     if not np.all(np.isfinite(X)):
         raise ValueError("X must contain only finite values.")
     if not np.all(np.isfinite(Y)):
@@ -142,37 +102,17 @@ def orthogonal_filter(
     predictive_direction: NDArray[np.float64],
     n_components: int,
 ) -> OrthogonalComponents:
-    """Remove up to ``n_components`` directions in ``block`` orthogonal to a given one.
+    """Sequentially deflate block variation orthogonal to a predictive direction.
 
-    OSC-style deflation of one block against a supplied predictive direction
-    (passed in rather than computed from ``y``), as used by OPLS.
-
-    Parameters
-    ----------
-    block : ndarray of shape (n_samples, n_features)
-        Preprocessed block to deflate.
-    predictive_direction : ndarray of shape (n_features,)
-        Unit-norm direction defining the predictive subspace to preserve.
-    n_components : int
-        Number of orthogonal components to extract.
-
-    Returns
-    -------
-    components : OrthogonalComponents
-        Fitted orthogonal weights/scores/loadings, the filtered block, the
-        predictive direction, and the number of components actually extracted.
-
-    Notes
-    -----
-    For each component: form the predictive score ``t = X w_p``, its loading
-    ``p = Xᵀt / (tᵀt)``, then the part of ``p`` orthogonal to ``w_p`` becomes the
-    orthogonal weight ``w_o``. The orthogonal score ``t_o = X w_o`` and loading
-    ``p_o = Xᵀt_o / (t_oᵀt_o)`` are deflated out: ``X <- X - t_o p_oᵀ``.
+    The supplied predictive direction is normalized defensively. Fewer components
+    may be returned if no numerically resolvable orthogonal variation remains.
     """
     n_components = _validate_n_components(n_components)
     X = np.asarray(block, dtype=np.float64)
     if X.ndim != 2:
         raise ValueError(f"block must be 2D, got shape {X.shape}")
+    if X.shape[1] == 0:
+        raise ValueError("block must contain at least one feature.")
     w_pred = np.asarray(predictive_direction, dtype=np.float64).ravel()
     n_samples, n_features = X.shape
     if w_pred.shape != (n_features,):
@@ -184,17 +124,15 @@ def orthogonal_filter(
     if not np.all(np.isfinite(w_pred)):
         raise ValueError("predictive_direction must contain only finite values.")
 
-    # The deflation math below assumes a unit-norm predictive direction. Normalise it
-    # defensively in case a caller passes an un-normalised direction. The direction is
-    # unused when no components are requested, so only guard/normalise when it matters.
-    if n_components > 0:
-        w_norm = float(np.linalg.norm(w_pred))
-        if w_norm <= np.finfo(np.float64).tiny:
-            raise ValueError(
-                "predictive_direction must be numerically non-zero when "
-                "n_components > 0."
-            )
+    # Normalize defensively; the deflation formulas assume unit-norm w_pred. Only
+    # raise on a zero direction when it will actually be used (n_components > 0).
+    w_norm = float(np.linalg.norm(w_pred))
+    if w_norm > np.finfo(np.float64).tiny:
         w_pred = w_pred / w_norm
+    elif n_components > 0:
+        raise ValueError(
+            "predictive_direction must be numerically non-zero when n_components > 0."
+        )
 
     W = np.zeros((n_features, n_components))
     T = np.zeros((n_samples, n_components))
@@ -211,11 +149,9 @@ def orthogonal_filter(
         tt = float(t @ t)
         if tt <= _TOL * res_norm_sq:
             break
-        # ``p`` describes how the current residual X loads onto the predictive
-        # score. Removing its projection onto w_pred leaves only X variation
-        # orthogonal to the predictive direction.
         p = X_res.T @ t / tt
-        w_o = p - float(w_pred @ p) * w_pred  # part of the loading orthogonal to w_pred
+        # Remove the predictive-direction part of p to obtain an orthogonal weight.
+        w_o = p - float(w_pred @ p) * w_pred
         w_norm = float(np.linalg.norm(w_o))
         p_norm = float(np.linalg.norm(p))
         if w_norm <= _TOL * p_norm:
@@ -226,8 +162,7 @@ def orthogonal_filter(
         if too <= _TOL * res_norm_sq:
             break
         p_o = X_res.T @ t_o / too
-        # Sequentially deflate the fitted orthogonal score/loading pair so the next
-        # component is extracted from the remaining X variation.
+        # Deflate before extracting the next orthogonal component.
         X_res -= np.outer(t_o, p_o)
         W[:, i] = w_o
         T[:, i] = t_o
@@ -254,34 +189,13 @@ def orthogonal_filter(
 
 
 def opls_filter(X: ArrayLike, Y: ArrayLike, n_components: int) -> OrthogonalComponents:
-    """OPLS X-orthogonal filter: predictive direction from ``(X, Y)``, deflate ``X``.
+    """Compute the predictive direction from ``(X, Y)`` once, then deflate ``X``.
 
-    Parameters
-    ----------
-    X : ndarray of shape (n_samples, n_features)
-        Preprocessed (centered/scaled) predictor matrix.
-    Y : ndarray of shape (n_samples,) or (n_samples, n_targets)
-        Centered response(s).
-    n_components : int
-        Number of orthogonal components to extract.
-
-    Returns
-    -------
-    components : OrthogonalComponents
-        See :func:`orthogonal_filter`.
-
-    Notes
-    -----
-    The predictive direction is computed once from the original ``(X, Y)`` and
-    reused for every orthogonal component. For univariate ``Y`` this is exact, not a
-    shortcut: each orthogonal score is constructed exactly orthogonal to ``Y``, so
-    removing it leaves ``Xᵀy`` (hence the predictive direction ``w_p ∝ Xᵀy``)
-    unchanged. Recomputing ``w_p`` from each deflated residual would yield the same
-    direction, so the canonical Trygg-Wold OPLS algorithm coincides with this
-    fixed-direction filter for single-response OPLS.
-
-    When ``n_components=0``, ``Y`` is not inspected because no predictive direction
-    is needed; the returned predictive weight is a zero vector.
+    Reusing one direction for every component is exact, not a shortcut: each
+    orthogonal score is built orthogonal to ``Y``, so removing it leaves ``Xᵀy``
+    (hence the predictive direction) unchanged — recomputing it from each
+    deflated residual would give the same answer. When ``n_components=0``, ``Y``
+    is not inspected and the returned predictive weight is a zero vector.
     """
     n_components = _validate_n_components(n_components)
     X = np.asarray(X, dtype=np.float64)
@@ -304,23 +218,9 @@ def apply_orthogonal_filter(
     x_ortho_weights: NDArray[np.float64],
     x_ortho_loadings: NDArray[np.float64],
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """Replay a fitted orthogonal filter on new data.
+    """Replay fitted sequential orthogonal deflations on new preprocessed X.
 
-    Parameters
-    ----------
-    X : ndarray of shape (n_samples, n_features)
-        Preprocessed predictor matrix.
-    x_ortho_weights : ndarray of shape (n_features, n_components)
-        Orthogonal weights from :func:`opls_filter`.
-    x_ortho_loadings : ndarray of shape (n_features, n_components)
-        Orthogonal loadings from :func:`opls_filter`.
-
-    Returns
-    -------
-    X_filtered : ndarray of shape (n_samples, n_features)
-        ``X`` with the fitted orthogonal variation removed.
-    x_ortho_scores : ndarray of shape (n_samples, n_components)
-        Orthogonal scores of the new samples.
+    Returns ``(X_filtered, x_ortho_scores)``.
     """
     X = np.asarray(X, dtype=np.float64)
     W = np.asarray(x_ortho_weights, dtype=np.float64)
