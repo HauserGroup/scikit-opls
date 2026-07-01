@@ -240,7 +240,20 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.copy = copy
 
     def fit(self, X: ArrayLike, y: ArrayLike) -> OPLS:
-        """Fit the OPLS model."""
+        """Fit the OPLS model.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Training predictors.
+        y : array-like of shape (n_samples,)
+            Target values. Required: ``OPLS`` is a supervised transformer.
+
+        Returns
+        -------
+        self : OPLS
+            The fitted estimator.
+        """
         self._clear_fit_caches()
         X, y = self._validate_fit_data(X, y)
         Xs, X_filtered = self._fit_orthogonal_filter(X, y)
@@ -327,7 +340,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         # the private ``_x_mean`` attribute and pin the behavior with regression
         # tests (test_opls_coefficients.py) rather than relying on it silently.
         try:
-            self._pls_x_mean_ = np.asarray(self.pls_._x_mean, dtype=np.float64)
+            self._pls_x_mean = np.asarray(self.pls_._x_mean, dtype=np.float64)
         except AttributeError as exc:
             raise AttributeError(
                 "Could not access PLSRegression._x_mean. OPLS's reconstruction of "
@@ -411,32 +424,77 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
     def _predictive_x_hat(self, t_pred: NDArray[np.float64]) -> NDArray[np.float64]:
         """Reconstruct scaled X from predictive scores."""
-        return self._pls_x_mean_ + t_pred @ self.x_loadings_.T
+        return self._pls_x_mean + t_pred @ self.x_loadings_.T
 
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Predict ``y`` for new samples."""
+        """Predict ``y`` for new samples.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to predict.
+
+        Returns
+        -------
+        y_pred : ndarray of shape (n_samples,)
+            Predicted target values.
+        """
         X_valid = self._validate_X_predict(X)
         proj = self._project_validated(X_valid)
         return self.pls_.predict(proj.X_filtered).ravel()
 
     def transform(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Return predictive scores after fitted preprocessing and filtering."""
+        """Project samples onto the predictive components.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to project (orthogonal-filtered first, as at fit time).
+
+        Returns
+        -------
+        x_scores : ndarray of shape (n_samples, n_components)
+            Predictive scores.
+        """
         X_valid = self._validate_X_predict(X)
         return self._project_validated(X_valid).t_pred
 
     def transform_orthogonal(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Return fitted X-orthogonal scores for new samples.
+        """Project samples onto the orthogonal components.
 
-        Non-standard method: outside the ``set_output`` contract.
+        This is a non-standard method (outside the ``set_output`` contract).
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to project.
+
+        Returns
+        -------
+        x_ortho_scores : ndarray of shape (n_samples, n_orthogonal_)
+            Orthogonal scores.
         """
         X_valid = self._validate_X_predict(X)
         return self._project_validated(X_valid).t_ortho
 
     def filter_transform(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Return preprocessed X after replaying the fitted orthogonal filter.
+        """Return ``X`` after preprocessing and orthogonal filtering.
 
-        The result is in scaled/filtered feature space, not raw input space.
-        ``self.pls_.predict(self.filter_transform(X))`` matches ``self.predict(X)``.
+        This is the matrix actually passed to the predictive PLS engine, so
+        ``self.pls_.predict(self.filter_transform(X))`` matches ``self.predict(X)``
+        (up to output shape). The result is in the preprocessed, orthogonal-filtered
+        space, **not** on the raw input scale. With ``n_orthogonal=0`` it is just the
+        preprocessed ``X``.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            Samples to preprocess and filter.
+
+        Returns
+        -------
+        X_filtered : ndarray of shape (n_samples, n_features)
+            Preprocessed ``X`` with the fitted orthogonal variation removed.
         """
         X_valid = self._validate_X_predict(X)
         return self._project_validated(X_valid).X_filtered
@@ -474,9 +532,24 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return self._ortho_vip_
 
     def get_feature_names_out(self, input_features=None) -> NDArray[np.object_]:
-        """Return output names for predictive-score columns.
+        """Output feature names for :meth:`transform` (the predictive scores).
 
-        Named ``opls_pred0, opls_pred1, ...``, independent of input feature names.
+        ``transform`` reduces ``X`` to ``n_components`` predictive scores, so the
+        output columns are components, not input features. They are named
+        ``opls_pred0, opls_pred1, …`` (the ``ClassNamePrefixFeaturesOutMixin``
+        convention), independent of the input feature names. ``transform_orthogonal``
+        is outside the ``set_output`` contract and has no names here.
+
+        Parameters
+        ----------
+        input_features : array-like of str or None, default=None
+            Input feature names; only validated for length against
+            ``n_features_in_`` (the output names do not depend on them).
+
+        Returns
+        -------
+        feature_names_out : ndarray of str of shape (n_components,)
+            Names of the predictive-score columns.
         """
         check_is_fitted(self, "_n_features_out")
         _check_feature_names_in(self, input_features)
