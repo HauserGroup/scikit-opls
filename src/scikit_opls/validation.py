@@ -26,7 +26,7 @@ from sklearn.model_selection import (
 from sklearn.utils import check_random_state
 from sklearn.utils.validation import check_array, check_consistent_length
 
-from scikit_opls._utils import _has_nonzero_variation
+from scikit_opls._utils import _has_nonzero_variation, _validate_int
 
 _CVType = int | BaseCrossValidator | BaseShuffleSplit | Iterable | None
 
@@ -172,12 +172,7 @@ def permutation_test(
             "permutation_test is for regression models; "
             "classifiers like OPLSDA are not supported."
         )
-    if isinstance(n_permutations, bool) or not isinstance(n_permutations, Integral):
-        raise TypeError(
-            f"n_permutations must be an integer, got {type(n_permutations).__name__}"
-        )
-    if n_permutations < 1:
-        raise ValueError(f"n_permutations must be >= 1, got {n_permutations}")
+    n_permutations = _validate_int("n_permutations", n_permutations, minimum=1)
 
     X = check_array(X, dtype=np.float64)
     y = np.asarray(y, dtype=np.float64)

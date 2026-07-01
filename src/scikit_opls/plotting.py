@@ -15,7 +15,6 @@ imported lazily inside :meth:`plot`, so importing this module never requires it.
 from __future__ import annotations
 
 import warnings
-from numbers import Integral
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -28,6 +27,7 @@ from sklearn.utils.validation import check_is_fitted
 from scikit_opls._opls import OPLS
 from scikit_opls._opls_da import OPLSDA
 from scikit_opls._preprocessing import apply_scaling
+from scikit_opls._utils import _validate_int
 
 if TYPE_CHECKING:
     import matplotlib.axes
@@ -52,11 +52,7 @@ def _validate_component_index(value: object, name: str) -> int:
     Rejects booleans (a subclass of ``int``) and non-integers so a stray float or
     ``True`` cannot silently index the wrong column or fail later inside NumPy.
     """
-    if isinstance(value, bool) or not isinstance(value, Integral):
-        raise TypeError(f"{name} must be an integer index, got {type(value).__name__}.")
-    if value < 0:
-        raise ValueError(f"{name} must be >= 0, got {value}.")
-    return int(value)
+    return _validate_int(name, value, minimum=0, type_phrase="an integer index")
 
 
 def _unwrap_estimator_and_data(

@@ -47,7 +47,7 @@ from scikit_opls._inspection import (
 )
 from scikit_opls._orthogonal import apply_orthogonal_filter, opls_filter
 from scikit_opls._preprocessing import VALID_SCALING, apply_scaling, compute_scaling
-from scikit_opls._utils import _has_nonzero_variation
+from scikit_opls._utils import _has_nonzero_variation, _reject_bool_param
 
 
 @dataclass(frozen=True)
@@ -281,10 +281,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         X: ArrayLike,
         y: ArrayLike,
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        if isinstance(self.n_components, bool):
-            raise ValueError("n_components must be an integer, not bool.")
-        if isinstance(self.n_orthogonal, bool):
-            raise ValueError("n_orthogonal must be an integer, not bool.")
+        _reject_bool_param("n_components", self.n_components)
+        _reject_bool_param("n_orthogonal", self.n_orthogonal)
         self._validate_params()
         X, y = validate_data(
             self,
