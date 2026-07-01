@@ -125,6 +125,13 @@ def test_score_matches_r2_score_for_1d_y():
     assert model.score(X, y) == pytest.approx(r2_score(y, model.predict(X)))
 
 
+def test_score_matches_r2_score_uniform_average_for_multi_output_y():
+    X, Y = _make_o2pls_data(seed=7)
+    model = O2PLS(n_components=2).fit(X, Y)
+
+    assert model.score(X, Y) == pytest.approx(r2_score(Y, model.predict(X)))
+
+
 @pytest.mark.parametrize(
     ("method", "arg_name"),
     [
@@ -243,6 +250,20 @@ def test_o2pls_predict_unscales_y():
     model = O2PLS().fit(X_raw, Y_raw)
     y_scaled = model.filter_transform_x(X_raw) @ model.coef_filtered_
     expected = y_scaled * model.y_std_ + model.y_mean_
+    assert_allclose(model.predict(X_raw), expected)
+
+
+@pytest.mark.parametrize("scale", ["none", "center", "pareto", "standard"])
+def test_o2pls_predict_matches_scaled_filtered_coefficient_path_all_scales(scale):
+    X, y = _regression_data()
+    rng = np.random.default_rng(0)
+    Y = np.column_stack([y, y + 0.1 * rng.normal(size=y.shape)])
+    X_raw = 10.0 + 3.0 * X
+    Y_raw = -5.0 + 2.0 * Y
+    model = O2PLS(scale=scale).fit(X_raw, Y_raw)
+    expected = (
+        model.filter_transform_x(X_raw) @ model.coef_filtered_
+    ) * model.y_std_ + model.y_mean_
     assert_allclose(model.predict(X_raw), expected)
 
 

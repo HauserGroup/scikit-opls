@@ -267,7 +267,8 @@ def _extract_one_orthogonal_component(
     # sequential filter that will later be replayed on new samples.
     score = X @ weight
     score_ssq = float(score @ score)
-    block_ssq = max(_ssq(X), 1.0)
+    x_ssq = _ssq(X)
+    block_ssq = max(x_ssq, 1.0)
     if score_ssq <= tol * block_ssq:
         return None
 
@@ -279,7 +280,7 @@ def _extract_one_orthogonal_component(
     if not np.all(np.isfinite(filtered)):
         return None
     # Refuse components that do not measurably reduce the block sum of squares.
-    if _ssq(filtered) >= _ssq(X) - tol * max(_ssq(X), 1.0):
+    if _ssq(filtered) >= x_ssq - tol * block_ssq:
         return None
 
     return OrthogonalBlockComponent(
@@ -348,12 +349,12 @@ def _replay_orthogonal_filter(
 
 
 def _stack_columns(
-    values: list[NDArray[np.float64]], n_rows: int, n_columns: int
+    values: list[NDArray[np.float64]], n_rows: int
 ) -> NDArray[np.float64]:
     """Column-stack values or return a correctly shaped empty matrix."""
     if values:
         return np.column_stack(values)
-    return np.zeros((n_rows, n_columns), dtype=np.float64)
+    return np.zeros((n_rows, 0), dtype=np.float64)
 
 
 def _reconstruction_r2(
@@ -505,12 +506,12 @@ def o2pls_fit(
     B_T = _lstsq_map(T, U)
     B_U = _lstsq_map(U, T)
 
-    X_orth_weights = _stack_columns(x_weights, n_x_features, 0)
-    X_orth_scores = _stack_columns(x_scores, n_samples, 0)
-    X_orth_loadings = _stack_columns(x_loadings, n_x_features, 0)
-    Y_orth_weights = _stack_columns(y_weights, n_y_features, 0)
-    Y_orth_scores = _stack_columns(y_scores, n_samples, 0)
-    Y_orth_loadings = _stack_columns(y_loadings, n_y_features, 0)
+    X_orth_weights = _stack_columns(x_weights, n_x_features)
+    X_orth_scores = _stack_columns(x_scores, n_samples)
+    X_orth_loadings = _stack_columns(x_loadings, n_x_features)
+    Y_orth_weights = _stack_columns(y_weights, n_y_features)
+    Y_orth_scores = _stack_columns(y_scores, n_samples)
+    Y_orth_loadings = _stack_columns(y_loadings, n_y_features)
 
     # Reconstruct nominal joint, orthogonal and residual parts in the original
     # preprocessed coordinates for diagnostics and estimator attributes.

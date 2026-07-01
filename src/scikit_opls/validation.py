@@ -180,7 +180,9 @@ def permutation_test(
         raise ValueError(f"n_permutations must be >= 1, got {n_permutations}")
 
     X = check_array(X, dtype=np.float64)
-    y = np.asarray(y, dtype=np.float64).ravel()
+    y = np.asarray(y, dtype=np.float64)
+    if y.ndim != 1:
+        raise ValueError("permutation_test currently requires a 1D response.")
     check_consistent_length(X, y)
     if not np.all(np.isfinite(y)):
         raise ValueError("y must contain only finite values.")
