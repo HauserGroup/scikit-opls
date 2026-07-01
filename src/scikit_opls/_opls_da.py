@@ -172,8 +172,8 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         )
         return np.asarray(X_valid, dtype=np.float64)
 
-    def _validate_x_predict(self, X: ArrayLike) -> NDArray[np.float64]:
-        """Backward-compatible alias for the canonical validation helper."""
+    def _validated_inner_x(self, X: ArrayLike) -> NDArray[np.float64]:
+        """Validate and return inner X."""
         return self._validate_X_predict(X)
 
     def decision_function(self, X: ArrayLike) -> NDArray[np.float64]:
@@ -190,9 +190,11 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             Signed confidence; ``> 0`` predicts ``classes_[1]``. Scores equal to
             zero are assigned to ``classes_[0]`` by :meth:`predict`.
         """
-        X_valid = self._validate_X_predict(X)
-        X_filtered, _ = self.opls_._filter_validated(X_valid)
-        return np.asarray(self.opls_.pls_.predict(X_filtered), dtype=np.float64).ravel()
+        X_valid = self._validated_inner_x(X)
+        proj = self.opls_._project_validated(X_valid)
+        return np.asarray(
+            self.opls_.pls_.predict(proj.X_filtered), dtype=np.float64
+        ).ravel()
 
     def predict(self, X: ArrayLike) -> NDArray:
         """Predict class labels.
@@ -244,7 +246,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         score_dist : ndarray of shape (n_samples,)
             Computed Hotelling-like distance per sample.
         """
-        X_valid = self._validate_X_predict(X)
+        X_valid = self._validated_inner_x(X)
         return self.opls_._score_distance_validated(X_valid, kind=kind)
 
     def q_residuals(
@@ -269,7 +271,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         q : ndarray of shape (n_samples,)
             Squared residual norm per sample.
         """
-        X_valid = self._validate_X_predict(X)
+        X_valid = self._validated_inner_x(X)
         return self.opls_._q_residuals_validated(X_valid, space=space)
 
     def __sklearn_tags__(self):
