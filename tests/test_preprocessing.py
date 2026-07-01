@@ -79,10 +79,7 @@ def test_apply_scaling_validates_representative_bad_inputs():
     # 2. wrong mean_ shape
     with pytest.raises(ValueError, match="mean_ must have shape"):
         apply_scaling(X, np.zeros(2), np.ones(3))
-    # 3. zero scale
-    with pytest.raises(ValueError, match="scale_ must not contain zeros"):
-        apply_scaling(X, np.zeros(3), np.array([1.0, 0.0, 1.0]))
-    # 4. nonfinite input
+    # 3. nonfinite input
     with pytest.raises(ValueError, match="finite"):
         apply_scaling(np.array([[1.0, np.inf, 1.0]]), np.zeros(3), np.ones(3))
 
@@ -162,3 +159,16 @@ def test_apply_scaling_rejects_negative_scale():
 
     with pytest.raises(ValueError, match="positive"):
         apply_scaling(X, mean, scale)
+
+
+@pytest.mark.parametrize(
+    "scale",
+    [
+        np.array([1.0, 0.0, 1.0]),
+        np.array([1.0, -1.0, 1.0]),
+    ],
+)
+def test_apply_scaling_rejects_non_positive_scale(scale):
+    X = np.ones((4, 3))
+    with pytest.raises(ValueError, match="scale_ must contain only positive values"):
+        apply_scaling(X, np.zeros(3), scale)
