@@ -1,8 +1,7 @@
 """Permutation testing for OPLS model significance."""
 
-# sklearn.base.clone, check_array and joblib.Parallel are under-typed (Parallel is
-# annotated as returning Optional); suppress the resulting static-checker false
-# positives (the test suite is the real correctness gate).
+# sklearn/joblib typing is incomplete for clone, check_array and Parallel.
+# Runtime validation and tests are the correctness gate.
 # pyright: reportAttributeAccessIssue=false, reportArgumentType=false
 # pyright: reportGeneralTypeIssues=false
 
@@ -31,25 +30,36 @@ from scikit_opls._utils import _has_nonzero_variation, _validate_int
 _CVType = int | BaseCrossValidator | BaseShuffleSplit | Iterable | None
 
 
+def _as_univariate_array(name: str, values: ArrayLike) -> NDArray[np.float64]:
+    """Return values as a finite 1D float64 array."""
+    try:
+        arr = column_or_1d(np.asarray(values, dtype=np.float64), warn=False)
+    except ValueError as exc:
+        raise ValueError(
+            f"{name} must be univariate; multi-output targets are not supported."
+        ) from exc
+    if not np.all(np.isfinite(arr)):
+        raise ValueError(f"{name} must contain only finite values.")
+    return arr
+
+
 def _safe_r2_score(y_true: ArrayLike, y_pred: ArrayLike) -> float:
-    y_true_arr = np.asarray(y_true, dtype=np.float64).ravel()
-    y_pred_arr = np.asarray(y_pred, dtype=np.float64).ravel()
+    y_true_arr = _as_univariate_array("y_true", y_true)
+    y_pred_arr = _as_univariate_array("y_pred", y_pred)
     if y_true_arr.shape != y_pred_arr.shape:
         raise ValueError(
             "y_true and y_pred must have the same flattened shape, "
             f"got {y_true_arr.shape} and {y_pred_arr.shape}."
         )
     if not _has_nonzero_variation(y_true_arr):
-        # sklearn's r2_score defines constant-target cases awkwardly for model
-        # significance; NaN makes the undefined metric explicit downstream.
-        return np.nan
+        return float("nan")
     return float(r2_score(y_true_arr, y_pred_arr))
 
 
 def _cross_val_q2(
     estimator: BaseEstimator, X: ArrayLike, y: ArrayLike, cv: _CVType
 ) -> float:
-    """Out-of-fold Q2 of ``estimator`` on ``(X, y)`` using the provided ``cv``."""
+    """Out-of-fold Q2 of ``estimator`` on ``(X, y)``."""
     y_pred = cross_val_predict(clone(estimator), X, y, cv=cv)
     return _safe_r2_score(y, y_pred)
 
@@ -77,27 +87,29 @@ class PermutationResult:
 
 
 def _fitted_r2y(fitted: BaseEstimator) -> float:
-    # GridSearchCV and similar search estimators expose the selected model through
-    # best_estimator_; recurse until we reach the OPLS-like estimator itself.
     if hasattr(fitted, "r2y_"):
         return float(getattr(fitted, "r2y_"))
-    if hasattr(fitted, "cv_results_") and not hasattr(fitted, "best_estimator_"):
+
+    best = getattr(fitted, "best_estimator_", None)
+    if best is not None:
+        return _fitted_r2y(best)
+
+    if hasattr(fitted, "cv_results_"):
         raise TypeError(
             "Search meta-estimators must use refit=True so permutation_test can "
             "access best_estimator_."
         )
-    if hasattr(fitted, "best_estimator_"):
-        return _fitted_r2y(getattr(fitted, "best_estimator_"))
+
     raise TypeError(
-        "permutation_test requires an OPLS-like regression estimator exposing r2y_, "
-        "or a GridSearchCV wrapping one."
+        "permutation_test requires an OPLS-like regression estimator exposing "
+        "r2y_, or a refit-enabled search estimator wrapping one."
     )
 
 
 def _permuted_scores(
     estimator: BaseEstimator, X: ArrayLike, y_perm: ArrayLike, cv: _CVType
 ) -> tuple[float, float]:
-    """R2Y and out-of-fold Q2 for one permuted target (one parallel task)."""
+    """Return R2Y/Q2 for one permuted target."""
     fitted = clone(estimator).fit(X, y_perm)
     r2y = _fitted_r2y(fitted)
     q2 = _cross_val_q2(estimator, X, y_perm, cv=cv)
@@ -105,12 +117,39 @@ def _permuted_scores(
 
 
 def _contains_classifier(estimator: BaseEstimator) -> bool:
-    # Walk simple meta-estimators such as CalibratedClassifierCV(estimator=...).
+    """Return whether estimator or a simple wrapped estimator is a classifier."""
     if is_classifier(estimator):
         return True
-    if hasattr(estimator, "estimator"):
-        return _contains_classifier(getattr(estimator, "estimator"))
+
+    steps = getattr(estimator, "steps", None)
+    if steps is not None:
+        return any(_contains_classifier(step) for _, step in steps)
+
+    for attr in ("estimator", "base_estimator", "best_estimator_"):
+        inner = getattr(estimator, attr, None)
+        if inner is not None and _contains_classifier(inner):
+            return True
+
     return False
+
+
+def _resolve_cv(estimator: BaseEstimator, cv: _CVType, y: NDArray[np.float64]):
+    if cv is None:
+        estimator_cv = getattr(estimator, "cv", None)
+        cv = estimator_cv if estimator_cv is not None else min(5, len(y))
+
+    # Materialize one-shot split iterables so observed and permuted passes reuse
+    # the same splits instead of consuming the iterator once.
+    if cv is not None and not isinstance(cv, Integral) and not hasattr(cv, "split"):
+        cv = list(cv)
+
+    return check_cv(cv, y=y, classifier=False)
+
+
+def _empirical_p_value(observed: float, permuted: NDArray[np.float64]) -> float:
+    if np.isnan(observed):
+        return float("nan")
+    return float((1 + int(np.sum(permuted >= observed))) / (permuted.size + 1))
 
 
 def permutation_test(
@@ -175,45 +214,21 @@ def permutation_test(
     n_permutations = _validate_int("n_permutations", n_permutations, minimum=1)
 
     X = check_array(X, dtype=np.float64)
-    try:
-        y = column_or_1d(np.asarray(y, dtype=np.float64), warn=False)
-    except ValueError as exc:
-        raise ValueError(
-            "permutation_test currently requires a univariate response; "
-            "multi-output targets are not supported."
-        ) from exc
+    y = _as_univariate_array("y", y)
     check_consistent_length(X, y)
-    if not np.all(np.isfinite(y)):
-        raise ValueError("y must contain only finite values.")
     if len(y) < 3:
         raise ValueError(
             "permutation_test requires at least 3 samples so each CV training "
             "fold can contain at least 2 samples."
         )
 
-    if cv is None:
-        estimator_cv = getattr(estimator, "cv", None)
-        # Prefer an estimator-owned cv setting when present; otherwise keep folds
-        # valid for small data by capping the default at n_samples.
-        cv = estimator_cv if estimator_cv is not None else min(5, len(y))
-    # A one-shot iterable of splits would be consumed by the observed-Q2 pass and
-    # leave nothing for the permutations; materialise it so every pass sees the
-    # same splits.
-    if cv is not None and not isinstance(cv, Integral) and not hasattr(cv, "split"):
-        cv = list(cv)
-    cv_checked = check_cv(cv, y=y, classifier=False)
+    cv_checked = _resolve_cv(estimator, cv, y)
 
-    # Fit once on the true labels to establish the observed in-sample R2Y.
     fitted = clone(estimator).fit(X, y)
     observed_r2y = _fitted_r2y(fitted)
-
-    rng = check_random_state(random_state)
-    # Q2 is always out-of-fold, so compute it through the same CV object used for
-    # every permutation.
     observed_q2 = _cross_val_q2(estimator, X, y, cv=cv_checked)
 
-    # Draw all permutations serially from the RNG so the result is independent of
-    # the execution order the parallel backend chooses.
+    rng = check_random_state(random_state)
     perms = [rng.permutation(y) for _ in range(n_permutations)]
     scored = Parallel(n_jobs=n_jobs)(
         delayed(_permuted_scores)(estimator, X, y_perm, cv_checked) for y_perm in perms
@@ -221,22 +236,11 @@ def permutation_test(
     permuted_r2y = np.asarray([r2y for r2y, _ in scored], dtype=np.float64)
     permuted_q2 = np.asarray([q2 for _, q2 in scored], dtype=np.float64)
 
-    # An undefined observed metric (NaN) must not masquerade as significant.
-    r2y_p = (
-        np.nan
-        if np.isnan(observed_r2y)
-        else (1 + int(np.sum(permuted_r2y >= observed_r2y))) / (n_permutations + 1)
-    )
-    q2_p = (
-        np.nan
-        if np.isnan(observed_q2)
-        else (1 + int(np.sum(permuted_q2 >= observed_q2))) / (n_permutations + 1)
-    )
     return PermutationResult(
         r2y=observed_r2y,
         q2=observed_q2,
         permuted_r2y=permuted_r2y,
         permuted_q2=permuted_q2,
-        r2y_p_value=float(r2y_p),
-        q2_p_value=float(q2_p),
+        r2y_p_value=_empirical_p_value(observed_r2y, permuted_r2y),
+        q2_p_value=_empirical_p_value(observed_q2, permuted_q2),
     )
