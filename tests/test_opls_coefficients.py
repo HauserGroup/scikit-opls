@@ -65,6 +65,21 @@ def test_raw_coefficients_shape_and_no_coef_alias():
     assert not hasattr(model, "coef_")
 
 
+def test_raw_coefficients_reproduce_predict_scale_none():
+    """Regression guard: scale="none" skips the standard-scaling centering path,
+    so raw-coefficient composition must still match predict() exactly."""
+    rng = np.random.default_rng(6)
+    X = rng.normal(size=(80, 8))
+    beta = rng.normal(size=8)
+    y = X @ beta + 0.1 * rng.normal(size=80)
+
+    model = OPLS(scale="none", n_components=1, n_orthogonal=1).fit(X, y)
+
+    y_predict = model.predict(X)
+    y_linear = (X @ model.coef_raw_.T + model.intercept_raw_).ravel()
+    assert_allclose(y_predict, y_linear, rtol=1e-10, atol=1e-10)
+
+
 def test_oplsda_inner_opls_has_raw_coefficients():
     rng = np.random.default_rng(3)
     X = rng.normal(size=(40, 6))
