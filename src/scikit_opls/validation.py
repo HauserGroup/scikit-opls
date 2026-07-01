@@ -117,20 +117,8 @@ def _permuted_scores(
 
 
 def _contains_classifier(estimator: BaseEstimator) -> bool:
-    """Return whether estimator or a simple wrapped estimator is a classifier."""
-    if is_classifier(estimator):
-        return True
-
-    steps = getattr(estimator, "steps", None)
-    if steps is not None:
-        return any(_contains_classifier(step) for _, step in steps)
-
-    for attr in ("estimator", "base_estimator", "best_estimator_"):
-        inner = getattr(estimator, attr, None)
-        if inner is not None and _contains_classifier(inner):
-            return True
-
-    return False
+    """Return whether estimator is tagged as a classifier."""
+    return is_classifier(estimator)
 
 
 def _resolve_cv(estimator: BaseEstimator, cv: _CVType, y: NDArray[np.float64]):
