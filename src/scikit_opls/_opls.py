@@ -344,7 +344,19 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.y_loadings_ = self.pls_.y_loadings_
         self.coef_filtered_ = self.pls_.coef_
         self.intercept_ = self.pls_.intercept_
-        self._pls_x_mean_ = np.asarray(self.pls_._x_mean, dtype=np.float64)
+        # PLSRegression centers the filtered X block internally; reconstructing
+        # scaled X from predictive scores (``_predictive_x_hat``) needs that fitted
+        # mean back. sklearn does not expose it publicly, so we intentionally read
+        # the private ``_x_mean`` attribute and pin the behavior with regression
+        # tests (test_opls_coefficients.py) rather than relying on it silently.
+        try:
+            self._pls_x_mean_ = np.asarray(self.pls_._x_mean, dtype=np.float64)
+        except AttributeError as exc:
+            raise AttributeError(
+                "Could not access PLSRegression._x_mean. OPLS's reconstruction of "
+                "scaled X from predictive scores depends on sklearn's fitted PLS "
+                "centering state."
+            ) from exc
 
     def _set_raw_coefficients(self, X_filtered: NDArray[np.float64]) -> None:
         engine_offset = self.pls_.predict(
