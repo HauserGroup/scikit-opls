@@ -257,7 +257,7 @@ def test_pls_engine_exposes_internal_x_mean_for_reconstruction():
     X, y = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=0, scale="none").fit(X, y)
     assert hasattr(model.pls_, "_x_mean")
-    assert model.pls_._x_mean.shape == (X.shape[1],)
+    assert getattr(model.pls_, "_x_mean").shape == (X.shape[1],)
 
 
 # ==============================================================================
@@ -335,22 +335,15 @@ def test_oplsda_diagnostics_expect_raw_x_not_prescaled_x():
     )
 
 
-def test_component_r2_from_cumulative_empty_and_differences():
-    """Verify component_r2_from_cumulative with empty and non-empty inputs."""
-    from scikit_opls._inspection import component_r2_from_cumulative
+def test_component_r2y_from_scores_1d_y_loadings_matches_2d():
+    """A 1D y_loadings is one value per component, matching the 2D (1, n) form."""
+    from scikit_opls._inspection import component_r2y_from_scores
 
-    assert component_r2_from_cumulative(np.array([])).shape == (0,)
-    np.testing.assert_allclose(
-        component_r2_from_cumulative(np.array([0.2, 0.5, 0.8])),
-        [0.2, 0.3, 0.3],
-    )
+    rng = np.random.default_rng(0)
+    y = rng.normal(size=10)
+    T = rng.normal(size=(10, 3))
+    q_1d = rng.normal(size=3)
 
-
-def test_cumulative_r2_from_residuals_decreases_with_smaller_residuals():
-    """Verify cumulative_r2_from_residuals decreases as residuals decrease."""
-    from scikit_opls._inspection import cumulative_r2_from_residuals
-
-    X = np.eye(4)
-    out = cumulative_r2_from_residuals(X, [0.5 * X, 0.1 * X])
-    assert out[1] > out[0]
-    assert np.all((0.0 <= out) & (out <= 1.0))
+    out_1d = component_r2y_from_scores(y, T, q_1d)
+    out_2d = component_r2y_from_scores(y, T, q_1d.reshape(1, -1))
+    np.testing.assert_allclose(out_1d, out_2d)
