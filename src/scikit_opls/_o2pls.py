@@ -80,6 +80,9 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     r2x_, r2y_, r2x_ortho_, r2y_ortho_ : float
         Training-set diagnostic sum-of-squares ratios on preprocessed blocks.
         These are not guaranteed additive variance partitions.
+    singular_values_initial_, singular_values_final_ : ndarray
+        Singular values of the X'Y covariance block before and after orthogonal
+        filtering.
 
     Notes
     -----
@@ -124,6 +127,8 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     n_components_: int
     n_x_orthogonal_: int
     n_y_orthogonal_: int
+    singular_values_initial_: NDArray[np.float64]
+    singular_values_final_: NDArray[np.float64]
     n_features_out_: int
     _y_ndim: int
 
