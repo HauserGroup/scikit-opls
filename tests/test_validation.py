@@ -8,7 +8,6 @@ from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLS, OPLSDA
 from scikit_opls.validation import (
-    _contains_classifier,
     _safe_r2_score,
     permutation_test,
 )
@@ -236,24 +235,3 @@ def test_permutation_test_classifier_wrapped_raises():
     gs = GridSearchCV(pipe, {"clf__n_components": [1]})
     with pytest.raises(TypeError, match="classifiers like OPLSDA are not supported"):
         permutation_test(gs, X, y)
-
-
-def test_contains_classifier_detects_oplsda():
-    assert _contains_classifier(OPLSDA())
-    assert not _contains_classifier(OPLS())
-
-
-def test_contains_classifier_detects_pipeline_ending_in_oplsda():
-    from sklearn.pipeline import Pipeline
-
-    assert _contains_classifier(Pipeline([("model", OPLSDA())]))
-    assert not _contains_classifier(Pipeline([("model", OPLS())]))
-
-
-def test_contains_classifier_detects_grid_search_over_oplsda():
-    from sklearn.model_selection import GridSearchCV
-
-    search = GridSearchCV(OPLSDA(), {"n_orthogonal": [0, 1]}, cv=2)
-    assert _contains_classifier(search)
-    other = GridSearchCV(OPLS(), {"n_orthogonal": [0, 1]}, cv=2)
-    assert not _contains_classifier(other)

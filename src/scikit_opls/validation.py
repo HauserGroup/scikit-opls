@@ -116,11 +116,6 @@ def _permuted_scores(
     return r2y, q2
 
 
-def _contains_classifier(estimator: BaseEstimator) -> bool:
-    """Return whether estimator is tagged as a classifier."""
-    return is_classifier(estimator)
-
-
 def _resolve_cv(estimator: BaseEstimator, cv: _CVType, y: NDArray[np.float64]):
     if cv is None:
         estimator_cv = getattr(estimator, "cv", None)
@@ -194,7 +189,7 @@ def permutation_test(
     defaults to 5-fold; for ``n_samples < 5`` set the ``GridSearchCV`` ``cv``
     explicitly (this function does not rewrite a user's inner CV).
     """
-    if _contains_classifier(estimator):
+    if is_classifier(estimator):
         raise TypeError(
             "permutation_test is for regression models; "
             "classifiers like OPLSDA are not supported."
