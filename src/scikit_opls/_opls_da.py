@@ -48,6 +48,13 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         The two class labels seen during fit.
     opls_ : OPLS
         The fitted underlying OPLS regressor against a -1/+1 dummy response.
+    n_orthogonal_ : int
+        Number of orthogonal components actually used by the inner OPLS.
+    n_features_in_ : int
+        Number of features seen during :meth:`fit`.
+    feature_names_in_ : ndarray of shape (n_features_in_,)
+        Names of features seen during :meth:`fit`. Defined only when ``X`` has
+        feature names that are all strings.
     vip_, ortho_vip_ : ndarray of shape (n_features,)
         Predictive / orthogonal Variable Importance in Projection scores computed
         by the inner :attr:`opls_`. Use with

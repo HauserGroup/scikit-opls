@@ -119,7 +119,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         PLS model. To choose this by cross-validated Q2, wrap ``OPLS`` in
         :class:`~sklearn.model_selection.GridSearchCV` over ``n_orthogonal``.
     scale : {"none", "center", "pareto", "standard"}, default="standard"
-        Column preprocessing applied to ``X``.
+        Column preprocessing applied to ``X``. Note: unlike the boolean
+        ``scale`` parameter of
+        :class:`sklearn.cross_decomposition.PLSRegression`, this is a string
+        mode; passing ``True``/``False`` raises an error.
     copy : bool, default=True
         Whether the input arrays are copied during validation. Note that
         ``copy=False`` is passed to sklearn input validation; OPLS filtering
@@ -163,6 +166,30 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         additive partition; do not assume ``r2x_ + r2x_ortho_`` equals total
         explained ``X`` variance. For cross-validated Q2 use
         :func:`sklearn.model_selection.cross_val_score`.
+    r2x_components_ : ndarray of shape (n_components,)
+        Per-component explained ``X`` sum-of-squares ratio of the predictive
+        components, relative to the preprocessed ``X``.
+    r2x_ortho_components_ : ndarray of shape (n_orthogonal_,)
+        Per-component explained ``X`` sum-of-squares ratio of the removed
+        orthogonal components.
+    r2y_components_ : ndarray of shape (n_components,)
+        Per-component ``y`` sum-of-squares ratio explained through
+        ``t_i @ q_i.T``.
+    q_residuals_train_ : ndarray of shape (n_samples,)
+        Training Q residuals in the full (predictive + orthogonal)
+        reconstruction space; equals ``q_residuals(X_train, space="full")``.
+    q_residuals_predictive_train_ : ndarray of shape (n_samples,)
+        Training Q residuals in the predictive-only reconstruction space.
+    x_residual_ss_ : float
+        Sum of ``q_residuals_train_``.
+    y_residual_ss_ : float
+        Training residual sum of squares of ``y`` against the fitted
+        predictions.
+    n_features_in_ : int
+        Number of features seen during :meth:`fit`.
+    feature_names_in_ : ndarray of shape (n_features_in_,)
+        Names of features seen during :meth:`fit`. Defined only when ``X`` has
+        feature names that are all strings.
     vip_, ortho_vip_ : ndarray of shape (n_features,)
         Lazy predictive / orthogonal Variable Importance in Projection scores,
         computed on first access (sklearn ``feature_importances_`` convention).
