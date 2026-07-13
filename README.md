@@ -142,11 +142,9 @@ Two small scripts under `examples/` show usage with CSV data hosted as GitHub
 release assets. The examples read these URLs directly with `pandas.read_csv`, so
 the datasets do not need to be stored in the local checkout:
 
-- `https://github.com/HauserGroup/scikit-opls/releases/download/data/colorectal_cancer_nmr.csv`
 - `https://github.com/HauserGroup/scikit-opls/releases/download/data/palmerpenguins.csv`
 
 ```bash
-uv run python examples/colorectal_cancer_nmr_oplsda.py
 uv run python examples/palmerpenguins_opls_regression.py
 ```
 
