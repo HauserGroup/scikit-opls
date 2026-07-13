@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from sklearn.utils._testing import assert_allclose
 
 from scikit_opls import OPLS, OPLSDA
 from scikit_opls._preprocessing import apply_scaling
@@ -65,7 +66,7 @@ def test_q_residuals_with_no_orthogonal_components():
     model = OPLS(n_components=1, n_orthogonal=0).fit(X, y)
     q_full = model.q_residuals(X, space="full")
     q_pred = model.q_residuals(X, space="predictive")
-    np.testing.assert_allclose(q_full, q_pred, rtol=1e-8, atol=1e-8)
+    assert_allclose(q_full, q_pred, rtol=1e-8, atol=1e-8)
 
 
 # ==============================================================================
@@ -115,8 +116,8 @@ def test_training_q_residual_attributes_match_public_methods():
     """Verify training diagnostic attributes equal public outputs on training data."""
     X, y = _regression_data()
     model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
-    np.testing.assert_allclose(model.q_residuals_train_, model.q_residuals(X))
-    np.testing.assert_allclose(
+    assert_allclose(model.q_residuals_train_, model.q_residuals(X))
+    assert_allclose(
         model.q_residuals_predictive_train_,
         model.q_residuals(X, space="predictive"),
     )
@@ -131,7 +132,7 @@ def test_q_residuals_full_matches_manual_reconstruction():
     pls_x_mean = np.asarray(getattr(model.pls_, "_x_mean", 0.0), dtype=np.float64)
     X_pred_hat = pls_x_mean + model.x_scores_ @ model.x_loadings_.T
     expected = np.sum((Xs - X_ortho_hat - X_pred_hat) ** 2, axis=1)
-    np.testing.assert_allclose(model.q_residuals(X, space="full"), expected)
+    assert_allclose(model.q_residuals(X, space="full"), expected)
 
 
 def test_q_residuals_predictive_matches_scaled_x_predictive_only_reconstruction():
@@ -142,7 +143,7 @@ def test_q_residuals_predictive_matches_scaled_x_predictive_only_reconstruction(
     pls_x_mean = np.asarray(getattr(model.pls_, "_x_mean", 0.0), dtype=np.float64)
     X_pred_hat = pls_x_mean + model.x_scores_ @ model.x_loadings_.T
     expected = np.sum((Xs - X_pred_hat) ** 2, axis=1)
-    np.testing.assert_allclose(model.q_residuals(X, space="predictive"), expected)
+    assert_allclose(model.q_residuals(X, space="predictive"), expected)
 
 
 def test_score_distance_all_matches_manual_mahalanobis():
@@ -154,7 +155,7 @@ def test_score_distance_all_matches_manual_mahalanobis():
     Tc = T - T.mean(axis=0)
     inv_cov = np.linalg.pinv(np.cov(Tc, rowvar=False))
     expected = np.sum((Tc @ inv_cov) * Tc, axis=1)
-    np.testing.assert_allclose(sd, expected)
+    assert_allclose(sd, expected)
 
 
 def test_r2x_components_match_rank_one_reconstructions():
@@ -169,7 +170,7 @@ def test_r2x_components_match_rank_one_reconstructions():
             for i in range(model.x_scores_.shape[1])
         ]
     )
-    np.testing.assert_allclose(model.r2x_components_, expected)
+    assert_allclose(model.r2x_components_, expected)
 
 
 def test_diagnostics_expect_raw_x_not_prescaled_x():
@@ -206,7 +207,7 @@ def test_score_distance_training_center_reasonable():
     sd = model.score_distance(X, kind="predictive")
     T = model.x_scores_
     expected = ((T[:, 0] - T[:, 0].mean()) ** 2) / np.var(T[:, 0], ddof=1)
-    np.testing.assert_allclose(sd, expected)
+    assert_allclose(sd, expected)
 
 
 def test_component_r2y_additivity():
@@ -282,9 +283,9 @@ def test_diagnostics_are_pure_no_state_mutation():
     model.score_distance(X_test, kind="all")
     model.q_residuals(X_test, space="full")
 
-    np.testing.assert_allclose(model.x_scores_, before["x_scores_"])
-    np.testing.assert_allclose(model.x_ortho_scores_, before["x_ortho_scores_"])
-    np.testing.assert_allclose(model.coef_raw_, before["coef_raw_"])
+    assert_allclose(model.x_scores_, before["x_scores_"])
+    assert_allclose(model.x_ortho_scores_, before["x_ortho_scores_"])
+    assert_allclose(model.coef_raw_, before["coef_raw_"])
 
 
 def test_diagnostics_refresh_on_refit_with_different_feature_count():
@@ -316,11 +317,11 @@ def test_oplsda_diagnostics_match_inner_opls_on_validated_array():
 
     sd_outer = clf.score_distance(X)
     sd_inner = clf.opls_.score_distance(X)
-    np.testing.assert_allclose(sd_outer, sd_inner)
+    assert_allclose(sd_outer, sd_inner)
 
     q_outer = clf.q_residuals(X)
     q_inner = clf.opls_.q_residuals(X)
-    np.testing.assert_allclose(q_outer, q_inner)
+    assert_allclose(q_outer, q_inner)
 
 
 def test_oplsda_diagnostics_expect_raw_x_not_prescaled_x():
@@ -346,4 +347,4 @@ def test_component_r2y_from_scores_1d_y_loadings_matches_2d():
 
     out_1d = component_r2y_from_scores(y, T, q_1d)
     out_2d = component_r2y_from_scores(y, T, q_1d.reshape(1, -1))
-    np.testing.assert_allclose(out_1d, out_2d)
+    assert_allclose(out_1d, out_2d)

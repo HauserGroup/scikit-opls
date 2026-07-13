@@ -132,8 +132,8 @@ def test_standard_scaling_single_sample_uses_unit_scale():
     """Verify that standard scaling on a single sample falls back to unit scale."""
     X = np.array([[1.0, 2.0, 3.0]])
     mean, scale = compute_scaling(X, mode="standard")
-    np.testing.assert_allclose(mean, X[0])
-    np.testing.assert_allclose(scale, np.ones(X.shape[1]))
+    assert_allclose(mean, X[0])
+    assert_allclose(scale, np.ones(X.shape[1]))
 
 
 def test_apply_scaling_extra_validation():
