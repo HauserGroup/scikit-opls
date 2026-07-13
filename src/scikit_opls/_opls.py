@@ -15,9 +15,6 @@ selected X preprocessing.
 # visible to the type checker, so instantiating them looks abstract (it is not).
 # pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportReturnType=false
 # pyright: reportAbstractUsage=false
-# reportIncompatibleMethodOverride: our score() narrows X to ArrayLike (no sparse)
-# vs RegressorMixin's MatrixLike; OPLS rejects sparse anyway (input_tags.sparse=False).
-# pyright: reportIncompatibleMethodOverride=false
 
 from __future__ import annotations
 
