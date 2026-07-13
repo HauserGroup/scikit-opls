@@ -92,6 +92,20 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     This is most common when
     ``n_components + max(n_x_orthogonal, n_y_orthogonal)`` approaches the rank or
     feature dimension of one block.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scikit_opls import O2PLS
+    >>> rng = np.random.default_rng(0)
+    >>> T = rng.normal(size=(30, 2))
+    >>> X = T @ rng.normal(size=(2, 6)) + 0.1 * rng.normal(size=(30, 6))
+    >>> Y = T @ rng.normal(size=(2, 4)) + 0.1 * rng.normal(size=(30, 4))
+    >>> model = O2PLS(n_components=2, n_x_orthogonal=1).fit(X, Y)
+    >>> model.transform(X).shape
+    (30, 2)
+    >>> model.predict(X).shape
+    (30, 4)
     """
 
     n_features_in_: int

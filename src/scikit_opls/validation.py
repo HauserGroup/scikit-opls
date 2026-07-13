@@ -188,6 +188,22 @@ def permutation_test(
     When ``estimator`` is a ``GridSearchCV`` with ``cv=None``, its inner CV still
     defaults to 5-fold; for ``n_samples < 5`` set the ``GridSearchCV`` ``cv``
     explicitly (this function does not rewrite a user's inner CV).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scikit_opls import OPLS
+    >>> from scikit_opls.validation import permutation_test
+    >>> rng = np.random.default_rng(0)
+    >>> X = rng.normal(size=(20, 5))
+    >>> y = X[:, 0] + rng.normal(scale=0.1, size=20)
+    >>> result = permutation_test(
+    ...     OPLS(n_orthogonal=1), X, y, n_permutations=5, random_state=0
+    ... )
+    >>> result.permuted_q2.shape
+    (5,)
+    >>> 0.0 < result.q2_p_value <= 1.0
+    True
     """
     if is_classifier(estimator):
         raise TypeError(

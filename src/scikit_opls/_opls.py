@@ -184,6 +184,19 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     ``coef_filtered_``. To drop them, prepend
     :class:`~sklearn.feature_selection.VarianceThreshold` in a
     :class:`~sklearn.pipeline.Pipeline`.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scikit_opls import OPLS
+    >>> rng = np.random.default_rng(0)
+    >>> X = rng.normal(size=(20, 5))
+    >>> y = X[:, 0] - X[:, 1] + rng.normal(scale=0.1, size=20)
+    >>> model = OPLS(n_components=1, n_orthogonal=1).fit(X, y)
+    >>> model.transform(X).shape
+    (20, 1)
+    >>> model.predict(X).shape
+    (20,)
     """
 
     r2x_components_: NDArray[np.float64]

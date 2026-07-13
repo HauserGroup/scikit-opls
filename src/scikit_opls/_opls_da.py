@@ -53,6 +53,19 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         by the inner :attr:`opls_`. Use with
         :class:`~sklearn.feature_selection.SelectFromModel` via
         ``importance_getter="vip_"``.
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scikit_opls import OPLSDA
+    >>> rng = np.random.default_rng(0)
+    >>> X = rng.normal(size=(20, 5))
+    >>> y = np.where(X[:, 0] > 0, "case", "control")
+    >>> clf = OPLSDA(n_orthogonal=1).fit(X, y)
+    >>> clf.classes_.tolist()
+    ['case', 'control']
+    >>> clf.predict(X[:2]).shape
+    (2,)
     """
 
     classes_: NDArray

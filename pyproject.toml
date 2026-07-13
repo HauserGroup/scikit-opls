@@ -89,6 +89,12 @@ convention = "numpy"
 # grouped correctly and Ruff's isort enforces ordering.
 known-first-party = ["scikit_opls"]
 
+[tool.pytest.ini_options]
+# Docstring Examples are executable: doctests run alongside the test suite so
+# the numpydoc examples in src/ can never drift from the implementation.
+addopts = "--doctest-modules"
+testpaths = ["tests", "src/scikit_opls"]
+
 [tool.coverage.run]
 source = ["scikit_opls"]
 branch = true
