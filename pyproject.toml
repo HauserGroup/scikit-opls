@@ -25,11 +25,11 @@ Changelog = "https://github.com/HauserGroup/scikit-opls/blob/main/CHANGES.md"
 [project.optional-dependencies]
 # Plotting (scikit_opls.plotting) is the only matplotlib consumer and imports it
 # lazily, so it is an opt-in extra: `pip install scikit-opls[plot]`.
-plot = ["matplotlib>=3.8.0"]
+plot = ["matplotlib>=3.11.1"]
 
 [dependency-groups]
 dev = [
-    "matplotlib>=3.11.0",
+    "matplotlib>=3.11.1",
     "mdformat>=1.0.0",
     "mdformat-gfm>=1.0.0",
     "mkdocstrings[python]>=0.26.0",
