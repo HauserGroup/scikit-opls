@@ -12,6 +12,20 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+### Added
+
+- `KOPLS`, a kernel OPLS regressor and supervised transformer implementing
+  Rantalainen et al. (2007). It keeps the predictive / Y-orthogonal split of
+  `OPLS` but performs it in the feature space induced by a kernel, so non-linear
+  X/y relationships can be modelled. Kernels follow the `KernelRidge` parameter
+  set (`kernel`, `gamma`, `degree`, `coef0`, `kernel_params`, including
+  `"precomputed"`), the kernel is always centered in feature space, and multiple
+  targets are supported natively. With `kernel="linear"` and `scale="none"` it
+  reproduces `OPLS` exactly. Diagnostics mirror `OPLS`: `r2x_` / `r2x_ortho_` /
+  `r2y_` with per-component arrays, `score_distance` and `q_residuals`. There are
+  no input-space loadings in feature space, so `KOPLS` exposes no `coef_` and no
+  VIP scores.
+
 ## 0.1.0 — 2026-09-07
 
 First public release: the `OPLS` regressor, the `OPLSDA` binary classifier and
