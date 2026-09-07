@@ -12,6 +12,9 @@ from sklearn.exceptions import ConvergenceWarning
 from scikit_opls._utils import _validate_int
 
 _TOL = 1e-12
+# Convergence floor for squared-norm quantities: 1e-24 on a squared norm is
+# 1e-12 in norm, matching ``_TOL``'s scale for plain norms.
+_RESIDUAL_TOL = 1e-24
 
 
 def _validate_n_components(n_components: int) -> int:
@@ -25,7 +28,8 @@ class OrthogonalComponents:
     """Result of ``opls_filter``.
 
     ``n_components`` may be smaller than requested if ``X`` ran out of orthogonal
-    variation. ``x_predictive_weight`` is a zero vector when ``n_components=0``.
+    variation or if the request exceeded the rank bound ``min(n_samples,
+    n_features)``. ``x_predictive_weight`` is a zero vector when ``n_components=0``.
     """
 
     x_ortho_weights: NDArray[np.float64]
@@ -109,7 +113,8 @@ def orthogonal_filter(
     """Sequentially deflate block variation orthogonal to a predictive direction.
 
     The supplied predictive direction is normalized defensively. Fewer components
-    may be returned if no numerically resolvable orthogonal variation remains.
+    may be returned if no numerically resolvable orthogonal variation remains, and
+    never more than ``min(n_samples, n_features)``, the block's rank bound.
     """
     n_components = _validate_n_components(n_components)
     X = np.asarray(block, dtype=np.float64)
@@ -138,20 +143,30 @@ def orthogonal_filter(
             "predictive_direction must be numerically non-zero when n_components > 0."
         )
 
-    W = np.zeros((n_features, n_components))
-    T = np.zeros((n_samples, n_components))
-    P = np.zeros((n_features, n_components))
+    # A block of shape (n_samples, n_features) has rank at most
+    # ``min(n_samples, n_features)``, so it cannot yield more independent
+    # deflations than that; iterating past the bound only chases rounding noise.
+    max_components = min(n_components, n_samples, n_features)
+    W = np.zeros((n_features, max_components))
+    T = np.zeros((n_samples, max_components))
+    P = np.zeros((n_features, max_components))
     X_res = X.copy()
 
+    # Anchor every convergence test to the original block scale. Testing against
+    # the shrinking residual instead makes rounding noise look significant
+    # relative to itself, so the loop keeps extracting numerically meaningless
+    # components once the block's rank is exhausted, in BLAS-dependent numbers.
+    floor = _RESIDUAL_TOL * float(np.sum(X**2))
+
     extracted = 0
-    for i in range(n_components):
+    for i in range(max_components):
         res_norm_sq = float(np.sum(X_res**2))
-        if res_norm_sq == 0.0:
+        if res_norm_sq <= floor:
             break
         # w_pred is unit-normalised, so dividing by (w_predᵀ w_pred) is a no-op.
         t = X_res @ w_pred
         tt = float(t @ t)
-        if tt <= _TOL * res_norm_sq:
+        if tt <= floor:
             break
         p = X_res.T @ t / tt
         # Remove the predictive-direction part of p to obtain an orthogonal weight.
@@ -163,7 +178,7 @@ def orthogonal_filter(
         w_o /= w_norm
         t_o = X_res @ w_o
         too = float(t_o @ t_o)
-        if too <= _TOL * res_norm_sq:
+        if too <= floor:
             break
         p_o = X_res.T @ t_o / too
         # Deflate before extracting the next orthogonal component.

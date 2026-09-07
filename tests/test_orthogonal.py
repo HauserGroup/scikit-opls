@@ -342,3 +342,45 @@ def test_orthogonal_filter_tt_threshold_early_exit():
     direction = np.array([1.0, 0.0, 0.0, 0.0, 0.0])
     res = orthogonal_filter(X, direction, 1)
     assert res.x_ortho_scores.shape[1] == 0
+
+
+def test_never_extracts_more_components_than_the_rank_bound():
+    """Truncation is driven by rank, not by rounding noise in the residual.
+
+    Testing convergence against the shrinking residual instead of the original
+    block makes rounding noise look significant relative to itself, which lets
+    the loop mint components long after the block's rank is exhausted -- in
+    BLAS-dependent numbers, so the count differs between platforms.
+    """
+    from sklearn.exceptions import ConvergenceWarning
+
+    for n_features in (5, 8, 12):
+        X, y = _make_data(n_samples=60, n_features=n_features)
+        rank = np.linalg.matrix_rank(X)
+        with pytest.warns(ConvergenceWarning, match="numerically resolvable variation"):
+            fit = opls_filter(X, y, 50)
+        assert fit.n_components <= rank
+        assert fit.x_ortho_weights.shape == (n_features, fit.n_components)
+        assert fit.x_ortho_scores.shape == (X.shape[0], fit.n_components)
+        assert fit.x_ortho_loadings.shape == (n_features, fit.n_components)
+
+
+def test_more_components_than_features_is_capped_without_noise_components():
+    """A wide request on a low-rank block stops at the rank bound."""
+    from sklearn.exceptions import ConvergenceWarning
+
+    rng = np.random.default_rng(3)
+    y = rng.normal(size=40)
+    y -= y.mean()
+    # Rank-3 block: one y-correlated direction plus two y-orthogonal ones.
+    basis = rng.normal(size=(3, 6))
+    scores = np.column_stack([y, rng.normal(size=(40, 2))])
+    X = scores @ basis
+
+    with pytest.warns(ConvergenceWarning, match="numerically resolvable variation"):
+        fit = opls_filter(X, y, 30)
+
+    assert fit.n_components <= 3
+    # Whatever survives must be real variation, not denormal residue.
+    removed = np.linalg.norm(fit.x_ortho_scores @ fit.x_ortho_loadings.T)
+    assert removed > 1e-6 * np.linalg.norm(X)
