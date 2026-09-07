@@ -147,6 +147,32 @@ o2.transform_orthogonal_x(Xb)  # X-specific orthogonal scores
 o2.r2x_, o2.r2y_  # joint fit summaries
 ```
 
+### K-OPLS (non-linear regression)
+
+`KOPLS` performs the OPLS split in the feature space induced by a kernel, so
+non-linear X/y relationships can be modelled while the predictive and
+Y-orthogonal scores stay interpretable. `kernel="linear"` with `scale="none"`
+reproduces `OPLS` exactly.
+
+```python
+from scikit_opls import KOPLS
+
+Xk = rng.normal(size=(120, 6))
+yk = np.sin(2 * Xk[:, 0]) + Xk[:, 1] ** 2
+
+k = KOPLS(n_orthogonal=1, kernel="rbf", gamma=0.2).fit(Xk, yk)
+
+k.predict(Xk)  # predicted y
+k.transform(Xk)  # predictive scores
+k.transform_orthogonal(Xk)  # Y-orthogonal scores
+k.q_residuals(Xk)  # feature-space residual per sample
+```
+
+Kernels follow the `KernelRidge` parameter set, `"precomputed"` included (pass
+`scale="none"`, the `(n_test, n_train)` block at `predict`). The kernel is always
+centered in feature space. There are no input-space loadings, so `KOPLS` exposes
+no `coef_` and no VIP scores.
+
 ### Diagnostics
 
 Plotting needs the optional `plot` extra (`pip install "scikit-opls[plot]"`); it
@@ -192,11 +218,13 @@ The penguins example reads its CSV straight from a GitHub release asset with
 
 ## Parameters
 
-| Parameter      | Meaning                                                           |
-| -------------- | ----------------------------------------------------------------- |
-| `n_components` | Predictive components (classic OPLS uses 1).                      |
-| `n_orthogonal` | Orthogonal components to remove (`int`; tune via `GridSearchCV`). |
-| `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"`.                   |
+| Parameter                  | Meaning                                                           |
+| -------------------------- | ----------------------------------------------------------------- |
+| `n_components`             | Predictive components (classic OPLS uses 1).                      |
+| `n_orthogonal`             | Orthogonal components to remove (`int`; tune via `GridSearchCV`). |
+| `scale`                    | `"none"`, `"center"`, `"pareto"`, `"standard"`.                   |
+| `kernel`                   | `KOPLS` only: kernel name or callable, `"precomputed"` included.  |
+| `gamma`, `degree`, `coef0` | `KOPLS` only: kernel coefficients.                                |
 
 `OPLSDA` takes the same parameters. `O2PLS` replaces `n_orthogonal` with
 `n_x_orthogonal` and `n_y_orthogonal`, one per block.

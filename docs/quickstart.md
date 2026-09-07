@@ -17,6 +17,48 @@ model.transform_orthogonal(X)  # orthogonal scores
 model.r2y_, model.rmse_  # training-fit summaries
 ```
 
+## Non-linear regression (K-OPLS)
+
+`KOPLS` is the kernel reformulation of OPLS: the predictive/orthogonal split is
+performed in the feature space induced by a kernel, so non-linear X/y
+relationships can be modelled. With `kernel="linear"` and `scale="none"` it
+reproduces `OPLS` exactly.
+
+```python
+import numpy as np
+from scikit_opls import KOPLS
+
+rng = np.random.default_rng(2)
+X_nl = rng.normal(size=(120, 6))
+y_nl = np.sin(2 * X_nl[:, 0]) + X_nl[:, 1] ** 2 + 0.05 * rng.normal(size=120)
+
+model = KOPLS(n_orthogonal=1, kernel="rbf", gamma=0.2).fit(X_nl, y_nl)
+model.predict(X_nl)  # predicted y
+model.transform(X_nl)  # predictive scores
+model.transform_orthogonal(X_nl)  # Y-orthogonal scores
+model.r2y_, model.r2x_ortho_  # training-fit summaries
+```
+
+The Gaussian kernel is parametrised by `gamma`; the `sigma` of Rantalainen et al.
+maps as `gamma = 1 / (2 * sigma**2)`. Tune it together with `n_orthogonal`:
+
+```python
+from sklearn.model_selection import GridSearchCV
+
+search = GridSearchCV(
+    KOPLS(kernel="rbf"),
+    {"gamma": [0.05, 0.1, 0.2, 0.5], "n_orthogonal": list(range(4))},
+    cv=5,
+).fit(X_nl, y_nl)
+search.best_params_
+```
+
+Pass `kernel="precomputed"` with `scale="none"` to supply your own Gram matrix:
+the `(n_samples, n_samples)` block at `fit`, the `(n_test, n_train)` block at
+`predict`. Because the model lives in feature space there are no loadings on the
+input variables: `KOPLS` has no `coef_` and no VIP scores, and `q_residuals` is
+unavailable for a precomputed kernel (it needs `k(x, x)` for new samples).
+
 ## Two-block O2PLS
 
 ```python

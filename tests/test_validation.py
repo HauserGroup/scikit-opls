@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from sklearn.utils._testing import assert_allclose
 
-from scikit_opls import OPLS, OPLSDA
+from scikit_opls import KOPLS, OPLS, OPLSDA
 from scikit_opls.validation import (
     _safe_r2_score,
     permutation_test,
@@ -29,6 +29,20 @@ def test_permutation_test_detects_real_signal():
     # Real model should beat almost all permutations.
     assert result.q2 > float(np.mean(result.permuted_q2))
     assert result.q2_p_value < 0.2
+
+
+def test_permutation_test_accepts_kopls():
+    """permutation_test is duck-typed on r2y_, which KOPLS exposes after fit."""
+    X, y = _regression_data(seed=5)
+    result = permutation_test(
+        KOPLS(n_orthogonal=1, kernel="rbf", gamma=0.05),
+        X,
+        y,
+        n_permutations=10,
+        random_state=0,
+    )
+    assert result.permuted_q2.shape == (10,)
+    assert 0.0 < result.q2_p_value <= 1.0
 
 
 def test_permutation_pvalues_in_unit_interval():

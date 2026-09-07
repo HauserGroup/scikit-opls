@@ -4,6 +4,7 @@ from contextlib import suppress
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
+from scikit_opls._kopls import KOPLS
 from scikit_opls._o2pls import O2PLS
 from scikit_opls._opls import OPLS
 from scikit_opls._opls_da import OPLSDA
@@ -15,6 +16,7 @@ with suppress(PackageNotFoundError):
     __version__ = _version("scikit-opls")
 
 __all__ = [
+    "KOPLS",
     "O2PLS",
     "OPLS",
     "OPLSDA",
