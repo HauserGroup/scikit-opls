@@ -1,7 +1,7 @@
 """Stateless math helpers for OPLS explained-variance and VIP diagnostics.
 
 Private module — not part of the public API. Used by the fitted attributes of
-:class:`~scikit_opls.OPLS` and :class:`~scikit_opls.OPLSDA`. VIP scores are
+[`OPLS`][scikit_opls.OPLS] and [`OPLSDA`][scikit_opls.OPLSDA]. VIP scores are
 normalized so ``sum(vip**2) == n_features`` when component importance is
 positive; degenerate inputs return zeros.
 """

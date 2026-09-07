@@ -66,7 +66,7 @@ def _cross_val_q2(
 
 @dataclass
 class PermutationResult:
-    """Outcome of :func:`permutation_test`.
+    """Outcome of [`permutation_test`][scikit_opls.validation.permutation_test].
 
     Attributes
     ----------
@@ -148,7 +148,7 @@ def permutation_test(
 
     .. warning::
         This function is intended for OPLS regression models only. Classifiers
-        like :class:`~scikit_opls.OPLSDA` are not supported.
+        like [`OPLSDA`][scikit_opls.OPLSDA] are not supported.
 
     The estimator must expose ``r2y_`` (or ``best_estimator_.r2y_``) after fitting.
 
@@ -169,7 +169,7 @@ def permutation_test(
         Determines random number generation for label permutation.
     n_jobs : int or None, default=None
         Number of jobs running the independent permutations in parallel via
-        :class:`joblib.Parallel`. ``None`` means 1; ``-1`` uses all processors.
+        [`Parallel`][joblib.Parallel]. ``None`` means 1; ``-1`` uses all processors.
         Permutations are drawn up front from the seeded RNG, so results are
         reproducible regardless of ``n_jobs``.
 

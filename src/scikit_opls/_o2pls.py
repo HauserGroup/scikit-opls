@@ -36,7 +36,7 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
     O2PLS decomposes two preprocessed blocks into joint X-Y covariation,
     X-specific orthogonal structure, Y-specific orthogonal structure, and residual
-    variation. Unlike :class:`sklearn.cross_decomposition.PLSRegression`, this
+    variation. Unlike [`PLSRegression`][sklearn.cross_decomposition.PLSRegression], this
     implementation uses the Trygg-Wold orthonormal joint-loading convention:
     ``x_joint_loadings_`` equals ``x_joint_weights_`` and ``y_joint_loadings_``
     equals ``y_joint_weights_`` for the final joint part.
@@ -54,7 +54,7 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     scale : {"none", "center", "pareto", "standard"}, default="standard"
         Column preprocessing applied to both X and Y blocks. Note: unlike the
         boolean ``scale`` parameter of
-        :class:`sklearn.cross_decomposition.PLSRegression`, this is a string
+        [`PLSRegression`][sklearn.cross_decomposition.PLSRegression], this is a string
         mode; passing ``True``/``False`` raises an error.
     copy : bool, default=True
         Whether input arrays are copied during validation. Filtering still
@@ -75,10 +75,10 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         Sequential Y-specific orthogonal components.
     b_t_ : ndarray of shape (n_components_, n_components_)
         Regression matrix mapping joint X scores to joint Y scores
-        (used by :meth:`predict`).
+        (used by [`predict`][scikit_opls.O2PLS.predict]).
     b_u_ : ndarray of shape (n_components_, n_components_)
         Regression matrix mapping joint Y scores to joint X scores
-        (used by :meth:`predict_x`).
+        (used by [`predict_x`][scikit_opls.O2PLS.predict_x]).
     coef_filtered_ : ndarray of shape (n_features_in_, n_targets_)
         Coefficient matrix mapping scaled, X-orthogonally-filtered X to scaled
         predicted Y. This orientation is intentionally ``(n_features, n_targets)``
@@ -103,13 +103,15 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         Numbers of joint / X-orthogonal / Y-orthogonal components actually
         fitted; may be lower than requested after truncation.
     n_targets_ : int
-        Number of target columns seen during :meth:`fit`.
+        Number of target columns seen during [`fit`][scikit_opls.O2PLS.fit].
     n_features_out_ : int
-        Number of joint-score columns returned by :meth:`transform`.
+        Number of joint-score columns returned by
+        [`transform`][scikit_opls.O2PLS.transform].
     n_features_in_ : int
-        Number of features seen during :meth:`fit`.
+        Number of features seen during [`fit`][scikit_opls.O2PLS.fit].
     feature_names_in_ : ndarray of shape (n_features_in_,)
-        Names of features seen during :meth:`fit`. Defined only when ``X`` has
+        Names of features seen during [`fit`][scikit_opls.O2PLS.fit]. Defined only when
+        ``X`` has
         feature names that are all strings.
 
     See Also
@@ -122,7 +124,8 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     Notes
     -----
     Requested orthogonal components may be truncated with a
-    :class:`sklearn.exceptions.ConvergenceWarning` when the preliminary joint
+    [`ConvergenceWarning`][sklearn.exceptions.ConvergenceWarning] when the preliminary
+    joint
     subspace leaves no numerically resolvable block-specific residual variation.
     This is most common when ``n_components`` approaches the rank or feature
     dimension of one block.
@@ -470,7 +473,10 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return self._filter_y(Y)[0]
 
     def get_feature_names_out(self, input_features=None) -> NDArray[np.object_]:
-        """Output names for :meth:`transform` joint-score columns.
+        """Output names for the joint-score columns.
+
+        These are the columns returned by
+        [`transform`][scikit_opls.O2PLS.transform].
 
         Parameters
         ----------

@@ -22,7 +22,7 @@ def _validate_n_components(n_components: int) -> int:
 
 @dataclass
 class OrthogonalComponents:
-    """Result of :func:`opls_filter`.
+    """Result of ``opls_filter``.
 
     ``n_components`` may be smaller than requested if ``X`` ran out of orthogonal
     variation. ``x_predictive_weight`` is a zero vector when ``n_components=0``.

@@ -1,8 +1,8 @@
 """Orthogonal PLS (OPLS) regressor with a scikit-learn interface.
 
 OPLS removes X-orthogonal variation with an OSC-style filter
-(:mod:`scikit_opls._orthogonal`), then fits
-:class:`sklearn.cross_decomposition.PLSRegression` on the filtered X block.
+(``scikit_opls._orthogonal``), then fits
+[`PLSRegression`][sklearn.cross_decomposition.PLSRegression] on the filtered X block.
 With ``n_orthogonal=0``, this reduces to ordinary PLS after this package's
 selected X preprocessing.
 """
@@ -120,11 +120,11 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     n_orthogonal : int, default=1
         Number of X-orthogonal components removed before fitting the predictive
         PLS model. To choose this by cross-validated Q2, wrap ``OPLS`` in
-        :class:`~sklearn.model_selection.GridSearchCV` over ``n_orthogonal``.
+        [`GridSearchCV`][sklearn.model_selection.GridSearchCV] over ``n_orthogonal``.
     scale : {"none", "center", "pareto", "standard"}, default="standard"
         Column preprocessing applied to ``X``. Note: unlike the boolean
         ``scale`` parameter of
-        :class:`sklearn.cross_decomposition.PLSRegression`, this is a string
+        [`PLSRegression`][sklearn.cross_decomposition.PLSRegression], this is a string
         mode; passing ``True``/``False`` raises an error.
     copy : bool, default=True
         Whether the input arrays are copied during validation. Note that
@@ -168,7 +168,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         scores/loadings. These are diagnostic summaries, not a guaranteed exact
         additive partition; do not assume ``r2x_ + r2x_ortho_`` equals total
         explained ``X`` variance. For cross-validated Q2 use
-        :func:`sklearn.model_selection.cross_val_score`.
+        [`cross_val_score`][sklearn.model_selection.cross_val_score].
     r2x_components_ : ndarray of shape (n_components,)
         Per-component explained ``X`` sum-of-squares ratio of the predictive
         components, relative to the preprocessed ``X``.
@@ -189,9 +189,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         Training residual sum of squares of ``y`` against the fitted
         predictions.
     n_features_in_ : int
-        Number of features seen during :meth:`fit`.
+        Number of features seen during [`fit`][scikit_opls.OPLS.fit].
     feature_names_in_ : ndarray of shape (n_features_in_,)
-        Names of features seen during :meth:`fit`. Defined only when ``X`` has
+        Names of features seen during [`fit`][scikit_opls.OPLS.fit]. Defined only when
+        ``X`` has
         feature names that are all strings.
     vip_, ortho_vip_ : ndarray of shape (n_features,)
         Lazy predictive / orthogonal Variable Importance in Projection scores,
@@ -200,7 +201,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         ``sum(vip**2) == n_features``. Empty or degenerate blocks return zeros.
         For ``n_components > 1``, predictive VIP aggregates across predictive
         PLS components.
-        Use with :class:`~sklearn.feature_selection.SelectFromModel` via
+        Use with [`SelectFromModel`][sklearn.feature_selection.SelectFromModel] via
         ``importance_getter="vip_"``.
 
     See Also
@@ -219,8 +220,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     Constant and near-constant columns are retained rather than removed, preserving
     alignment with the input feature matrix, feature names, VIP arrays and
     ``coef_filtered_``. To drop them, prepend
-    :class:`~sklearn.feature_selection.VarianceThreshold` in a
-    :class:`~sklearn.pipeline.Pipeline`.
+    [`VarianceThreshold`][sklearn.feature_selection.VarianceThreshold] in a
+    [`Pipeline`][sklearn.pipeline.Pipeline].
 
     References
     ----------
@@ -617,9 +618,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return self._ortho_vip_
 
     def get_feature_names_out(self, input_features=None) -> NDArray[np.object_]:
-        """Output feature names for :meth:`transform` (the predictive scores).
+        """Output feature names for the predictive scores.
 
-        ``transform`` reduces ``X`` to ``n_components`` predictive scores, so the
+        [`transform`][scikit_opls.OPLS.transform] reduces ``X`` to
+        ``n_components`` predictive scores, so the
         output columns are components, not input features. They are named
         ``opls_pred0, opls_pred1, …`` (the ``ClassNamePrefixFeaturesOutMixin``
         convention), independent of the input feature names. ``transform_orthogonal``
