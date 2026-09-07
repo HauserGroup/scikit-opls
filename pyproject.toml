@@ -41,10 +41,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "joblib>=1.4.0",
+    "joblib>=1.6.0",
     "numpy>=1.26",
     "scikit-learn>=1.6",
-    "scipy>=1.11",
+    "scipy>=1.18.1",
 ]
 
 [project.urls]
@@ -65,9 +65,9 @@ dev = [
     "mdformat>=1.0.0",
     "mdformat-gfm>=1.0.0",
     "mkdocstrings[python]>=1.0.6",
-    "pandas>=3.0.3",
-    "pandas-stubs>=3.0.3.260530",
-    "pre-commit>=4.6.0",
+    "pandas>=3.0.5",
+    "pandas-stubs>=3.0.5.260730",
+    "pre-commit>=4.6.2",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
     "pytest-cov>=7.0.0",
