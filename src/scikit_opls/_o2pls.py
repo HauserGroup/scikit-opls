@@ -112,6 +112,13 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         Names of features seen during :meth:`fit`. Defined only when ``X`` has
         feature names that are all strings.
 
+    See Also
+    --------
+    OPLS : Single-block variant removing only X-orthogonal structure.
+    OPLSDA : Binary OPLS discriminant analysis.
+    sklearn.cross_decomposition.PLSCanonical : Symmetric two-block decomposition
+        without an integral orthogonal-signal-correction filter.
+
     Notes
     -----
     Requested orthogonal components may be truncated with a
@@ -119,6 +126,16 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     subspace leaves no numerically resolvable block-specific residual variation.
     This is most common when ``n_components`` approaches the rank or feature
     dimension of one block.
+
+    References
+    ----------
+    .. [1] Trygg, J. & Wold, S. (2003). O2-PLS, a two-block (X-Y) latent
+           variable regression (LVR) method with an integral OSC filter.
+           Journal of Chemometrics, 17(1), 53-64.
+           https://doi.org/10.1002/cem.775
+    .. [2] Trygg, J. & Wold, S. (2002). Orthogonal projections to latent
+           structures (O-PLS). Journal of Chemometrics, 16(3), 119-128.
+           https://doi.org/10.1002/cem.695
 
     Examples
     --------

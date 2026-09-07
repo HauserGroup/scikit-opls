@@ -203,6 +203,13 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         Use with :class:`~sklearn.feature_selection.SelectFromModel` via
         ``importance_getter="vip_"``.
 
+    See Also
+    --------
+    OPLSDA : Binary OPLS discriminant analysis built on this regressor.
+    O2PLS : Two-block variant that also models Y-specific orthogonal structure.
+    sklearn.cross_decomposition.PLSRegression : Predictive engine fitted after
+        orthogonal filtering; ``OPLS(n_orthogonal=0)`` reduces to it exactly.
+
     Notes
     -----
     Classic OPLS uses ``n_components=1``; ``n_orthogonal=0`` reduces to ordinary
@@ -214,6 +221,19 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     ``coef_filtered_``. To drop them, prepend
     :class:`~sklearn.feature_selection.VarianceThreshold` in a
     :class:`~sklearn.pipeline.Pipeline`.
+
+    References
+    ----------
+    .. [1] Trygg, J. & Wold, S. (2002). Orthogonal projections to latent
+           structures (O-PLS). Journal of Chemometrics, 16(3), 119-128.
+           https://doi.org/10.1002/cem.695
+    .. [2] Wold, S., Antti, H., Lindgren, F. & Ohman, J. (1998). Orthogonal
+           signal correction of near-infrared spectra. Chemometrics and
+           Intelligent Laboratory Systems, 44(1-2), 175-185.
+           https://doi.org/10.1016/S0169-7439(98)00109-9
+    .. [3] Galindo-Prieto, B., Eriksson, L. & Trygg, J. (2014). Variable
+           influence on projection (VIP) for OPLS models. Journal of
+           Chemometrics, 28(8), 623-632. https://doi.org/10.1002/cem.2627
 
     Examples
     --------
