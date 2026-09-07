@@ -1,4 +1,5 @@
 # pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportReturnType=false
+# pyright: reportAbstractUsage=false
 """Kernel-based Orthogonal Projections to Latent Structures (K-OPLS)."""
 
 from __future__ import annotations

@@ -93,7 +93,10 @@ def test_py_typed_marker_present():
 
 
 @pytest.mark.filterwarnings("ignore::sklearn.exceptions.ConvergenceWarning")
-@parametrize_with_checks(
+# The sklearn-inferred return type _ParametrizeMarkDecorator is typed for
+# pytest.mark.parametrize(argnames, argvalues, ...), so pyright reports a
+# spurious missing "argvalues" argument when it is applied as a decorator.
+@parametrize_with_checks(  # pyright: ignore[reportCallIssue]
     [
         KOPLS(),
         KOPLS(kernel="rbf"),
