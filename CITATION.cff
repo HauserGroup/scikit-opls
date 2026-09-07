@@ -8,7 +8,11 @@ abstract: >-
 authors:
   - given-names: "Jakob S."
     family-names: "Madsen"
+    email: "jsmadsen@sund.ku.dk"
     orcid: "https://orcid.org/0000-0002-2841-7284"
+    affiliation: >-
+      Pharmacoinformatics, Department of Drug Design and Pharmacology,
+      University of Copenhagen
 version: "0.1.0"
 license: MIT
 url: "https://github.com/HauserGroup/scikit-opls"

@@ -11,8 +11,8 @@ readme = "README.md"
 requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "Jakob S. Madsen" }]
-maintainers = [{ name = "Jakob S. Madsen" }]
+authors = [{ name = "Jakob S. Madsen", email = "jsmadsen@sund.ku.dk" }]
+maintainers = [{ name = "Jakob S. Madsen", email = "jsmadsen@sund.ku.dk" }]
 keywords = [
     "opls",
     "opls-da",
@@ -53,6 +53,7 @@ Documentation = "https://hausergroup.github.io/scikit-opls/"
 Repository = "https://github.com/HauserGroup/scikit-opls"
 "Bug Tracker" = "https://github.com/HauserGroup/scikit-opls/issues"
 Changelog = "https://github.com/HauserGroup/scikit-opls/blob/main/CHANGES.md"
+"Research Group" = "https://drug.ku.dk/research-sections/pharmaceutical-informatics/pharmacoinformatics/"
 
 [project.optional-dependencies]
 # Plotting (scikit_opls.plotting) is the only matplotlib consumer and imports it
