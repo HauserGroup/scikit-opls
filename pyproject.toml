@@ -1,5 +1,6 @@
 [build-system]
-requires = ["hatchling"]
+# PEP 639 license metadata (SPDX expression + license-files) needs hatchling 1.27.
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,6 +9,37 @@ dynamic = ["version"]
 description = "Orthogonal PLS (OPLS / OPLS-DA) with a scikit-learn interface"
 readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Jakob S. Madsen" }]
+maintainers = [{ name = "Jakob S. Madsen" }]
+keywords = [
+    "opls",
+    "opls-da",
+    "o2pls",
+    "pls",
+    "chemometrics",
+    "metabolomics",
+    "multivariate-analysis",
+    "scikit-learn",
+]
+# No "License ::" classifier: PyPI rejects those alongside a PEP 639 SPDX
+# `license` expression.
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
 dependencies = [
     "joblib>=1.4.0",
     "numpy>=1.26",
