@@ -36,11 +36,31 @@ from scikit_opls._utils import _reject_bool_param
 class OPLSDA(ClassifierMixin, BaseEstimator):
     """Binary OPLS Discriminant Analysis.
 
-    Parameters mirror :class:`~scikit_opls.OPLS`. ``decision_function`` returns the
-    raw signed OPLS regression output (positive favours ``classes_[1]``) and
-    ``predict`` returns class labels from its sign. For class probabilities, wrap in
+    The two class labels are encoded as a -1/+1 dummy response and fitted with
+    :class:`~scikit_opls.OPLS`. ``decision_function`` returns the raw signed OPLS
+    regression output (positive favours ``classes_[1]``) and ``predict`` returns
+    class labels from its sign. For class probabilities, wrap in
     :class:`~sklearn.calibration.CalibratedClassifierCV` (cross-fitted, robust)
     when each class has enough samples for the chosen calibration CV split.
+
+    Parameters
+    ----------
+    n_components : int, default=1
+        Number of predictive PLS components fitted on the orthogonally filtered
+        X block by the inner :class:`~scikit_opls.OPLS`.
+    n_orthogonal : int, default=1
+        Number of X-orthogonal components removed before fitting the predictive
+        PLS model. To choose this by cross-validated score, wrap ``OPLSDA`` in
+        :class:`~sklearn.model_selection.GridSearchCV` over ``n_orthogonal``.
+    scale : {"none", "center", "pareto", "standard"}, default="standard"
+        Column preprocessing applied to ``X``. Note: unlike the boolean
+        ``scale`` parameter of
+        :class:`sklearn.cross_decomposition.PLSRegression`, this is a string
+        mode; passing ``True``/``False`` raises an error.
+    copy : bool, default=True
+        Whether the input arrays are copied during validation. Note that
+        ``copy=False`` is passed to sklearn input validation; OPLS filtering
+        still allocates working arrays.
 
     Attributes
     ----------
@@ -60,6 +80,23 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         by the inner :attr:`opls_`. Use with
         :class:`~sklearn.feature_selection.SelectFromModel` via
         ``importance_getter="vip_"``.
+
+    See Also
+    --------
+    OPLS : Underlying OPLS regressor fitted against the -1/+1 dummy response.
+    O2PLS : Two-block variant that also models Y-specific orthogonal structure.
+    sklearn.calibration.CalibratedClassifierCV : Wrapper providing calibrated
+        class probabilities from :meth:`decision_function`.
+
+    References
+    ----------
+    .. [1] Bylesjo, M., Rantalainen, M., Cloarec, O., Nicholson, J. K.,
+           Holmes, E. & Trygg, J. (2006). OPLS discriminant analysis: combining
+           the strengths of PLS-DA and SIMCA classification. Journal of
+           Chemometrics, 20(8-10), 341-351. https://doi.org/10.1002/cem.1006
+    .. [2] Trygg, J. & Wold, S. (2002). Orthogonal projections to latent
+           structures (O-PLS). Journal of Chemometrics, 16(3), 119-128.
+           https://doi.org/10.1002/cem.695
 
     Examples
     --------
