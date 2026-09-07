@@ -230,6 +230,7 @@ src/modernmolbert/eval/junk/
 
 # AI
 .github/prompts/
+.github/copilot-instructions.md
 .prompt.md
 .agents/
 /*.prompt.md
