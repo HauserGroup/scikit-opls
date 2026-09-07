@@ -12,6 +12,21 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Orthogonal filtering no longer extracts components past the point where a
+  block's rank is exhausted. Both `OPLS`'s filter and O2PLS's block-specific
+  extraction judged convergence against the *current* deflated block, whose sum
+  of squares shrinks with every deflation, so rounding noise stayed significant
+  relative to itself. Convergence is now measured against the original block and
+  the component count is bounded by `min(n_samples, n_features)`. Fitted
+  `n_orthogonal_`, `n_x_orthogonal_` and `n_y_orthogonal_` on rank-deficient data
+  may be lower than before, and no longer vary with the BLAS implementation.
+- O2PLS orthogonal extraction is now invariant to a global rescaling of the
+  blocks. Resolvability was measured against `max(block_ssq, 1.0)`, an absolute
+  floor in the units of the data, so identical blocks yielded different component
+  counts depending only on their scale.
+
 ### Changed
 
 - Lowered the supported Python floor from 3.13 to **3.12**
