@@ -29,18 +29,21 @@ plot = ["matplotlib>=3.8.0"]
 
 [dependency-groups]
 dev = [
-    "matplotlib>=3.11.0",
+    "matplotlib>=3.11.1",
     "mdformat>=1.0.0",
     "mdformat-gfm>=1.0.0",
-    "mkdocstrings[python]>=0.26.0",
+    "mkdocstrings[python]>=1.0.6",
     "pandas>=3.0.3",
     "pandas-stubs>=3.0.3.260530",
     "pre-commit>=4.6.0",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
     "pytest-cov>=7.0.0",
-    "ruff>=0.15.20",
-    "zensical>=0.0.46",
+    # Capped below 0.16: that release extends `ruff format` to code blocks in
+    # Markdown, which reflows the hand-aligned examples in README.md. Migrating
+    # to it is a deliberate formatting change, not a dependency bump.
+    "ruff>=0.15.22,<0.16",
+    "zensical>=0.0.51",
 ]
 
 [tool.hatch.version]
