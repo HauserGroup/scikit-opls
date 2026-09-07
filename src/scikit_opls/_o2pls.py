@@ -115,11 +115,10 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     Notes
     -----
     Requested orthogonal components may be truncated with a
-    :class:`sklearn.exceptions.ConvergenceWarning` when the enlarged preliminary
+    :class:`sklearn.exceptions.ConvergenceWarning` when the preliminary joint
     subspace leaves no numerically resolvable block-specific residual variation.
-    This is most common when
-    ``n_components + max(n_x_orthogonal, n_y_orthogonal)`` approaches the rank or
-    feature dimension of one block.
+    This is most common when ``n_components`` approaches the rank or feature
+    dimension of one block.
 
     Examples
     --------

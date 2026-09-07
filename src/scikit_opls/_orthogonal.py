@@ -39,8 +39,12 @@ class OrthogonalComponents:
 def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
     """Return the unit X-side direction of maximal X/Y covariance.
 
-    For univariate ``Y`` this is normalized ``X.T @ y``; for multivariate ``Y``,
-    it is the leading left singular vector of ``X.T @ Y``.
+    For univariate ``Y`` this is normalized ``X.T @ y`` (Trygg & Wold 2002,
+    steps 1-2). For multivariate ``Y`` it is the leading left singular vector of
+    ``X.T @ Y``, a single-direction summary: orthogonal components built from it
+    are orthogonal to that direction only, not to every column of ``Y`` (the
+    paper's multi-Y variant in Appendix I orthogonalizes against the full
+    principal subspace of ``X.T @ Y`` instead).
     """
     X = np.asarray(X, dtype=np.float64)
     Y = np.asarray(Y, dtype=np.float64)
@@ -191,11 +195,15 @@ def orthogonal_filter(
 def opls_filter(X: ArrayLike, Y: ArrayLike, n_components: int) -> OrthogonalComponents:
     """Compute the predictive direction from ``(X, Y)`` once, then deflate ``X``.
 
-    Reusing one direction for every component is exact, not a shortcut: each
-    orthogonal score is built orthogonal to ``Y``, so removing it leaves ``Xᵀy``
-    (hence the predictive direction) unchanged — recomputing it from each
-    deflated residual would give the same answer. When ``n_components=0``, ``Y``
-    is not inspected and the returned predictive weight is a zero vector.
+    For univariate ``Y``, reusing one direction for every component is exact,
+    not a shortcut: each orthogonal score is orthogonal to ``y``, so removing
+    it leaves ``Xᵀy`` (hence the predictive direction) unchanged — recomputing
+    it from each deflated residual would give the same answer (Trygg & Wold
+    2002, step 12 returns to step 3, not step 1). For multivariate ``Y`` the
+    single predictive direction only guarantees orthogonality to the leading
+    left singular vector of ``XᵀY``, not to every column of ``Y``; ``XᵀY`` is
+    then not invariant under deflation. When ``n_components=0``, ``Y`` is not
+    inspected and the returned predictive weight is a zero vector.
     """
     n_components = _validate_n_components(n_components)
     X = np.asarray(X, dtype=np.float64)

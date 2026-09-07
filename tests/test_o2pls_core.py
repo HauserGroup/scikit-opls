@@ -264,3 +264,31 @@ def test_lstsq_map_extra_validation():
     block_bad[0, 0] = np.inf
     with pytest.raises(ValueError, match="block must contain only finite values"):
         _lstsq_map(scores, block_bad)
+
+
+def test_o2pls_fit_preliminary_subspace_has_n_components_columns():
+    # Trygg & Wold (2003) step 1 uses exactly A = n_components joint directions
+    # before orthogonal filtering. An X-specific component built against that
+    # subspace must recover simulated structured noise, and its weight must be
+    # orthogonal to the initial joint weights only.
+    corr = []
+    for seed in range(10):
+        rng = np.random.default_rng(seed)
+        T = rng.normal(size=(60, 2))
+        t_noise = rng.normal(size=(60, 1))
+        X = (
+            T @ rng.normal(size=(2, 8))
+            + 2.0 * t_noise @ rng.normal(size=(1, 8))
+            + 0.05 * rng.normal(size=(60, 8))
+        )
+        Y = T @ rng.normal(size=(2, 5)) + 0.05 * rng.normal(size=(60, 5))
+        Xs = X - X.mean(axis=0)
+        Ys = Y - Y.mean(axis=0)
+        fit = o2pls_fit(Xs, Ys, n_components=2, n_x_orthogonal=1, n_y_orthogonal=0)
+
+        W_init, _, _ = _cross_cov_svd_x_to_y(Xs, Ys, 2)
+        assert_allclose(W_init.T @ fit.x_orthogonal_weights, 0.0, atol=1e-10)
+        corr.append(
+            abs(np.corrcoef(fit.x_orthogonal_scores[:, 0], t_noise[:, 0])[0, 1])
+        )
+    assert np.mean(corr) > 0.95

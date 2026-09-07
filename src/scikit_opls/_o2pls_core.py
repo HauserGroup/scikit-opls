@@ -162,13 +162,14 @@ def _extract_one_orthogonal_component(
 ) -> OrthogonalBlockComponent | None:
     """Extract one replayable sequential orthogonal component from ``block``.
 
-    The residual first removes the enlarged preliminary joint subspace from the
-    current block. The leading left singular vector of
-    ``residual.T @ joint_scores`` gives the feature-space direction of
-    block-specific variation most associated with the preliminary joint score
-    space. The resulting score/loading pair is deflated from the current block
-    and stored so the same sequential filter can be replayed on new data.
-    Returns ``None`` if no resolvable variation remains.
+    Following Trygg & Wold (2003), step 3/5: the residual first removes the
+    preliminary joint subspace ``T @ W.T`` from the current block. The leading
+    left singular vector of ``residual.T @ joint_scores`` (eq. 14) gives the
+    feature-space direction of block-specific variation most associated with
+    the preliminary joint score space. The resulting score/loading pair is
+    deflated from the current block and stored so the same sequential filter
+    can be replayed on new data. Returns ``None`` if no resolvable variation
+    remains.
     """
     tol = _validate_tol(tol)
     X = np.asarray(block, dtype=np.float64)
@@ -324,8 +325,11 @@ def o2pls_fit(
 ) -> O2PLSComponents:
     """Fit dense O2PLS components on already preprocessed X/Y blocks.
 
-    Uses an enlarged preliminary joint subspace, sequential X/Y orthogonal
-    filtering, and final joint SVD re-estimation on the filtered blocks.
+    Follows the O2PLS algorithm of Trygg & Wold (2003), section 3.2.1: an
+    ``n_components``-column preliminary joint subspace from the SVD of
+    ``Xs.T @ Ys`` (step 1), sequential X/Y orthogonal filtering against that
+    subspace (steps 3 and 5), and final joint SVD re-estimation on the filtered
+    blocks (repeat of steps 1, 2 and 4, as the paper's note recommends).
     """
     X0 = np.asarray(Xs, dtype=np.float64)
     Y0 = np.asarray(Ys, dtype=np.float64)
@@ -369,18 +373,18 @@ def o2pls_fit(
             f"({rank})."
         )
 
-    # The preliminary joint subspace is deliberately enlarged so there is room to
-    # identify block-specific directions before the final joint fit is recomputed.
-    k_initial = min(n_components + max(n_x_orthogonal, n_y_orthogonal), rank)
-    W_init, C_init, _ = _cross_cov_svd_x_to_y(X0, Y0, k_initial)
+    # Paper step 1: the preliminary joint subspace has exactly n_components
+    # columns. Orthogonal directions are then sought in the part of each block
+    # not spanned by these joint weights (steps 3 and 5).
+    W_init, C_init, _ = _cross_cov_svd_x_to_y(X0, Y0, n_components)
 
     X_work = X0.copy()
     x_weights: list[NDArray[np.float64]] = []
     x_scores: list[NDArray[np.float64]] = []
     x_loadings: list[NDArray[np.float64]] = []
     for i in range(n_x_orthogonal):
-        # Recompute preliminary scores from the current deflated block; the weights
-        # stay fixed from the enlarged initial cross-covariance.
+        # Paper "repeat step 2": recompute preliminary scores from the current
+        # deflated block; the weights stay fixed from the initial cross-covariance.
         T_init = X_work @ W_init
         component = _extract_one_orthogonal_component(X_work, T_init, W_init, tol=tol)
         if component is None:
