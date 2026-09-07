@@ -11,10 +11,10 @@ X = rng.normal(size=(80, 30))
 y = X[:, 0] + 0.1 * rng.normal(size=80)
 
 model = OPLS(n_components=1, n_orthogonal=2).fit(X, y)
-model.predict(X)              # predicted y
-model.transform(X)            # predictive scores
-model.transform_orthogonal(X) # orthogonal scores
-model.r2y_, model.rmse_       # training-fit summaries
+model.predict(X)  # predicted y
+model.transform(X)  # predictive scores
+model.transform_orthogonal(X)  # orthogonal scores
+model.r2y_, model.rmse_  # training-fit summaries
 ```
 
 ## Two-block O2PLS
@@ -29,19 +29,19 @@ X = Z @ rng.normal(size=(2, 20)) + 0.1 * rng.normal(size=(80, 20))
 Y = Z @ rng.normal(size=(2, 10)) + 0.1 * rng.normal(size=(80, 10))
 
 model = O2PLS(n_components=2, n_x_orthogonal=1, n_y_orthogonal=1).fit(X, Y)
-model.predict(X)       # predicted joint Y structure, raw Y units
-model.predict_x(Y)     # predicted joint X structure, raw X units
-model.transform(X)     # X-side joint scores
-model.transform_y(Y)   # Y-side joint scores
+model.predict(X)  # predicted joint Y structure, raw Y units
+model.predict_x(Y)  # predicted joint X structure, raw X units
+model.transform(X)  # X-side joint scores
+model.transform_y(Y)  # Y-side joint scores
 ```
 
 `O2PLS.coef_filtered_` maps scaled, X-orthogonally-filtered `X` to scaled
 predicted `Y`; it is not a raw-space sklearn `coef_` alias. The joint loadings use
 the O2PLS orthonormal convention, so joint loadings equal joint weights.
 Requested orthogonal components may be truncated with a `ConvergenceWarning` when
-the enlarged preliminary subspace leaves no numerically resolvable block-specific
-residual variation, especially when the requested component total approaches a
-block's rank or feature dimension.
+the preliminary joint subspace leaves no numerically resolvable block-specific
+residual variation, especially when `n_components` approaches a block's rank or
+feature dimension.
 
 ## Choosing `n_orthogonal` by cross-validation
 
@@ -56,9 +56,9 @@ from scikit_opls import OPLS
 search = GridSearchCV(
     OPLS(n_components=1), {"n_orthogonal": list(range(10))}, cv=7
 ).fit(X, y)
-search.best_params_["n_orthogonal"]       # selected count
-search.cv_results_["mean_test_score"]     # out-of-fold R2/Q2 path
-search.best_estimator_.predict(X)         # final model refit on all data
+search.best_params_["n_orthogonal"]  # selected count
+search.cv_results_["mean_test_score"]  # out-of-fold R2/Q2 path
+search.best_estimator_.predict(X)  # final model refit on all data
 ```
 
 ### Parsimonious selection
@@ -69,15 +69,19 @@ the best, pass a `refit` callable:
 ```python
 import numpy as np
 
+
 def parsimonious_refit(cv_results, tol=0.01):
     scores = np.asarray(cv_results["mean_test_score"], dtype=float)
     counts = np.asarray(cv_results["param_n_orthogonal"], dtype=int)
     within = np.flatnonzero(scores >= np.nanmax(scores) - tol)
     return int(within[np.argmin(counts[within])])
 
+
 GridSearchCV(
-    OPLS(n_components=1), {"n_orthogonal": list(range(10))},
-    cv=7, refit=parsimonious_refit,
+    OPLS(n_components=1),
+    {"n_orthogonal": list(range(10))},
+    cv=7,
+    refit=parsimonious_refit,
 ).fit(X, y)
 ```
 
@@ -89,19 +93,20 @@ from scikit_opls import OPLSDA
 
 y_lab = np.where(X[:, 0] > 0, "case", "ctrl")
 clf = OPLSDA(n_components=1, n_orthogonal=2).fit(X, y_lab)
-clf.predict(X)            # class labels
+clf.predict(X)  # class labels
 clf.decision_function(X)  # raw signed OPLS regression output
 
 # Probabilities via cross-fitted calibration when each class has enough samples
 # for the chosen calibration CV split:
 from sklearn.calibration import CalibratedClassifierCV
+
 calibrated_clf = CalibratedClassifierCV(clf, cv=5).fit(X, y_lab)
 calibrated_clf.predict_proba(X)
 
 # Cross-validated OPLS-DA selection: an int cv is stratified automatically.
-GridSearchCV(
-    OPLSDA(), {"n_orthogonal": list(range(10))}, cv=5, scoring="roc_auc"
-).fit(X, y_lab)
+GridSearchCV(OPLSDA(), {"n_orthogonal": list(range(10))}, cv=5, scoring="roc_auc").fit(
+    X, y_lab
+)
 ```
 
 ## Inspection, plotting and validation
@@ -110,7 +115,7 @@ GridSearchCV(
 from scikit_opls.plotting import OPLSScoresDisplay, SPlotDisplay
 from scikit_opls.validation import permutation_test
 
-model.vip_                                     # predictive VIP per feature (lazy)
+model.vip_  # predictive VIP per feature (lazy)
 
 # Draw score plot (t_pred vs t_ortho). Supports component selection for multi-component PLS
 OPLSScoresDisplay.from_estimator(

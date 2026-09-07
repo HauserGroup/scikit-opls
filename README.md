@@ -37,12 +37,12 @@ y = X[:, 0] * 2.0 + rng.normal(scale=0.1, size=100)
 
 model = OPLS(n_components=1, n_orthogonal=2, scale="standard").fit(X, y)
 
-model.predict(X)              # predictions
-model.transform(X)            # predictive scores
-model.transform_orthogonal(X) # orthogonal scores
-model.filter_transform(X)     # preprocessed, orthogonal-filtered X fed to the engine
-model.r2x_, model.r2y_        # fit summaries
-model.vip_                    # variable importance (predictive), lazy property
+model.predict(X)  # predictions
+model.transform(X)  # predictive scores
+model.transform_orthogonal(X)  # orthogonal scores
+model.filter_transform(X)  # preprocessed, orthogonal-filtered X fed to the engine
+model.r2x_, model.r2y_  # fit summaries
+model.vip_  # variable importance (predictive), lazy property
 ```
 
 The whole fitted pipeline (scaling → orthogonal filter → predictive PLS) is linear,
@@ -63,9 +63,9 @@ from scikit_opls import OPLS
 search = GridSearchCV(
     OPLS(n_components=1), {"n_orthogonal": list(range(10))}, cv=7
 ).fit(X, y)
-search.best_params_["n_orthogonal"]       # chosen count
-search.best_estimator_                    # final OPLS refit on all data
-search.cv_results_["mean_test_score"]     # out-of-fold R2/Q2 path
+search.best_params_["n_orthogonal"]  # chosen count
+search.best_estimator_  # final OPLS refit on all data
+search.cv_results_["mean_test_score"]  # out-of-fold R2/Q2 path
 ```
 
 For OPLS-DA, wrap `OPLSDA()` the same way; an `int` `cv` becomes stratified
@@ -77,15 +77,19 @@ score is within a tolerance of the best — pass a `refit` callable:
 ```python
 import numpy as np
 
+
 def parsimonious_refit(cv_results, tol=0.01):
     scores = np.asarray(cv_results["mean_test_score"], dtype=float)
     counts = np.asarray(cv_results["param_n_orthogonal"], dtype=int)
     within = np.flatnonzero(scores >= np.nanmax(scores) - tol)
     return int(within[np.argmin(counts[within])])
 
+
 GridSearchCV(
-    OPLS(n_components=1), {"n_orthogonal": list(range(10))},
-    cv=7, refit=parsimonious_refit,
+    OPLS(n_components=1),
+    {"n_orthogonal": list(range(10))},
+    cv=7,
+    refit=parsimonious_refit,
 ).fit(X, y)
 ```
 
@@ -97,13 +101,14 @@ from scikit_opls import OPLSDA
 y = np.where(X[:, 0] > 0, "case", "ctrl")
 clf = OPLSDA(n_components=1, n_orthogonal=2).fit(X, y)
 
-clf.predict(X)            # class labels
+clf.predict(X)  # class labels
 clf.decision_function(X)  # raw signed OPLS regression output
-clf.opls_.transform(X)    # predictive scores of the underlying OPLS model
+clf.opls_.transform(X)  # predictive scores of the underlying OPLS model
 
 # Probabilities: wrap in a cross-fitted calibrator when each class has enough
 # samples for the chosen calibration CV split.
 from sklearn.calibration import CalibratedClassifierCV
+
 CalibratedClassifierCV(clf, cv=5).fit(X, y).predict_proba(X)
 ```
 
@@ -142,11 +147,9 @@ Two small scripts under `examples/` show usage with CSV data hosted as GitHub
 release assets. The examples read these URLs directly with `pandas.read_csv`, so
 the datasets do not need to be stored in the local checkout:
 
-- `https://github.com/HauserGroup/scikit-opls/releases/download/data/colorectal_cancer_nmr.csv`
 - `https://github.com/HauserGroup/scikit-opls/releases/download/data/palmerpenguins.csv`
 
 ```bash
-uv run python examples/colorectal_cancer_nmr_oplsda.py
 uv run python examples/palmerpenguins_opls_regression.py
 ```
 

@@ -1,8 +1,8 @@
 """Orthogonal PLS (OPLS) regressor with a scikit-learn interface.
 
 OPLS removes X-orthogonal variation with an OSC-style filter
-(:mod:`scikit_opls._orthogonal`), then fits
-:class:`sklearn.cross_decomposition.PLSRegression` on the filtered X block.
+(``scikit_opls._orthogonal``), then fits
+[`PLSRegression`][sklearn.cross_decomposition.PLSRegression] on the filtered X block.
 With ``n_orthogonal=0``, this reduces to ordinary PLS after this package's
 selected X preprocessing.
 """
@@ -15,9 +15,6 @@ selected X preprocessing.
 # visible to the type checker, so instantiating them looks abstract (it is not).
 # pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportReturnType=false
 # pyright: reportAbstractUsage=false
-# reportIncompatibleMethodOverride: our score() narrows X to ArrayLike (no sparse)
-# vs RegressorMixin's MatrixLike; OPLS rejects sparse anyway (input_tags.sparse=False).
-# pyright: reportIncompatibleMethodOverride=false
 
 from __future__ import annotations
 
@@ -79,6 +76,7 @@ def _compose_raw_coefficients(
     intercept_filtered: float | NDArray[np.float64],
     x_mean: NDArray[np.float64],
     x_std: NDArray[np.float64],
+    filter_offset: NDArray[np.float64],
     x_ortho_weights: NDArray[np.float64],
     x_ortho_loadings: NDArray[np.float64],
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
@@ -103,8 +101,10 @@ def _compose_raw_coefficients(
     b_raw = inv_scale[:, None] * b_scaled
 
     offset_scaled = np.asarray(x_mean, dtype=np.float64) * inv_scale
-    intercept_raw = np.asarray(intercept_filtered, dtype=np.float64) - (
-        offset_scaled @ b_scaled
+    intercept_raw = (
+        np.asarray(intercept_filtered, dtype=np.float64)
+        + np.asarray(filter_offset, dtype=np.float64) @ b_filtered
+        - offset_scaled @ b_scaled
     )
     return b_raw.T, intercept_raw
 
@@ -120,9 +120,12 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     n_orthogonal : int, default=1
         Number of X-orthogonal components removed before fitting the predictive
         PLS model. To choose this by cross-validated Q2, wrap ``OPLS`` in
-        :class:`~sklearn.model_selection.GridSearchCV` over ``n_orthogonal``.
+        [`GridSearchCV`][sklearn.model_selection.GridSearchCV] over ``n_orthogonal``.
     scale : {"none", "center", "pareto", "standard"}, default="standard"
-        Column preprocessing applied to ``X``.
+        Column preprocessing applied to ``X``. Note: unlike the boolean
+        ``scale`` parameter of
+        [`PLSRegression`][sklearn.cross_decomposition.PLSRegression], this is a string
+        mode; passing ``True``/``False`` raises an error.
     copy : bool, default=True
         Whether the input arrays are copied during validation. Note that
         ``copy=False`` is passed to sklearn input validation; OPLS filtering
@@ -165,7 +168,32 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         scores/loadings. These are diagnostic summaries, not a guaranteed exact
         additive partition; do not assume ``r2x_ + r2x_ortho_`` equals total
         explained ``X`` variance. For cross-validated Q2 use
-        :func:`sklearn.model_selection.cross_val_score`.
+        [`cross_val_score`][sklearn.model_selection.cross_val_score].
+    r2x_components_ : ndarray of shape (n_components,)
+        Per-component explained ``X`` sum-of-squares ratio of the predictive
+        components, relative to the preprocessed ``X``.
+    r2x_ortho_components_ : ndarray of shape (n_orthogonal_,)
+        Per-component explained ``X`` sum-of-squares ratio of the removed
+        orthogonal components.
+    r2y_components_ : ndarray of shape (n_components,)
+        Per-component ``y`` sum-of-squares ratio explained through
+        ``t_i @ q_i.T``.
+    q_residuals_train_ : ndarray of shape (n_samples,)
+        Training Q residuals in the full (predictive + orthogonal)
+        reconstruction space; equals ``q_residuals(X_train, space="full")``.
+    q_residuals_predictive_train_ : ndarray of shape (n_samples,)
+        Training Q residuals in the predictive-only reconstruction space.
+    x_residual_ss_ : float
+        Sum of ``q_residuals_train_``.
+    y_residual_ss_ : float
+        Training residual sum of squares of ``y`` against the fitted
+        predictions.
+    n_features_in_ : int
+        Number of features seen during [`fit`][scikit_opls.OPLS.fit].
+    feature_names_in_ : ndarray of shape (n_features_in_,)
+        Names of features seen during [`fit`][scikit_opls.OPLS.fit]. Defined only when
+        ``X`` has
+        feature names that are all strings.
     vip_, ortho_vip_ : ndarray of shape (n_features,)
         Lazy predictive / orthogonal Variable Importance in Projection scores,
         computed on first access (sklearn ``feature_importances_`` convention).
@@ -173,8 +201,15 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         ``sum(vip**2) == n_features``. Empty or degenerate blocks return zeros.
         For ``n_components > 1``, predictive VIP aggregates across predictive
         PLS components.
-        Use with :class:`~sklearn.feature_selection.SelectFromModel` via
+        Use with [`SelectFromModel`][sklearn.feature_selection.SelectFromModel] via
         ``importance_getter="vip_"``.
+
+    See Also
+    --------
+    OPLSDA : Binary OPLS discriminant analysis built on this regressor.
+    O2PLS : Two-block variant that also models Y-specific orthogonal structure.
+    sklearn.cross_decomposition.PLSRegression : Predictive engine fitted after
+        orthogonal filtering; ``OPLS(n_orthogonal=0)`` reduces to it exactly.
 
     Notes
     -----
@@ -185,8 +220,34 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     Constant and near-constant columns are retained rather than removed, preserving
     alignment with the input feature matrix, feature names, VIP arrays and
     ``coef_filtered_``. To drop them, prepend
-    :class:`~sklearn.feature_selection.VarianceThreshold` in a
-    :class:`~sklearn.pipeline.Pipeline`.
+    [`VarianceThreshold`][sklearn.feature_selection.VarianceThreshold] in a
+    [`Pipeline`][sklearn.pipeline.Pipeline].
+
+    References
+    ----------
+    .. [1] Trygg, J. & Wold, S. (2002). Orthogonal projections to latent
+           structures (O-PLS). Journal of Chemometrics, 16(3), 119-128.
+           https://doi.org/10.1002/cem.695
+    .. [2] Wold, S., Antti, H., Lindgren, F. & Ohman, J. (1998). Orthogonal
+           signal correction of near-infrared spectra. Chemometrics and
+           Intelligent Laboratory Systems, 44(1-2), 175-185.
+           https://doi.org/10.1016/S0169-7439(98)00109-9
+    .. [3] Galindo-Prieto, B., Eriksson, L. & Trygg, J. (2014). Variable
+           influence on projection (VIP) for OPLS models. Journal of
+           Chemometrics, 28(8), 623-632. https://doi.org/10.1002/cem.2627
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scikit_opls import OPLS
+    >>> rng = np.random.default_rng(0)
+    >>> X = rng.normal(size=(20, 5))
+    >>> y = X[:, 0] - X[:, 1] + rng.normal(scale=0.1, size=20)
+    >>> model = OPLS(n_components=1, n_orthogonal=1).fit(X, y)
+    >>> model.transform(X).shape
+    (20, 1)
+    >>> model.predict(X).shape
+    (20,)
     """
 
     r2x_components_: NDArray[np.float64]
@@ -202,6 +263,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     n_orthogonal_: int
     x_mean_: NDArray[np.float64]
     x_std_: NDArray[np.float64]
+    _filter_input_mean: NDArray[np.float64]
     x_ortho_weights_: NDArray[np.float64]
     x_ortho_loadings_: NDArray[np.float64]
     x_ortho_scores_: NDArray[np.float64]
@@ -301,12 +363,26 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         Xs = apply_scaling(X, self.x_mean_, self.x_std_)
         if not _has_nonzero_variation(Xs, axis=0):
             raise ValueError("X has no non-zero variation after preprocessing.")
-        ofit = opls_filter(Xs, y - y.mean(), self.n_orthogonal)
+        # OPLS extracts variation around the training mean.  This is normally a
+        # no-op because every scaling mode except ``none`` already centers X.
+        # For ``none``, keep the public preprocessing contract (identity) while
+        # preventing arbitrary feature offsets from changing the orthogonal model.
+        self._filter_input_mean = Xs.mean(axis=0)
+        X_filter_input = Xs - self._filter_input_mean
+        ofit = opls_filter(X_filter_input, y - y.mean(), self.n_orthogonal)
         self.x_ortho_weights_ = ofit.x_ortho_weights
         self.x_ortho_loadings_ = ofit.x_ortho_loadings
         self.x_ortho_scores_ = ofit.x_ortho_scores
         self.n_orthogonal_ = ofit.n_components
-        return Xs, ofit.x_filtered
+        if not _has_nonzero_variation(ofit.x_filtered, axis=0):
+            raise ValueError(
+                "X has no remaining variation after orthogonal filtering; "
+                "reduce n_orthogonal."
+            )
+        # Restore the preprocessing-space mean. PLSRegression centers this block
+        # internally, and filter_transform() remains an identity when no
+        # orthogonal components are requested.
+        return Xs, ofit.x_filtered + self._filter_input_mean
 
     def _fit_predictive_engine(
         self,
@@ -318,7 +394,12 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
                 "X has no remaining variation after orthogonal filtering; "
                 "reduce n_orthogonal."
             )
-        rank_filtered = np.linalg.matrix_rank(X_filtered)
+        # PLSRegression always centers X, including when scale=False. Validate
+        # against the effective matrix seen by that engine rather than a possibly
+        # one-rank-higher uncentered block.
+        rank_filtered = np.linalg.matrix_rank(
+            X_filtered - X_filtered.mean(axis=0, keepdims=True)
+        )
         if self.n_components > rank_filtered:
             raise ValueError(
                 f"n_components={self.n_components} exceeds the numerical rank of "
@@ -357,6 +438,9 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             engine_offset,
             self.x_mean_,
             self.x_std_,
+            self._filter_input_mean
+            - self._filter_input_mean
+            @ _orthogonal_filter_matrix(self.x_ortho_weights_, self.x_ortho_loadings_),
             self.x_ortho_weights_,
             self.x_ortho_loadings_,
         )
@@ -409,11 +493,13 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     def _project_validated(self, X_valid: NDArray[np.float64]) -> _OPLSProjection:
         """Project already validated raw X into fitted OPLS model spaces."""
         Xs = apply_scaling(X_valid, self.x_mean_, self.x_std_)
+        X_filter_input = Xs - self._filter_input_mean
         X_filtered, t_ortho = apply_orthogonal_filter(
-            Xs,
+            X_filter_input,
             self.x_ortho_weights_,
             self.x_ortho_loadings_,
         )
+        X_filtered += self._filter_input_mean
         t_pred = self.pls_.transform(X_filtered)
         return _OPLSProjection(
             Xs=Xs,
@@ -532,9 +618,10 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return self._ortho_vip_
 
     def get_feature_names_out(self, input_features=None) -> NDArray[np.object_]:
-        """Output feature names for :meth:`transform` (the predictive scores).
+        """Output feature names for the predictive scores.
 
-        ``transform`` reduces ``X`` to ``n_components`` predictive scores, so the
+        [`transform`][scikit_opls.OPLS.transform] reduces ``X`` to
+        ``n_components`` predictive scores, so the
         output columns are components, not input features. They are named
         ``opls_pred0, opls_pred1, …`` (the ``ClassNamePrefixFeaturesOutMixin``
         convention), independent of the input feature names. ``transform_orthogonal``

@@ -66,7 +66,7 @@ def _cross_val_q2(
 
 @dataclass
 class PermutationResult:
-    """Outcome of :func:`permutation_test`.
+    """Outcome of [`permutation_test`][scikit_opls.validation.permutation_test].
 
     Attributes
     ----------
@@ -116,11 +116,6 @@ def _permuted_scores(
     return r2y, q2
 
 
-def _contains_classifier(estimator: BaseEstimator) -> bool:
-    """Return whether estimator is tagged as a classifier."""
-    return is_classifier(estimator)
-
-
 def _resolve_cv(estimator: BaseEstimator, cv: _CVType, y: NDArray[np.float64]):
     if cv is None:
         estimator_cv = getattr(estimator, "cv", None)
@@ -153,7 +148,7 @@ def permutation_test(
 
     .. warning::
         This function is intended for OPLS regression models only. Classifiers
-        like :class:`~scikit_opls.OPLSDA` are not supported.
+        like [`OPLSDA`][scikit_opls.OPLSDA] are not supported.
 
     The estimator must expose ``r2y_`` (or ``best_estimator_.r2y_``) after fitting.
 
@@ -174,7 +169,7 @@ def permutation_test(
         Determines random number generation for label permutation.
     n_jobs : int or None, default=None
         Number of jobs running the independent permutations in parallel via
-        :class:`joblib.Parallel`. ``None`` means 1; ``-1`` uses all processors.
+        [`Parallel`][joblib.Parallel]. ``None`` means 1; ``-1`` uses all processors.
         Permutations are drawn up front from the seeded RNG, so results are
         reproducible regardless of ``n_jobs``.
 
@@ -193,8 +188,24 @@ def permutation_test(
     When ``estimator`` is a ``GridSearchCV`` with ``cv=None``, its inner CV still
     defaults to 5-fold; for ``n_samples < 5`` set the ``GridSearchCV`` ``cv``
     explicitly (this function does not rewrite a user's inner CV).
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scikit_opls import OPLS
+    >>> from scikit_opls.validation import permutation_test
+    >>> rng = np.random.default_rng(0)
+    >>> X = rng.normal(size=(20, 5))
+    >>> y = X[:, 0] + rng.normal(scale=0.1, size=20)
+    >>> result = permutation_test(
+    ...     OPLS(n_orthogonal=1), X, y, n_permutations=5, random_state=0
+    ... )
+    >>> result.permuted_q2.shape
+    (5,)
+    >>> 0.0 < result.q2_p_value <= 1.0
+    True
     """
-    if _contains_classifier(estimator):
+    if is_classifier(estimator):
         raise TypeError(
             "permutation_test is for regression models; "
             "classifiers like OPLSDA are not supported."

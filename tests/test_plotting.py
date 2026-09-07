@@ -26,6 +26,7 @@ from sklearn.preprocessing import (
     FunctionTransformer,  # noqa: E402
     StandardScaler,  # noqa: E402
 )
+from sklearn.utils._testing import assert_allclose  # noqa: E402
 
 from scikit_opls import OPLS, OPLSDA  # noqa: E402
 from scikit_opls.plotting import (  # noqa: E402
@@ -62,8 +63,8 @@ def test_scores_display_replays_filter_for_new_samples():
 
     disp = OPLSScoresDisplay.from_estimator(model, X_new)
 
-    np.testing.assert_allclose(disp.t_predictive, model.transform(X_new)[:, 0])
-    np.testing.assert_allclose(
+    assert_allclose(disp.t_predictive, model.transform(X_new)[:, 0])
+    assert_allclose(
         disp.t_orthogonal,
         model.transform_orthogonal(X_new)[:, 0],
     )

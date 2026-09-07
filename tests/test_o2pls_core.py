@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 import pytest
 from sklearn.exceptions import ConvergenceWarning
@@ -10,6 +12,7 @@ from sklearn.utils._testing import assert_allclose
 from scikit_opls._o2pls_core import (
     _cross_cov_svd_x_to_y,
     _effective_rank,
+    _extract_one_orthogonal_component,
     _lstsq_map,
     _replay_orthogonal_filter,
     o2pls_fit,
@@ -264,3 +267,113 @@ def test_lstsq_map_extra_validation():
     block_bad[0, 0] = np.inf
     with pytest.raises(ValueError, match="block must contain only finite values"):
         _lstsq_map(scores, block_bad)
+
+
+def test_o2pls_fit_preliminary_subspace_has_n_components_columns():
+    # Trygg & Wold (2003) step 1 uses exactly A = n_components joint directions
+    # before orthogonal filtering. An X-specific component built against that
+    # subspace must recover simulated structured noise, and its weight must be
+    # orthogonal to the initial joint weights only.
+    corr = []
+    for seed in range(10):
+        rng = np.random.default_rng(seed)
+        T = rng.normal(size=(60, 2))
+        t_noise = rng.normal(size=(60, 1))
+        X = (
+            T @ rng.normal(size=(2, 8))
+            + 2.0 * t_noise @ rng.normal(size=(1, 8))
+            + 0.05 * rng.normal(size=(60, 8))
+        )
+        Y = T @ rng.normal(size=(2, 5)) + 0.05 * rng.normal(size=(60, 5))
+        Xs = X - X.mean(axis=0)
+        Ys = Y - Y.mean(axis=0)
+        fit = o2pls_fit(Xs, Ys, n_components=2, n_x_orthogonal=1, n_y_orthogonal=0)
+
+        W_init, _, _ = _cross_cov_svd_x_to_y(Xs, Ys, 2)
+        assert_allclose(W_init.T @ fit.x_orthogonal_weights, 0.0, atol=1e-10)
+        corr.append(
+            abs(np.corrcoef(fit.x_orthogonal_scores[:, 0], t_noise[:, 0])[0, 1])
+        )
+    assert np.mean(corr) > 0.95
+
+
+def _scaled_blocks(n_samples=40, seed=0):
+    """Blocks with a joint part plus block-specific orthogonal variation."""
+    rng = np.random.default_rng(seed)
+    joint = rng.normal(size=(n_samples, 2))
+    x_only = rng.normal(size=(n_samples, 2))
+    y_only = rng.normal(size=(n_samples, 1))
+    X = joint @ rng.normal(size=(2, 8)) + x_only @ rng.normal(size=(2, 8))
+    Y = joint @ rng.normal(size=(2, 5)) + y_only @ rng.normal(size=(1, 5))
+    return X - X.mean(axis=0), Y - Y.mean(axis=0)
+
+
+@pytest.mark.parametrize("scale", [1e6, 1e3, 1.0, 1e-2, 1e-4, 1e-8])
+def test_o2pls_fit_is_invariant_to_a_global_rescaling(scale):
+    """Multiplying both blocks by a constant must not change what is extracted.
+
+    Resolvability was previously judged against ``max(block_ssq, 1.0)``, an
+    absolute floor in the units of the data, so the same blocks yielded
+    different component counts depending only on how they were scaled.
+    """
+    X, Y = _scaled_blocks()
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", ConvergenceWarning)
+        reference = o2pls_fit(X, Y, 1, 3, 3)
+        scaled = o2pls_fit(X * scale, Y * scale, 1, 3, 3)
+
+    assert scaled.n_x_orthogonal == reference.n_x_orthogonal
+    assert scaled.n_y_orthogonal == reference.n_y_orthogonal
+    assert_allclose(scaled.r2x, reference.r2x, atol=1e-12)
+    assert_allclose(scaled.r2y, reference.r2y, atol=1e-12)
+    assert_allclose(scaled.r2x_ortho, reference.r2x_ortho, atol=1e-12)
+    assert_allclose(scaled.r2y_ortho, reference.r2y_ortho, atol=1e-12)
+
+
+def test_o2pls_fit_orthogonal_counts_respect_the_rank_bound():
+    """Requesting far more orthogonal components than the blocks can carry."""
+    X, Y = _scaled_blocks()
+    with pytest.warns(ConvergenceWarning, match="X-orthogonal extraction"):
+        with pytest.warns(ConvergenceWarning, match="Y-orthogonal extraction"):
+            fit = o2pls_fit(X, Y, 1, 50, 50)
+
+    assert fit.n_x_orthogonal <= np.linalg.matrix_rank(X)
+    assert fit.n_y_orthogonal <= np.linalg.matrix_rank(Y)
+    # Every retained component must carry real energy, not denormal residue.
+    x_removed = fit.x_orthogonal_scores @ fit.x_orthogonal_loadings.T
+    assert np.linalg.norm(x_removed) > 1e-6 * np.linalg.norm(X)
+
+
+def test_extract_one_orthogonal_component_defaults_reference_to_the_block():
+    """A one-shot call with no reference falls back to the block's own energy."""
+    X, Y = _scaled_blocks()
+    W, _, _ = _cross_cov_svd_x_to_y(X, Y, 1)
+    T = X @ W
+
+    implicit = _extract_one_orthogonal_component(X, T, W)
+    explicit = _extract_one_orthogonal_component(
+        X, T, W, block_ref_ssq=float(np.sum(X**2))
+    )
+    assert implicit is not None and explicit is not None
+    assert_allclose(implicit.weight, explicit.weight, atol=1e-12)
+
+
+def test_extract_one_orthogonal_component_rejects_invalid_reference():
+    X, Y = _scaled_blocks()
+    W, _, _ = _cross_cov_svd_x_to_y(X, Y, 1)
+    T = X @ W
+    with pytest.raises(ValueError, match="block_ref_ssq must be a non-negative"):
+        _extract_one_orthogonal_component(X, T, W, block_ref_ssq=-1.0)
+    with pytest.raises(ValueError, match="block_ref_ssq must be a non-negative"):
+        _extract_one_orthogonal_component(X, T, W, block_ref_ssq=np.nan)
+
+
+def test_extract_one_orthogonal_component_stops_below_the_reference_floor():
+    """A block far below the reference scale carries nothing resolvable."""
+    X, Y = _scaled_blocks()
+    W, _, _ = _cross_cov_svd_x_to_y(X, Y, 1)
+    T = X @ W
+    huge_reference = float(np.sum(X**2)) * 1e30
+    assert (
+        _extract_one_orthogonal_component(X, T, W, block_ref_ssq=huge_reference) is None
+    )

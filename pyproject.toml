@@ -39,10 +39,7 @@ dev = [
     "pyright>=1.1.411",
     "pytest>=9.1.1",
     "pytest-cov>=7.0.0",
-    # Capped below 0.16: that release extends `ruff format` to code blocks in
-    # Markdown, which reflows the hand-aligned examples in README.md. Migrating
-    # to it is a deliberate formatting change, not a dependency bump.
-    "ruff>=0.15.22,<0.16",
+    "ruff>=0.16.6",
     "zensical>=0.0.51",
 ]
 
@@ -91,6 +88,12 @@ convention = "numpy"
 # per the scikit-learn developer guide. `known-first-party` keeps the package
 # grouped correctly and Ruff's isort enforces ordering.
 known-first-party = ["scikit_opls"]
+
+[tool.pytest.ini_options]
+# Docstring Examples are executable: doctests run alongside the test suite so
+# the numpydoc examples in src/ can never drift from the implementation.
+addopts = "--doctest-modules"
+testpaths = ["tests", "src/scikit_opls"]
 
 [tool.coverage.run]
 source = ["scikit_opls"]

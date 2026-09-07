@@ -230,6 +230,7 @@ src/modernmolbert/eval/junk/
 
 # AI
 .github/prompts/
+.github/copilot-instructions.md
 .prompt.md
 .agents/
 /*.prompt.md
@@ -599,3 +600,4 @@ TSWLatexianTemp*
 
 # MkDocs build output
 site/
+scikit-learn-developers-guide.md

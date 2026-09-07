@@ -97,7 +97,15 @@ generic = true
 # ----------------------------------------------------------------------------
 [project.plugins.mkdocstrings.handlers.python]
 paths = ["src"]
-inventories = ["https://docs.python.org/3/objects.inv"]
+# Inventories let mkdocstrings resolve [`Name`][pkg.mod.Name] cross-references
+# into the upstream API docs instead of rendering them as dead text.
+inventories = [
+    "https://docs.python.org/3/objects.inv",
+    "https://numpy.org/doc/stable/objects.inv",
+    "https://scikit-learn.org/stable/objects.inv",
+    "https://joblib.readthedocs.io/en/stable/objects.inv",
+    "https://matplotlib.org/stable/objects.inv",
+]
 
 [project.plugins.mkdocstrings.handlers.python.options]
 docstring_style = "numpy"

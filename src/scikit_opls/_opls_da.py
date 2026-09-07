@@ -2,11 +2,12 @@
 
 OPLS-DA fits an OPLS regression against a dummy-coded class label, then classifies
 by the sign of the fitted regression output. OPLS-DA is commonly used in
-metabolomics. The estimator wraps an internal :class:`~scikit_opls.OPLS`
+metabolomics. The estimator wraps an internal [`OPLS`][scikit_opls.OPLS]
 (composition, so the regressor and classifier mixins never collide) and adds class
 encoding. ``decision_function`` exposes the raw signed OPLS regression output, so
 calibrated probabilities are available — cross-fitted, not in-sample — via
-:class:`~sklearn.calibration.CalibratedClassifierCV` when each class has enough
+[`CalibratedClassifierCV`][sklearn.calibration.CalibratedClassifierCV] when each class
+has enough
 samples for the chosen calibration CV split.
 """
 
@@ -36,11 +37,32 @@ from scikit_opls._utils import _reject_bool_param
 class OPLSDA(ClassifierMixin, BaseEstimator):
     """Binary OPLS Discriminant Analysis.
 
-    Parameters mirror :class:`~scikit_opls.OPLS`. ``decision_function`` returns the
-    raw signed OPLS regression output (positive favours ``classes_[1]``) and
-    ``predict`` returns class labels from its sign. For class probabilities, wrap in
-    :class:`~sklearn.calibration.CalibratedClassifierCV` (cross-fitted, robust)
+    The two class labels are encoded as a -1/+1 dummy response and fitted with
+    [`OPLS`][scikit_opls.OPLS]. ``decision_function`` returns the raw signed OPLS
+    regression output (positive favours ``classes_[1]``) and ``predict`` returns
+    class labels from its sign. For class probabilities, wrap in
+    [`CalibratedClassifierCV`][sklearn.calibration.CalibratedClassifierCV]
+    (cross-fitted, robust)
     when each class has enough samples for the chosen calibration CV split.
+
+    Parameters
+    ----------
+    n_components : int, default=1
+        Number of predictive PLS components fitted on the orthogonally filtered
+        X block by the inner [`OPLS`][scikit_opls.OPLS].
+    n_orthogonal : int, default=1
+        Number of X-orthogonal components removed before fitting the predictive
+        PLS model. To choose this by cross-validated score, wrap ``OPLSDA`` in
+        [`GridSearchCV`][sklearn.model_selection.GridSearchCV] over ``n_orthogonal``.
+    scale : {"none", "center", "pareto", "standard"}, default="standard"
+        Column preprocessing applied to ``X``. Note: unlike the boolean
+        ``scale`` parameter of
+        [`PLSRegression`][sklearn.cross_decomposition.PLSRegression], this is a string
+        mode; passing ``True``/``False`` raises an error.
+    copy : bool, default=True
+        Whether the input arrays are copied during validation. Note that
+        ``copy=False`` is passed to sklearn input validation; OPLS filtering
+        still allocates working arrays.
 
     Attributes
     ----------
@@ -48,11 +70,50 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         The two class labels seen during fit.
     opls_ : OPLS
         The fitted underlying OPLS regressor against a -1/+1 dummy response.
+    n_orthogonal_ : int
+        Number of orthogonal components actually used by the inner OPLS.
+    n_features_in_ : int
+        Number of features seen during [`fit`][scikit_opls.OPLSDA.fit].
+    feature_names_in_ : ndarray of shape (n_features_in_,)
+        Names of features seen during [`fit`][scikit_opls.OPLSDA.fit]. Defined only when
+        ``X`` has
+        feature names that are all strings.
     vip_, ortho_vip_ : ndarray of shape (n_features,)
         Predictive / orthogonal Variable Importance in Projection scores computed
-        by the inner :attr:`opls_`. Use with
-        :class:`~sklearn.feature_selection.SelectFromModel` via
+        by the inner ``opls_`` estimator. Use with
+        [`SelectFromModel`][sklearn.feature_selection.SelectFromModel] via
         ``importance_getter="vip_"``.
+
+    See Also
+    --------
+    OPLS : Underlying OPLS regressor fitted against the -1/+1 dummy response.
+    O2PLS : Two-block variant that also models Y-specific orthogonal structure.
+    sklearn.calibration.CalibratedClassifierCV : Wrapper providing calibrated
+        class probabilities from
+        [`decision_function`][scikit_opls.OPLSDA.decision_function].
+
+    References
+    ----------
+    .. [1] Bylesjo, M., Rantalainen, M., Cloarec, O., Nicholson, J. K.,
+           Holmes, E. & Trygg, J. (2006). OPLS discriminant analysis: combining
+           the strengths of PLS-DA and SIMCA classification. Journal of
+           Chemometrics, 20(8-10), 341-351. https://doi.org/10.1002/cem.1006
+    .. [2] Trygg, J. & Wold, S. (2002). Orthogonal projections to latent
+           structures (O-PLS). Journal of Chemometrics, 16(3), 119-128.
+           https://doi.org/10.1002/cem.695
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scikit_opls import OPLSDA
+    >>> rng = np.random.default_rng(0)
+    >>> X = rng.normal(size=(20, 5))
+    >>> y = np.where(X[:, 0] > 0, "case", "control")
+    >>> clf = OPLSDA(n_orthogonal=1).fit(X, y)
+    >>> clf.classes_.tolist()
+    ['case', 'control']
+    >>> clf.predict(X[:2]).shape
+    (2,)
     """
 
     classes_: NDArray
@@ -183,7 +244,8 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         -------
         scores : ndarray of shape (n_samples,)
             Signed confidence; ``> 0`` predicts ``classes_[1]``. Scores equal to
-            zero are assigned to ``classes_[0]`` by :meth:`predict`.
+            zero are assigned to ``classes_[0]`` by
+            [`predict`][scikit_opls.OPLSDA.predict].
         """
         X_valid = self._validate_X_predict(X)
         proj = self.opls_._project_validated(X_valid)

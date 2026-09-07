@@ -12,6 +12,9 @@ from sklearn.exceptions import ConvergenceWarning
 from scikit_opls._utils import _validate_int
 
 _TOL = 1e-12
+# Convergence floor for squared-norm quantities: 1e-24 on a squared norm is
+# 1e-12 in norm, matching ``_TOL``'s scale for plain norms.
+_RESIDUAL_TOL = 1e-24
 
 
 def _validate_n_components(n_components: int) -> int:
@@ -22,10 +25,11 @@ def _validate_n_components(n_components: int) -> int:
 
 @dataclass
 class OrthogonalComponents:
-    """Result of :func:`opls_filter`.
+    """Result of ``opls_filter``.
 
     ``n_components`` may be smaller than requested if ``X`` ran out of orthogonal
-    variation. ``x_predictive_weight`` is a zero vector when ``n_components=0``.
+    variation or if the request exceeded the rank bound ``min(n_samples,
+    n_features)``. ``x_predictive_weight`` is a zero vector when ``n_components=0``.
     """
 
     x_ortho_weights: NDArray[np.float64]
@@ -39,8 +43,12 @@ class OrthogonalComponents:
 def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
     """Return the unit X-side direction of maximal X/Y covariance.
 
-    For univariate ``Y`` this is normalized ``X.T @ y``; for multivariate ``Y``,
-    it is the leading left singular vector of ``X.T @ Y``.
+    For univariate ``Y`` this is normalized ``X.T @ y`` (Trygg & Wold 2002,
+    steps 1-2). For multivariate ``Y`` it is the leading left singular vector of
+    ``X.T @ Y``, a single-direction summary: orthogonal components built from it
+    are orthogonal to that direction only, not to every column of ``Y`` (the
+    paper's multi-Y variant in Appendix I orthogonalizes against the full
+    principal subspace of ``X.T @ Y`` instead).
     """
     X = np.asarray(X, dtype=np.float64)
     Y = np.asarray(Y, dtype=np.float64)
@@ -105,7 +113,8 @@ def orthogonal_filter(
     """Sequentially deflate block variation orthogonal to a predictive direction.
 
     The supplied predictive direction is normalized defensively. Fewer components
-    may be returned if no numerically resolvable orthogonal variation remains.
+    may be returned if no numerically resolvable orthogonal variation remains, and
+    never more than ``min(n_samples, n_features)``, the block's rank bound.
     """
     n_components = _validate_n_components(n_components)
     X = np.asarray(block, dtype=np.float64)
@@ -134,20 +143,30 @@ def orthogonal_filter(
             "predictive_direction must be numerically non-zero when n_components > 0."
         )
 
-    W = np.zeros((n_features, n_components))
-    T = np.zeros((n_samples, n_components))
-    P = np.zeros((n_features, n_components))
+    # A block of shape (n_samples, n_features) has rank at most
+    # ``min(n_samples, n_features)``, so it cannot yield more independent
+    # deflations than that; iterating past the bound only chases rounding noise.
+    max_components = min(n_components, n_samples, n_features)
+    W = np.zeros((n_features, max_components))
+    T = np.zeros((n_samples, max_components))
+    P = np.zeros((n_features, max_components))
     X_res = X.copy()
 
+    # Anchor every convergence test to the original block scale. Testing against
+    # the shrinking residual instead makes rounding noise look significant
+    # relative to itself, so the loop keeps extracting numerically meaningless
+    # components once the block's rank is exhausted, in BLAS-dependent numbers.
+    floor = _RESIDUAL_TOL * float(np.sum(X**2))
+
     extracted = 0
-    for i in range(n_components):
+    for i in range(max_components):
         res_norm_sq = float(np.sum(X_res**2))
-        if res_norm_sq == 0.0:
+        if res_norm_sq <= floor:
             break
         # w_pred is unit-normalised, so dividing by (w_predᵀ w_pred) is a no-op.
         t = X_res @ w_pred
         tt = float(t @ t)
-        if tt <= _TOL * res_norm_sq:
+        if tt <= floor:
             break
         p = X_res.T @ t / tt
         # Remove the predictive-direction part of p to obtain an orthogonal weight.
@@ -159,7 +178,7 @@ def orthogonal_filter(
         w_o /= w_norm
         t_o = X_res @ w_o
         too = float(t_o @ t_o)
-        if too <= _TOL * res_norm_sq:
+        if too <= floor:
             break
         p_o = X_res.T @ t_o / too
         # Deflate before extracting the next orthogonal component.
@@ -191,11 +210,15 @@ def orthogonal_filter(
 def opls_filter(X: ArrayLike, Y: ArrayLike, n_components: int) -> OrthogonalComponents:
     """Compute the predictive direction from ``(X, Y)`` once, then deflate ``X``.
 
-    Reusing one direction for every component is exact, not a shortcut: each
-    orthogonal score is built orthogonal to ``Y``, so removing it leaves ``Xᵀy``
-    (hence the predictive direction) unchanged — recomputing it from each
-    deflated residual would give the same answer. When ``n_components=0``, ``Y``
-    is not inspected and the returned predictive weight is a zero vector.
+    For univariate ``Y``, reusing one direction for every component is exact,
+    not a shortcut: each orthogonal score is orthogonal to ``y``, so removing
+    it leaves ``Xᵀy`` (hence the predictive direction) unchanged — recomputing
+    it from each deflated residual would give the same answer (Trygg & Wold
+    2002, step 12 returns to step 3, not step 1). For multivariate ``Y`` the
+    single predictive direction only guarantees orthogonality to the leading
+    left singular vector of ``XᵀY``, not to every column of ``Y``; ``XᵀY`` is
+    then not invariant under deflation. When ``n_components=0``, ``Y`` is not
+    inspected and the returned predictive weight is a zero vector.
     """
     n_components = _validate_n_components(n_components)
     X = np.asarray(X, dtype=np.float64)

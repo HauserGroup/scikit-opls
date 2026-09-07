@@ -158,6 +158,41 @@ def test_opls_n_orthogonal_zero_parity():
     assert_allclose(opls.predict(X_centered), pls.predict(X_centered).ravel())
 
 
+def test_opls_scale_none_is_translation_invariant_with_orthogonal_components():
+    """Feature offsets must not change the fitted OPLS relation."""
+    rng = np.random.default_rng(12)
+    X = rng.normal(size=(50, 8))
+    y = rng.normal(size=50)
+    offset = np.array([100.0, -40.0, 25.0, 3.0, -80.0, 7.0, 50.0, -2.0])
+
+    base = OPLS(n_components=1, n_orthogonal=2, scale="none").fit(X, y)
+    shifted = OPLS(n_components=1, n_orthogonal=2, scale="none").fit(X + offset, y)
+
+    assert_allclose(base.predict(X), shifted.predict(X + offset), atol=1e-12)
+    assert_allclose(
+        np.abs(base.x_ortho_weights_),
+        np.abs(shifted.x_ortho_weights_),
+        atol=1e-12,
+    )
+
+
+@pytest.mark.parametrize("n_pls_components", [2, 3, 4])
+def test_opls_scale_none_preserves_equivalent_pls_predictions(n_pls_components):
+    """One predictive plus A-1 orthogonal components equals A-component PLS."""
+    rng = np.random.default_rng(3)
+    X = rng.normal(size=(50, 10))
+    y = rng.normal(size=50)
+
+    opls = OPLS(
+        n_components=1,
+        n_orthogonal=n_pls_components - 1,
+        scale="none",
+    ).fit(X, y)
+    pls = PLSRegression(n_components=n_pls_components, scale=False).fit(X, y)
+
+    assert_allclose(opls.predict(X), pls.predict(X).ravel(), atol=1e-12)
+
+
 def test_opls_zero_variance_columns():
     # Ensure constant columns don't cause division by zero
     X, y = _regression_data(seed=42)
@@ -284,6 +319,19 @@ def test_opls_n_components_exceeds_post_filter_rank_raises():
         ValueError, match="exceeds the numerical rank of X after orthogonal filtering"
     ):
         OPLS(n_components=3, n_orthogonal=1).fit(X, y)
+
+
+def test_opls_rank_check_uses_centered_pls_input_for_scale_none():
+    """Reject a component supported only by the uncentered matrix offset."""
+    X = np.arange(15.0).reshape(3, 5) + np.array([1.0, 5.0, 2.0, 8.0, 3.0])
+    y = np.arange(3.0)
+
+    assert np.linalg.matrix_rank(X) == 2
+    assert np.linalg.matrix_rank(X - X.mean(axis=0)) == 1
+    with pytest.raises(
+        ValueError, match="exceeds the numerical rank of X after orthogonal filtering"
+    ):
+        OPLS(n_components=2, n_orthogonal=0, scale="none").fit(X, y)
 
 
 def test_filter_transform_matches_predict_path():

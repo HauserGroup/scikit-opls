@@ -14,7 +14,6 @@ from numbers import Integral
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
-from sklearn.metrics import r2_score
 from sklearn.utils._param_validation import Interval, StrOptions
 from sklearn.utils.validation import (
     _check_feature_names_in,
@@ -37,7 +36,7 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
     O2PLS decomposes two preprocessed blocks into joint X-Y covariation,
     X-specific orthogonal structure, Y-specific orthogonal structure, and residual
-    variation. Unlike :class:`sklearn.cross_decomposition.PLSRegression`, this
+    variation. Unlike [`PLSRegression`][sklearn.cross_decomposition.PLSRegression], this
     implementation uses the Trygg-Wold orthonormal joint-loading convention:
     ``x_joint_loadings_`` equals ``x_joint_weights_`` and ``y_joint_loadings_``
     equals ``y_joint_weights_`` for the final joint part.
@@ -53,7 +52,10 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         ``Y``, v1 requires this to be zero because there is no multivariate
         Y-feature subspace for a stable Y-specific direction.
     scale : {"none", "center", "pareto", "standard"}, default="standard"
-        Column preprocessing applied to both X and Y blocks.
+        Column preprocessing applied to both X and Y blocks. Note: unlike the
+        boolean ``scale`` parameter of
+        [`PLSRegression`][sklearn.cross_decomposition.PLSRegression], this is a string
+        mode; passing ``True``/``False`` raises an error.
     copy : bool, default=True
         Whether input arrays are copied during validation. Filtering still
         allocates working arrays.
@@ -71,24 +73,86 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         Sequential X-specific orthogonal components.
     y_orthogonal_weights_, y_orthogonal_scores_, y_orthogonal_loadings_ : ndarray
         Sequential Y-specific orthogonal components.
+    b_t_ : ndarray of shape (n_components_, n_components_)
+        Regression matrix mapping joint X scores to joint Y scores
+        (used by [`predict`][scikit_opls.O2PLS.predict]).
+    b_u_ : ndarray of shape (n_components_, n_components_)
+        Regression matrix mapping joint Y scores to joint X scores
+        (used by [`predict_x`][scikit_opls.O2PLS.predict_x]).
     coef_filtered_ : ndarray of shape (n_features_in_, n_targets_)
         Coefficient matrix mapping scaled, X-orthogonally-filtered X to scaled
         predicted Y. This orientation is intentionally ``(n_features, n_targets)``
         and no raw-space ``coef_`` alias is exposed in v1.
+    x_filtered_, y_filtered_ : ndarray
+        Preprocessed training blocks after orthogonal filtering, shapes
+        ``(n_samples, n_features)`` and ``(n_samples, n_targets_)``. Note:
+        together with the residual blocks these training-set diagnostics make
+        the fitted (and pickled) estimator scale with the training data size.
+    x_residuals_, y_residuals_ : ndarray
+        Training residual blocks after removing joint and orthogonal structure,
+        same shapes as ``x_filtered_``/``y_filtered_``.
     x_mean_, x_std_, y_mean_, y_std_ : ndarray
         Centering/scaling vectors for each block.
     r2x_, r2y_, r2x_ortho_, r2y_ortho_ : float
         Training-set diagnostic sum-of-squares ratios on preprocessed blocks.
         These are not guaranteed additive variance partitions.
+    singular_values_initial_, singular_values_final_ : ndarray
+        Singular values of the X'Y covariance block before and after orthogonal
+        filtering.
+    n_components_, n_x_orthogonal_, n_y_orthogonal_ : int
+        Numbers of joint / X-orthogonal / Y-orthogonal components actually
+        fitted; may be lower than requested after truncation.
+    n_targets_ : int
+        Number of target columns seen during [`fit`][scikit_opls.O2PLS.fit].
+    n_features_out_ : int
+        Number of joint-score columns returned by
+        [`transform`][scikit_opls.O2PLS.transform].
+    n_features_in_ : int
+        Number of features seen during [`fit`][scikit_opls.O2PLS.fit].
+    feature_names_in_ : ndarray of shape (n_features_in_,)
+        Names of features seen during [`fit`][scikit_opls.O2PLS.fit]. Defined only when
+        ``X`` has
+        feature names that are all strings.
+
+    See Also
+    --------
+    OPLS : Single-block variant removing only X-orthogonal structure.
+    OPLSDA : Binary OPLS discriminant analysis.
+    sklearn.cross_decomposition.PLSCanonical : Symmetric two-block decomposition
+        without an integral orthogonal-signal-correction filter.
 
     Notes
     -----
     Requested orthogonal components may be truncated with a
-    :class:`sklearn.exceptions.ConvergenceWarning` when the enlarged preliminary
+    [`ConvergenceWarning`][sklearn.exceptions.ConvergenceWarning] when the preliminary
+    joint
     subspace leaves no numerically resolvable block-specific residual variation.
-    This is most common when
-    ``n_components + max(n_x_orthogonal, n_y_orthogonal)`` approaches the rank or
-    feature dimension of one block.
+    This is most common when ``n_components`` approaches the rank or feature
+    dimension of one block.
+
+    References
+    ----------
+    .. [1] Trygg, J. & Wold, S. (2003). O2-PLS, a two-block (X-Y) latent
+           variable regression (LVR) method with an integral OSC filter.
+           Journal of Chemometrics, 17(1), 53-64.
+           https://doi.org/10.1002/cem.775
+    .. [2] Trygg, J. & Wold, S. (2002). Orthogonal projections to latent
+           structures (O-PLS). Journal of Chemometrics, 16(3), 119-128.
+           https://doi.org/10.1002/cem.695
+
+    Examples
+    --------
+    >>> import numpy as np
+    >>> from scikit_opls import O2PLS
+    >>> rng = np.random.default_rng(0)
+    >>> T = rng.normal(size=(30, 2))
+    >>> X = T @ rng.normal(size=(2, 6)) + 0.1 * rng.normal(size=(30, 6))
+    >>> Y = T @ rng.normal(size=(2, 4)) + 0.1 * rng.normal(size=(30, 4))
+    >>> model = O2PLS(n_components=2, n_x_orthogonal=1).fit(X, Y)
+    >>> model.transform(X).shape
+    (30, 2)
+    >>> model.predict(X).shape
+    (30, 4)
     """
 
     n_features_in_: int
@@ -124,6 +188,8 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     n_components_: int
     n_x_orthogonal_: int
     n_y_orthogonal_: int
+    singular_values_initial_: NDArray[np.float64]
+    singular_values_final_: NDArray[np.float64]
     n_features_out_: int
     _y_ndim: int
 
@@ -149,7 +215,7 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.scale = scale
         self.copy = copy
 
-    def fit(self, X: ArrayLike, Y: ArrayLike) -> O2PLS:
+    def fit(self, X: ArrayLike, y: ArrayLike) -> O2PLS:
         """Fit the O2PLS model.
 
         Parameters
@@ -157,7 +223,7 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         X : array-like of shape (n_samples, n_features)
             Training vectors, where `n_samples` is the number of samples and
             `n_features` is the number of predictors.
-        Y : array-like of shape (n_samples, n_targets)
+        y : array-like of shape (n_samples, n_targets)
             Target vectors, where `n_samples` is the number of samples and
             `n_targets` is the number of response variables.
 
@@ -173,11 +239,11 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
         # Preserve whether the user supplied 1D or 2D Y so predict() can mirror the
         # fitted output convention after all internal work has used a 2D block.
-        self._y_ndim = np.asarray(Y).ndim
+        self._y_ndim = np.asarray(y).ndim
         X, Y_valid = validate_data(
             self,
             X,
-            Y,
+            y,
             dtype=np.float64,
             ensure_min_samples=2,
             copy=self.copy,
@@ -407,7 +473,10 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return self._filter_y(Y)[0]
 
     def get_feature_names_out(self, input_features=None) -> NDArray[np.object_]:
-        """Output names for :meth:`transform` joint-score columns.
+        """Output names for the joint-score columns.
+
+        These are the columns returned by
+        [`transform`][scikit_opls.O2PLS.transform].
 
         Parameters
         ----------
@@ -424,25 +493,6 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         return np.asarray(
             [f"o2pls_joint{i}" for i in range(self.n_features_out_)], dtype=object
         )
-
-    def score(self, X: ArrayLike, y: ArrayLike, sample_weight=None) -> float:
-        """Coefficient of determination R² of ``predict(X)`` against ``y``.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_samples, n_features)
-            Test samples.
-        y : array-like of shape (n_samples, n_targets)
-            True values for X.
-        sample_weight : array-like of shape (n_samples,), default=None
-            Sample weights.
-
-        Returns
-        -------
-        score : float
-            R² of ``self.predict(X)`` wrt. `y`.
-        """
-        return float(r2_score(y, self.predict(X), sample_weight=sample_weight))
 
     @staticmethod
     def _as_2d_target(Y: ArrayLike) -> NDArray[np.float64]:

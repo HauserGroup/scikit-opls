@@ -49,6 +49,26 @@ jobs:
       - run: uv sync --dev
       - run: uv run pre-commit run --all-files
 
+  examples:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v8.1.0
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - run: uv sync --dev
+      # Executing the scripts is the gate: the example gallery must keep working
+      # against the current API, not just be committed. The penguins example
+      # downloads its dataset from the `data` release tag.
+      - name: Run examples
+        run: |
+          for script in examples/*.py; do
+            echo "::group::$script"
+            uv run python "$script"
+            echo "::endgroup::"
+          done
+
   docs:
     runs-on: ubuntu-latest
     steps:

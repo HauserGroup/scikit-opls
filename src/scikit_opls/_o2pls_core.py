@@ -158,17 +158,25 @@ def _extract_one_orthogonal_component(
     joint_scores: NDArray[np.float64],
     joint_weights: NDArray[np.float64],
     *,
+    block_ref_ssq: float | None = None,
     tol: float = _TOL,
 ) -> OrthogonalBlockComponent | None:
     """Extract one replayable sequential orthogonal component from ``block``.
 
-    The residual first removes the enlarged preliminary joint subspace from the
-    current block. The leading left singular vector of
-    ``residual.T @ joint_scores`` gives the feature-space direction of
-    block-specific variation most associated with the preliminary joint score
-    space. The resulting score/loading pair is deflated from the current block
-    and stored so the same sequential filter can be replayed on new data.
-    Returns ``None`` if no resolvable variation remains.
+    Following Trygg & Wold (2003), step 3/5: the residual first removes the
+    preliminary joint subspace ``T @ W.T`` from the current block. The leading
+    left singular vector of ``residual.T @ joint_scores`` (eq. 14) gives the
+    feature-space direction of block-specific variation most associated with
+    the preliminary joint score space. The resulting score/loading pair is
+    deflated from the current block and stored so the same sequential filter
+    can be replayed on new data. Returns ``None`` if no resolvable variation
+    remains.
+
+    ``block_ref_ssq`` is the sum of squares of the *original*, undeflated block
+    and sets the scale every resolvability test is measured against. Sequential
+    callers must pass it: judging a deflated block against its own shrinking sum
+    of squares makes rounding noise look significant relative to itself. It
+    defaults to the block's own sum of squares for one-shot calls.
     """
     tol = _validate_tol(tol)
     X = np.asarray(block, dtype=np.float64)
@@ -185,15 +193,32 @@ def _extract_one_orthogonal_component(
     if not _has_nonzero_variation(T, axis=0):
         return None
 
+    x_ssq = _ssq(X)
+    ref_ssq = x_ssq if block_ref_ssq is None else float(block_ref_ssq)
+    if not np.isfinite(ref_ssq) or ref_ssq < 0.0:
+        raise ValueError(
+            f"block_ref_ssq must be a non-negative finite float, got {block_ref_ssq}."
+        )
+    # Energy floor for this block, in the original block's units. Squared-norm
+    # quantities are compared against it, so ``tol**2`` here is ``tol`` in norm.
+    floor = (tol**2) * ref_ssq
+    if x_ssq <= floor:
+        return None
+
     # First remove the preliminary joint space from the current block. Anything
     # still associated with T is block-specific structure that should be filtered.
     residual = X - T @ W.T
     if not _has_nonzero_variation(residual, axis=0):
         return None
+    residual_ssq = _ssq(residual)
+    if residual_ssq <= floor:
+        return None
 
     # The leading left singular vector gives a feature-space orthogonal direction.
+    # Cauchy-Schwarz bounds ``_ssq(cross)`` by the product of the two energies, so
+    # this ratio is already scale-free; both factors are nonzero by the checks above.
     cross = residual.T @ T
-    if _ssq(cross) <= (tol**2) * max(_ssq(residual) * _ssq(T), 1.0):
+    if _ssq(cross) <= (tol**2) * residual_ssq * _ssq(T):
         return None
 
     try:
@@ -213,9 +238,7 @@ def _extract_one_orthogonal_component(
     # sequential filter that will later be replayed on new samples.
     score = X @ weight
     score_ssq = float(score @ score)
-    x_ssq = _ssq(X)
-    block_ssq = max(x_ssq, 1.0)
-    if score_ssq <= tol * block_ssq:
+    if score_ssq <= floor:
         return None
 
     loading = X.T @ score / score_ssq
@@ -226,7 +249,7 @@ def _extract_one_orthogonal_component(
     if not np.all(np.isfinite(filtered)):
         return None
     # Refuse components that do not measurably reduce the block sum of squares.
-    if _ssq(filtered) >= x_ssq - tol * block_ssq:
+    if _ssq(filtered) >= x_ssq - floor:
         return None
 
     return OrthogonalBlockComponent(
@@ -324,8 +347,11 @@ def o2pls_fit(
 ) -> O2PLSComponents:
     """Fit dense O2PLS components on already preprocessed X/Y blocks.
 
-    Uses an enlarged preliminary joint subspace, sequential X/Y orthogonal
-    filtering, and final joint SVD re-estimation on the filtered blocks.
+    Follows the O2PLS algorithm of Trygg & Wold (2003), section 3.2.1: an
+    ``n_components``-column preliminary joint subspace from the SVD of
+    ``Xs.T @ Ys`` (step 1), sequential X/Y orthogonal filtering against that
+    subspace (steps 3 and 5), and final joint SVD re-estimation on the filtered
+    blocks (repeat of steps 1, 2 and 4, as the paper's note recommends).
     """
     X0 = np.asarray(Xs, dtype=np.float64)
     Y0 = np.asarray(Ys, dtype=np.float64)
@@ -369,55 +395,74 @@ def o2pls_fit(
             f"({rank})."
         )
 
-    # The preliminary joint subspace is deliberately enlarged so there is room to
-    # identify block-specific directions before the final joint fit is recomputed.
-    k_initial = min(n_components + max(n_x_orthogonal, n_y_orthogonal), rank)
-    W_init, C_init, _ = _cross_cov_svd_x_to_y(X0, Y0, k_initial)
+    # Paper step 1: the preliminary joint subspace has exactly n_components
+    # columns. Orthogonal directions are then sought in the part of each block
+    # not spanned by these joint weights (steps 3 and 5).
+    W_init, C_init, _ = _cross_cov_svd_x_to_y(X0, Y0, n_components)
+
+    # A block cannot yield more independent deflations than its rank bound, and
+    # every resolvability test is measured against the original block's energy:
+    # judging a deflated block against its own shrinking sum of squares lets
+    # rounding noise pass as structure once the rank is exhausted.
+    x_ref_ssq = _ssq(X0)
+    y_ref_ssq = _ssq(Y0)
+    n_x_extractable = min(n_x_orthogonal, n_samples, n_x_features)
+    n_y_extractable = min(n_y_orthogonal, n_samples, n_y_features)
 
     X_work = X0.copy()
     x_weights: list[NDArray[np.float64]] = []
     x_scores: list[NDArray[np.float64]] = []
     x_loadings: list[NDArray[np.float64]] = []
-    for i in range(n_x_orthogonal):
-        # Recompute preliminary scores from the current deflated block; the weights
-        # stay fixed from the enlarged initial cross-covariance.
+    for _ in range(n_x_extractable):
+        # Paper "repeat step 2": recompute preliminary scores from the current
+        # deflated block; the weights stay fixed from the initial cross-covariance.
         T_init = X_work @ W_init
-        component = _extract_one_orthogonal_component(X_work, T_init, W_init, tol=tol)
+        component = _extract_one_orthogonal_component(
+            X_work, T_init, W_init, block_ref_ssq=x_ref_ssq, tol=tol
+        )
         if component is None:
-            warnings.warn(
-                "O2PLS X-orthogonal extraction ran out of numerically "
-                f"resolvable variation after {i} of {n_x_orthogonal} requested "
-                "components; using the components extracted so far.",
-                ConvergenceWarning,
-                stacklevel=2,
-            )
             break
         x_weights.append(component.weight)
         x_scores.append(component.score)
         x_loadings.append(component.loading)
         X_work = component.filtered_block
 
+    # Warn once, covering both truncation causes: the rank bound and running out
+    # of resolvable variation before reaching it.
+    if len(x_weights) < n_x_orthogonal:
+        warnings.warn(
+            "O2PLS X-orthogonal extraction ran out of numerically resolvable "
+            f"variation after {len(x_weights)} of {n_x_orthogonal} requested "
+            "components; using the components extracted so far.",
+            ConvergenceWarning,
+            stacklevel=2,
+        )
+
     Y_work = Y0.copy()
     y_weights: list[NDArray[np.float64]] = []
     y_scores: list[NDArray[np.float64]] = []
     y_loadings: list[NDArray[np.float64]] = []
-    for i in range(n_y_orthogonal):
+    for _ in range(n_y_extractable):
         # Mirror the same sequential extraction on the Y block.
         U_init = Y_work @ C_init
-        component = _extract_one_orthogonal_component(Y_work, U_init, C_init, tol=tol)
+        component = _extract_one_orthogonal_component(
+            Y_work, U_init, C_init, block_ref_ssq=y_ref_ssq, tol=tol
+        )
         if component is None:
-            warnings.warn(
-                "O2PLS Y-orthogonal extraction ran out of numerically "
-                f"resolvable variation after {i} of {n_y_orthogonal} requested "
-                "components; using the components extracted so far.",
-                ConvergenceWarning,
-                stacklevel=2,
-            )
             break
         y_weights.append(component.weight)
         y_scores.append(component.score)
         y_loadings.append(component.loading)
         Y_work = component.filtered_block
+
+    if len(y_weights) < n_y_orthogonal:
+        warnings.warn(
+            "O2PLS Y-orthogonal extraction ran out of numerically resolvable "
+            f"variation after {len(y_weights)} of {n_y_orthogonal} requested "
+            "components; using the components extracted so far.",
+            ConvergenceWarning,
+            stacklevel=2,
+        )
 
     # Once block-specific variation is removed, refit the actual joint model on
     # the filtered blocks.

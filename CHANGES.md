@@ -12,6 +12,21 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+### Fixed
+
+- Orthogonal filtering no longer extracts components past the point where a
+  block's rank is exhausted. Both `OPLS`'s filter and O2PLS's block-specific
+  extraction judged convergence against the *current* deflated block, whose sum
+  of squares shrinks with every deflation, so rounding noise stayed significant
+  relative to itself. Convergence is now measured against the original block and
+  the component count is bounded by `min(n_samples, n_features)`. Fitted
+  `n_orthogonal_`, `n_x_orthogonal_` and `n_y_orthogonal_` on rank-deficient data
+  may be lower than before, and no longer vary with the BLAS implementation.
+- O2PLS orthogonal extraction is now invariant to a global rescaling of the
+  blocks. Resolvability was measured against `max(block_ssq, 1.0)`, an absolute
+  floor in the units of the data, so identical blocks yielded different component
+  counts depending only on their scale.
+
 ### Changed
 
 - Lowered the supported Python floor from 3.13 to **3.12**
@@ -21,15 +36,36 @@ and default-value changes will be documented here.
 
 ### Changed (breaking, pre-1.0)
 
+- Renamed the second parameter of `O2PLS.fit` from `Y` to `y`, matching the
+  scikit-learn estimator contract (sklearn's own `cross_decomposition` deprecated
+  `Y` in favour of `y`). Positional calls are unaffected; keyword calls must use
+  `fit(X, y=...)`. Y-block-specific helpers (`predict_x`, `transform_y`,
+  `filter_transform_y`, …) keep their uppercase `Y` block argument, as they are
+  outside the sklearn contract.
+- Removed `O2PLS.score`; it duplicated the inherited `RegressorMixin.score`
+  (R² of `predict(X)` against `y`) with identical behaviour. `score` remains
+  available via the mixin.
+
+### Documentation
+
+- Completed the numpydoc `Attributes` sections of `OPLS`, `OPLSDA` and `O2PLS`
+  (per-component diagnostics, training Q residuals, `b_t_`/`b_u_`,
+  `n_features_in_`/`feature_names_in_`, etc.), documented that
+  `O2PLS.x_filtered_`/`y_filtered_`/`x_residuals_`/`y_residuals_` make the fitted
+  estimator scale with training-data size, and noted that the string `scale`
+  parameter differs from `PLSRegression`'s boolean `scale`.
+
 - Renamed the fitted attribute `rmsee_` to `rmse_` (uncorrected training root mean
   squared error). The old name implied a degrees-of-freedom-corrected calibration
   error, which it never computed; no alias is kept (pre-1.0).
+
 - Removed `OPLSDA`'s `probability` parameter and its in-sample Platt calibration
   (`predict_proba`, `raw_score`). `OPLSDA` is now a clean score classifier:
   `decision_function` returns the raw signed OPLS regression output and `predict`
   its sign. For probabilities, wrap in `CalibratedClassifierCV(OPLSDA(...))`
   (cross-fitted, better calibrated). This also removes the
   `predict`/`predict_proba` boundary inconsistency the in-sample calibrator caused.
+
 - Cross-validated selection of `n_orthogonal` is now done with scikit-learn's
   `GridSearchCV` directly — there is no bespoke selection API. `OPLS.n_orthogonal`
   is a plain `int`; the `"auto"` option and the `cv` parameter are removed from
@@ -39,9 +75,11 @@ and default-value changes will be documented here.
   `best_params_["n_orthogonal"]`, `best_estimator_`, and
   `cv_results_["mean_test_score"]`. For a parsimony bias, pass a `refit` callable
   (recipe in the README / quickstart).
+
 - `OPLSDACV` will not be added. Use
   `GridSearchCV(OPLSDA(), {"n_orthogonal": [...]}, scoring="roc_auc")`, which
   gives stratified folds for classification.
+
 - VIP is now exposed as lazy `OPLS.vip_` / `OPLS.ortho_vip_` properties (and on
   `OPLSDA`, delegating to the inner OPLS), following scikit-learn's
   `feature_importances_` convention — computed on access, not eagerly in `fit`.
@@ -50,6 +88,7 @@ and default-value changes will be documented here.
   private `_inspection` module. Feature selection is supported via
   `SelectFromModel(OPLS(), importance_getter="vip_", threshold=1.0)` (the VIP > 1
   rule), composable in a `Pipeline` / `GridSearchCV`.
+
 - `predictive_weight(X, Y)` now uses the leading left singular vector of `XᵀY`,
   generalising to multivariate `Y`. For single-column `Y` the direction is
   unchanged (up to sign) and single-`y` OPLS output is bit-for-bit identical.

@@ -280,9 +280,11 @@ def test_o2pls_predict_x_unscales_x():
 
 
 def test_o2pls_truncates_when_preliminary_subspace_saturates_y_block():
+    # With n_components equal to the Y feature count, the preliminary joint
+    # weights span the whole Y feature space and no Y-specific direction remains.
     rng = np.random.default_rng(13)
     X = rng.normal(size=(50, 6))
-    Y = rng.normal(size=(50, 3))
+    Y = rng.normal(size=(50, 2))
 
     with pytest.warns(ConvergenceWarning, match="Y-orthogonal extraction"):
         model = O2PLS(n_components=2, n_y_orthogonal=1).fit(X, Y)

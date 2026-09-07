@@ -1,11 +1,11 @@
 """Diagnostic plots for OPLS models.
 
 The public surface follows scikit-learn's *Display* convention: each plot is a
-class with a :meth:`from_estimator` constructor that computes the plotted arrays,
-a :meth:`plot` method that draws them, and stored ``ax_`` / ``figure_`` handles.
+class with a ``from_estimator`` constructor that computes the plotted arrays,
+a ``plot`` method that draws them, and stored ``ax_`` / ``figure_`` handles.
 
 ``matplotlib`` is an optional dependency (``pip install scikit-opls[plot]``) and is
-imported lazily inside :meth:`plot`, so importing this module never requires it.
+imported lazily inside ``plot``, so importing this module never requires it.
 """
 
 # The sklearn validation helpers are under-typed; suppress false positives from
@@ -120,8 +120,9 @@ def _unwrap_estimator_and_data(
 class OPLSScoresDisplay:
     """Predictive vs orthogonal score scatter for an OPLS-family model.
 
-    Works for :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, or a
-    pipeline ending in one. Construct with :meth:`from_estimator`.
+    Works for [`OPLS`][scikit_opls.OPLS], [`OPLSDA`][scikit_opls.OPLSDA], or a
+    pipeline ending in one. Construct with
+    [`from_estimator`][scikit_opls.plotting.OPLSScoresDisplay.from_estimator].
 
     Parameters
     ----------
@@ -135,11 +136,14 @@ class OPLSScoresDisplay:
     Attributes
     ----------
     ax_ : matplotlib Axes
-        The axes drawn on (set by :meth:`plot`).
+        The axes drawn on (set by
+        [`plot`][scikit_opls.plotting.OPLSScoresDisplay.plot]).
     figure_ : matplotlib Figure
-        The parent figure (set by :meth:`plot`).
+        The parent figure (set by
+        [`plot`][scikit_opls.plotting.OPLSScoresDisplay.plot]).
     scatter_ : matplotlib PathCollection or list of PathCollection
-        The scatter plot artist(s) (set by :meth:`plot`).
+        The scatter plot artist(s) (set by
+        [`plot`][scikit_opls.plotting.OPLSScoresDisplay.plot]).
     has_orthogonal : bool
         Whether the fitted model has any orthogonal component. When ``False`` the
         orthogonal axis is a constant-zero placeholder and labelled as such.
@@ -311,8 +315,9 @@ class SPlotDisplay:
         Points may therefore represent transformed features rather than original
         input columns.
 
-    Accepts :class:`~scikit_opls.OPLS`, :class:`~scikit_opls.OPLSDA`, or a pipeline
-    ending in one. Construct with :meth:`from_estimator`.
+    Accepts [`OPLS`][scikit_opls.OPLS], [`OPLSDA`][scikit_opls.OPLSDA], or a pipeline
+    ending in one. Construct with
+    [`from_estimator`][scikit_opls.plotting.SPlotDisplay.from_estimator].
 
     Parameters
     ----------
@@ -324,11 +329,12 @@ class SPlotDisplay:
     Attributes
     ----------
     ax_ : matplotlib Axes
-        The axes drawn on (set by :meth:`plot`).
+        The axes drawn on (set by [`plot`][scikit_opls.plotting.SPlotDisplay.plot]).
     figure_ : matplotlib Figure
-        The parent figure (set by :meth:`plot`).
+        The parent figure (set by [`plot`][scikit_opls.plotting.SPlotDisplay.plot]).
     scatter_ : matplotlib PathCollection
-        The scatter plot artist (set by :meth:`plot`).
+        The scatter plot artist (set by
+        [`plot`][scikit_opls.plotting.SPlotDisplay.plot]).
     """
 
     ax_: matplotlib.axes.Axes

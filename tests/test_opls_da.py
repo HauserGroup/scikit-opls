@@ -148,7 +148,7 @@ def test_decision_function_is_raw_opls_regression_output():
     model = OPLSDA(n_orthogonal=1).fit(X, y)
     df = model.decision_function(X)
     assert df.shape == (X.shape[0],)
-    np.testing.assert_allclose(df, model.opls_.predict(X).ravel())
+    assert_allclose(df, model.opls_.predict(X).ravel())
     np.testing.assert_array_equal(
         model.predict(X), model.classes_[(df > 0).astype(int)]
     )
