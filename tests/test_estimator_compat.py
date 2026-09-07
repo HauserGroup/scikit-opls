@@ -8,7 +8,7 @@ import numpy as np
 import pytest
 from sklearn.utils.estimator_checks import parametrize_with_checks
 
-from scikit_opls import O2PLS, OPLS, OPLSDA
+from scikit_opls import KOPLS, O2PLS, OPLS, OPLSDA
 
 from ._data import make_regression_data as _regression_data
 
@@ -19,6 +19,7 @@ from ._data import make_regression_data as _regression_data
         (OPLS(n_components=0), False),
         (OPLSDA(n_orthogonal=-1), True),
         (O2PLS(n_components=0), False),
+        (KOPLS(n_orthogonal=-1), False),
     ],
 )
 def test_estimators_call_param_validation(estimator, is_cls):
@@ -50,7 +51,7 @@ def test_more_orthogonal_than_rank_truncates():
     assert model.n_orthogonal_ <= 5
 
 
-@pytest.mark.parametrize("est", [O2PLS(), OPLS(), OPLSDA()])
+@pytest.mark.parametrize("est", [KOPLS(), O2PLS(), OPLS(), OPLSDA()])
 def test_tags_match_intent(est):
     """Resolved tags should pin the declared capabilities (guards refactors)."""
     tags = est.__sklearn_tags__()
@@ -73,6 +74,14 @@ def test_o2pls_regressor_tags():
     assert tags.target_tags.single_output is True
 
 
+def test_kopls_regressor_tags():
+    tags = KOPLS().__sklearn_tags__()
+    assert tags.regressor_tags is not None
+    assert tags.regressor_tags.poor_score is True
+    # Y enters the algorithm as a matrix, so multiple targets are native.
+    assert tags.target_tags.multi_output is True
+
+
 def test_opls_da_not_multiclass():
     tags = OPLSDA().__sklearn_tags__()
     assert tags.classifier_tags is not None
@@ -86,6 +95,9 @@ def test_py_typed_marker_present():
 @pytest.mark.filterwarnings("ignore::sklearn.exceptions.ConvergenceWarning")
 @parametrize_with_checks(
     [
+        KOPLS(),
+        KOPLS(kernel="rbf"),
+        KOPLS(n_orthogonal=0),
         O2PLS(),
         O2PLS(scale="pareto"),
         OPLS(),
