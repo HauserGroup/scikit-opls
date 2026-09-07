@@ -599,3 +599,4 @@ TSWLatexianTemp*
 
 # MkDocs build output
 site/
+scikit-learn-developers-guide.md
