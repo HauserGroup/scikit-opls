@@ -12,6 +12,26 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+### Added
+
+- Packaging metadata for PyPI: SPDX `license` expression with the bundled
+  `LICENSE` file, `authors`/`maintainers`, `keywords` and trove `classifiers`.
+- `.github/workflows/release.yml`: tag-driven build, PyPI publication through
+  Trusted Publishing (OIDC, no stored token), signed build attestations and an
+  automatic GitHub release. It refuses to publish when the tag does not match
+  `__version__`.
+- CI `package` job: builds the sdist and wheel, runs `twine check --strict`, and
+  imports the package from each installed artifact in a clean environment.
+- CI now also tests Python 3.14, which is supported.
+- `docs/citing.md`: how to cite the software and the methods it implements.
+
+### Changed
+
+- `CITATION.cff` gained `type`, split author names, ORCID, `version`, `license`,
+  `repository-code`, keywords and the method references.
+- `RELEASING.md` now describes the automated tag-driven release and names
+  `src/scikit_opls/version.py` as the single source of truth for the version.
+
 ### Fixed
 
 - Orthogonal filtering no longer extracts components past the point where a
