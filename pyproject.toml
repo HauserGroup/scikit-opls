@@ -42,7 +42,7 @@ dev = [
     # Capped below 0.16: that release extends `ruff format` to code blocks in
     # Markdown, which reflows the hand-aligned examples in README.md. Migrating
     # to it is a deliberate formatting change, not a dependency bump.
-    "ruff>=0.15.22,<0.16",
+    "ruff>=0.15.22,<0.17",
     "zensical>=0.0.51",
 ]
 
