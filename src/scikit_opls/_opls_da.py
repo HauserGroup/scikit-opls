@@ -80,7 +80,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         feature names that are all strings.
     vip_, ortho_vip_ : ndarray of shape (n_features,)
         Predictive / orthogonal Variable Importance in Projection scores computed
-        by the inner [`opls_`][scikit_opls.OPLSDA.opls_]. Use with
+        by the inner ``opls_`` estimator. Use with
         [`SelectFromModel`][sklearn.feature_selection.SelectFromModel] via
         ``importance_getter="vip_"``.
 
