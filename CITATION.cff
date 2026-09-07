@@ -1,6 +1,58 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
-authors:
-  - name: "Jakob S. Madsen"
+type: software
 title: "scikit-opls"
+abstract: >-
+  Orthogonal Projections to Latent Structures (OPLS, OPLS-DA and O2PLS) with a
+  scikit-learn compatible estimator interface.
+authors:
+  - given-names: "Jakob S."
+    family-names: "Madsen"
+    email: "jsmadsen@sund.ku.dk"
+    orcid: "https://orcid.org/0000-0002-2841-7284"
+    affiliation: >-
+      Pharmacoinformatics, Department of Drug Design and Pharmacology,
+      University of Copenhagen
+version: "0.1.0"
+license: MIT
 url: "https://github.com/HauserGroup/scikit-opls"
+repository-code: "https://github.com/HauserGroup/scikit-opls"
+keywords:
+  - opls
+  - opls-da
+  - o2pls
+  - pls
+  - chemometrics
+  - metabolomics
+  - scikit-learn
+references:
+  - type: article
+    title: "Orthogonal projections to latent structures (O-PLS)"
+    authors:
+      - given-names: "Johan"
+        family-names: "Trygg"
+      - given-names: "Svante"
+        family-names: "Wold"
+    journal: "Journal of Chemometrics"
+    year: 2002
+    volume: 16
+    issue: 3
+    start: 119
+    end: 128
+    doi: "10.1002/cem.695"
+  - type: article
+    title: >-
+      O2-PLS, a two-block (X-Y) latent variable regression (LVR) method with an
+      integral OSC filter
+    authors:
+      - given-names: "Johan"
+        family-names: "Trygg"
+      - given-names: "Svante"
+        family-names: "Wold"
+    journal: "Journal of Chemometrics"
+    year: 2003
+    volume: 17
+    issue: 1
+    start: 53
+    end: 64
+    doi: "10.1002/cem.775"

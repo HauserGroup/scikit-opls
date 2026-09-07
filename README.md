@@ -1,6 +1,8 @@
 # scikit-opls
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![PyPI](https://img.shields.io/pypi/v/scikit-opls.svg)](https://pypi.org/project/scikit-opls/)
+[![Python versions](https://img.shields.io/pypi/pyversions/scikit-opls.svg)](https://pypi.org/project/scikit-opls/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://github.com/HauserGroup/scikit-opls/blob/main/LICENSE)
 [![CI](https://github.com/HauserGroup/scikit-opls/actions/workflows/ci.yml/badge.svg)](https://github.com/HauserGroup/scikit-opls/actions/workflows/ci.yml)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://hausergroup.github.io/scikit-opls/)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
@@ -19,9 +21,21 @@ reduces *exactly* to `PLSRegression`.
 
 ## Install
 
+Requires Python 3.12+.
+
 ```bash
-uv sync
+pip install scikit-opls
 ```
+
+Plotting is an opt-in extra, since `matplotlib` is only imported by
+`scikit_opls.plotting`:
+
+```bash
+pip install "scikit-opls[plot]"
+```
+
+With uv: `uv add scikit-opls`. To work on the package itself, see
+[Development](#development).
 
 ## Usage
 
@@ -112,9 +126,30 @@ from sklearn.calibration import CalibratedClassifierCV
 CalibratedClassifierCV(clf, cv=5).fit(X, y).predict_proba(X)
 ```
 
+### O2PLS (two-block)
+
+`O2PLS` models two blocks jointly, separating the covariation they share from
+the structured variation specific to each, and predicts in both directions.
+
+```python
+from scikit_opls import O2PLS
+
+T = rng.normal(size=(100, 2))
+Xb = T @ rng.normal(size=(2, 20)) + 0.1 * rng.normal(size=(100, 20))
+Yb = T @ rng.normal(size=(2, 5)) + 0.1 * rng.normal(size=(100, 5))
+
+o2 = O2PLS(n_components=2, n_x_orthogonal=1, n_y_orthogonal=1).fit(Xb, Yb)
+
+o2.predict(Xb)  # Y from X
+o2.predict_x(Yb)  # X from Y
+o2.transform(Xb)  # joint X scores
+o2.transform_orthogonal_x(Xb)  # X-specific orthogonal scores
+o2.r2x_, o2.r2y_  # joint fit summaries
+```
+
 ### Diagnostics
 
-Plotting needs the optional `plot` extra (`pip install scikit-opls[plot]`); it
+Plotting needs the optional `plot` extra (`pip install "scikit-opls[plot]"`); it
 follows scikit-learn's Display convention.
 
 ```python
@@ -143,15 +178,17 @@ permutation_test(OPLS(n_orthogonal=2), X, y)
 
 ### Example datasets
 
-Two small scripts under `examples/` show usage with CSV data hosted as GitHub
-release assets. The examples read these URLs directly with `pandas.read_csv`, so
-the datasets do not need to be stored in the local checkout:
-
-- `https://github.com/HauserGroup/scikit-opls/releases/download/data/palmerpenguins.csv`
+Two runnable scripts live under `examples/`, and CI executes both on every push:
 
 ```bash
-uv run python examples/palmerpenguins_opls_regression.py
+uv run python examples/palmerpenguins_opls_regression.py  # OPLS regression
+uv run python examples/o2pls_synthetic.py                 # two-block O2PLS
 ```
+
+The penguins example reads its CSV straight from a GitHub release asset with
+`pandas.read_csv`, so no dataset is stored in the checkout:
+
+- `https://github.com/HauserGroup/scikit-opls/releases/download/data/palmerpenguins.csv`
 
 ## Parameters
 
@@ -160,6 +197,9 @@ uv run python examples/palmerpenguins_opls_regression.py
 | `n_components` | Predictive components (classic OPLS uses 1).                      |
 | `n_orthogonal` | Orthogonal components to remove (`int`; tune via `GridSearchCV`). |
 | `scale`        | `"none"`, `"center"`, `"pareto"`, `"standard"`.                   |
+
+`OPLSDA` takes the same parameters. `O2PLS` replaces `n_orthogonal` with
+`n_x_orthogonal` and `n_y_orthogonal`, one per block.
 
 Wrap `OPLS` in `GridSearchCV` over `n_orthogonal` for cross-validated selection
 (see the snippet above); `cv`, `scoring` and `n_jobs` come from `GridSearchCV`.
@@ -177,7 +217,7 @@ uv run pyright src         # type-check
 uv run pre-commit run --all-files  # run every hook
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for the full contributor workflow.
+See [CONTRIBUTING.md](https://github.com/HauserGroup/scikit-opls/blob/main/CONTRIBUTING.md) for the full contributor workflow.
 
 ## References
 
@@ -188,5 +228,30 @@ and uses the orthogonal-scores PLS algorithm of
 
 - Trygg, J. & Wold, S. (2002). *Orthogonal projections to latent structures
   (O-PLS).* Journal of Chemometrics, 16(3), 119–128.
+  [doi:10.1002/cem.695](https://doi.org/10.1002/cem.695)
+- Trygg, J. & Wold, S. (2003). *O2-PLS, a two-block (X–Y) latent variable
+  regression (LVR) method with an integral OSC filter.* Journal of
+  Chemometrics, 17(1), 53–64.
+  [doi:10.1002/cem.775](https://doi.org/10.1002/cem.775)
+- Wold, S., Antti, H., Lindgren, F. & Öhman, J. (1998). *Orthogonal signal
+  correction of near-infrared spectra.* Chemometrics and Intelligent Laboratory
+  Systems, 44(1–2), 175–185.
+  [doi:10.1016/S0169-7439(98)00109-9](<https://doi.org/10.1016/S0169-7439(98)00109-9>)
+- Bylesjö, M., Rantalainen, M., Cloarec, O., Nicholson, J. K., Holmes, E. &
+  Trygg, J. (2006). *OPLS discriminant analysis: combining the strengths of
+  PLS-DA and SIMCA classification.* Journal of Chemometrics, 20(8–10), 341–351.
+  [doi:10.1002/cem.1006](https://doi.org/10.1002/cem.1006)
 - Galindo-Prieto, B., Eriksson, L. & Trygg, J. (2014). *Variable influence on
   projection (VIP) for OPLS models.* Journal of Chemometrics, 28(8), 623–632.
+  [doi:10.1002/cem.2627](https://doi.org/10.1002/cem.2627)
+
+## Citing
+
+If `scikit-opls` supports published work, please cite the software and the
+methods above. Citation metadata lives in [CITATION.cff](https://github.com/HauserGroup/scikit-opls/blob/main/CITATION.cff); GitHub
+renders a formatted citation from it under **Cite this repository**. See the
+[Citing page](https://hausergroup.github.io/scikit-opls/citing/) for BibTeX.
+
+## License
+
+[MIT](https://github.com/HauserGroup/scikit-opls/blob/main/LICENSE).

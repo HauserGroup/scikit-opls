@@ -12,8 +12,9 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        # Test the support floor (3.12) and the dev interpreter (3.13).
-        python-version: ["3.12", "3.13"]
+        # Test the support floor (3.12), the dev interpreter (3.13) and the
+        # newest release (3.14).
+        python-version: ["3.12", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v7
 
@@ -48,6 +49,42 @@ jobs:
           enable-cache: true
       - run: uv sync --dev
       - run: uv run pre-commit run --all-files
+
+  package:
+    # Catch packaging breaks here rather than at release time: build the
+    # artifacts, check their metadata, and import the package from an installed
+    # wheel and sdist in environments that never see the source tree.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Check artifact metadata
+        run: uvx twine check --strict dist/*
+
+      - name: Import from the installed wheel
+        run: |
+          uv venv --python 3.13 /tmp/wheel-env
+          uv pip install --python /tmp/wheel-env/bin/python dist/*.whl
+          /tmp/wheel-env/bin/python -c "import scikit_opls; print(scikit_opls.__version__)"
+
+      - name: Import from the installed sdist
+        run: |
+          uv venv --python 3.13 /tmp/sdist-env
+          uv pip install --python /tmp/sdist-env/bin/python dist/*.tar.gz
+          /tmp/sdist-env/bin/python -c "import scikit_opls; print(scikit_opls.__version__)"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
 
   examples:
     runs-on: ubuntu-latest

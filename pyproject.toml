@@ -1,5 +1,6 @@
 [build-system]
-requires = ["hatchling"]
+# PEP 639 license metadata (SPDX expression + license-files) needs hatchling 1.27.
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
@@ -8,11 +9,42 @@ dynamic = ["version"]
 description = "Orthogonal PLS (OPLS / OPLS-DA) with a scikit-learn interface"
 readme = "README.md"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Jakob S. Madsen", email = "jsmadsen@sund.ku.dk" }]
+maintainers = [{ name = "Jakob S. Madsen", email = "jsmadsen@sund.ku.dk" }]
+keywords = [
+    "opls",
+    "opls-da",
+    "o2pls",
+    "pls",
+    "chemometrics",
+    "metabolomics",
+    "multivariate-analysis",
+    "scikit-learn",
+]
+# No "License ::" classifier: PyPI rejects those alongside a PEP 639 SPDX
+# `license` expression.
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Typing :: Typed",
+]
 dependencies = [
-    "joblib>=1.4.0",
+    "joblib>=1.6.0",
     "numpy>=1.26",
     "scikit-learn>=1.6",
-    "scipy>=1.11",
+    "scipy>=1.18.1",
 ]
 
 [project.urls]
@@ -21,6 +53,7 @@ Documentation = "https://hausergroup.github.io/scikit-opls/"
 Repository = "https://github.com/HauserGroup/scikit-opls"
 "Bug Tracker" = "https://github.com/HauserGroup/scikit-opls/issues"
 Changelog = "https://github.com/HauserGroup/scikit-opls/blob/main/CHANGES.md"
+"Research Group" = "https://drug.ku.dk/research-sections/pharmaceutical-informatics/pharmacoinformatics/"
 
 [project.optional-dependencies]
 # Plotting (scikit_opls.plotting) is the only matplotlib consumer and imports it
@@ -33,9 +66,9 @@ dev = [
     "mdformat>=1.0.0",
     "mdformat-gfm>=1.0.0",
     "mkdocstrings[python]>=1.0.6",
-    "pandas>=3.0.3",
-    "pandas-stubs>=3.0.3.260530",
-    "pre-commit>=4.6.0",
+    "pandas>=3.0.5",
+    "pandas-stubs>=3.0.5.260730",
+    "pre-commit>=4.6.2",
     "pyright>=1.1.411",
     "pytest>=9.1.1",
     "pytest-cov>=7.0.0",

@@ -24,6 +24,7 @@ nav = [
         { "Plotting" = "api/plotting.md" },
         { "Validation" = "api/validation.md" },
     ] },
+    { "Citing" = "citing.md" },
     { "Changelog" = "changelog.md" },
 ]
 
