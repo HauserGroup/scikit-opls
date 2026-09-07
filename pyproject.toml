@@ -39,10 +39,7 @@ dev = [
     "pyright>=1.1.411",
     "pytest>=9.1.1",
     "pytest-cov>=7.0.0",
-    # Capped below 0.16: that release extends `ruff format` to code blocks in
-    # Markdown, which reflows the hand-aligned examples in README.md. Migrating
-    # to it is a deliberate formatting change, not a dependency bump.
-    "ruff>=0.15.22,<0.16",
+    "ruff>=0.16.6",
     "zensical>=0.0.51",
 ]
 
