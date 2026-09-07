@@ -90,6 +90,7 @@ include = [
     "LICENSE",
     "README.md",
     "CHANGES.md",
+    "CITATION.cff",
     "pyproject.toml",
 ]
 
