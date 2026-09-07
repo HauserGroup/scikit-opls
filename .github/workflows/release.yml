@@ -1,0 +1,98 @@
+name: Release
+
+# Tag-driven: pushing a `vX.Y.Z` tag builds the artifacts, publishes them to
+# PyPI and creates the GitHub release. Nothing here reads a stored API token —
+# PyPI Trusted Publishing (OIDC) authenticates the `pypi` environment below, so
+# the publisher must be registered once at
+# https://pypi.org/manage/project/scikit-opls/settings/publishing/
+# with owner HauserGroup, repository scikit-opls, workflow release.yml and
+# environment pypi.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: "3.13"
+          enable-cache: true
+
+      - name: Verify the tag matches the packaged version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          tag="${GITHUB_REF#refs/tags/v}"
+          version="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/scikit_opls/version.py)"
+          if [ "$tag" != "$version" ]; then
+            echo "Tag v$tag does not match __version__ $version in src/scikit_opls/version.py" >&2
+            exit 1
+          fi
+
+      - name: Build sdist and wheel
+        run: uv build
+
+      - name: Check artifact metadata
+        run: uvx twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/scikit-opls
+    permissions:
+      # Required for Trusted Publishing and for the signed build attestations.
+      id-token: write
+      attestations: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Attest the built artifacts
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: "dist/*"
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  github-release:
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      # CHANGES.md stays the human-written record; the release page carries the
+      # generated commit list plus a pointer to it.
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${GITHUB_REF#refs/tags/}"
+          gh release create "$tag" dist/* \
+            --title "$tag" \
+            --generate-notes \
+            --notes "See [CHANGES.md](https://github.com/HauserGroup/scikit-opls/blob/main/CHANGES.md) for the curated changelog."
