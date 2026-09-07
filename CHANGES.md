@@ -12,6 +12,8 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+## 0.1.0 — 2026-09-07
+
 ### Added
 
 - Packaging metadata for PyPI: SPDX `license` expression with the bundled
