@@ -1,10 +1,21 @@
 version: 2
 updates:
+  # Both ecosystems are grouped so each weekly run opens a single pull request
+  # instead of one per dependency. The `groups` block previously sat only on the
+  # github-actions entry, which is why uv updates arrived separately.
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
