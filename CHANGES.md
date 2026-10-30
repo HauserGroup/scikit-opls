@@ -12,6 +12,17 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+## 0.1.1 — 2026-10-30
+
+Maintenance release. No API or behaviour changes.
+
+### Changed
+
+- Refreshed the locked development dependencies (numpy 2.5.4, scikit-learn
+  1.9.1, matplotlib 3.11.2, pandas 3.0.6, ruff 0.17.1, pyright 1.1.414, zensical
+  0.0.71, pillow 13.0.0 and others) and bumped `astral-sh/setup-uv` to v10.1.0
+  in CI.
+
 ## 0.1.0 — 2026-09-07
 
 First public release: the `OPLS` regressor, the `OPLSDA` binary classifier and
