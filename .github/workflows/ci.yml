@@ -55,7 +55,13 @@ jobs:
           python-version: "3.12"
           enable-cache: true
       - name: Test declared minimum runtime dependencies
-        run: uv run --no-dev --isolated --resolution=lowest-direct --extra plot --with pytest pytest -q
+        run: |
+          uv venv --python 3.12 /tmp/lowest-env
+          uv pip compile pyproject.toml --resolution=lowest-direct --python-version 3.12 --extra plot -o /tmp/lowest-requirements.txt
+          uv pip install --python /tmp/lowest-env/bin/python -r /tmp/lowest-requirements.txt
+          uv pip install --python /tmp/lowest-env/bin/python -c /tmp/lowest-requirements.txt pytest
+          uv pip install --python /tmp/lowest-env/bin/python --no-deps -e .
+          /tmp/lowest-env/bin/python -m pytest -q
 
   pre-commit:
     runs-on: ubuntu-latest
