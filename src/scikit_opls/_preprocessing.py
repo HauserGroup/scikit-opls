@@ -50,12 +50,17 @@ def compute_scaling(
         return mean_, np.ones(n_features, dtype=np.float64)
 
     if X.shape[0] > 1:
-        std = X.std(axis=0, ddof=1)
+        centered = X - mean_
+        std = centered.std(axis=0, ddof=1)
+        col_scale = np.max(np.abs(X), axis=0)
+        # Preserve constant columns instead of dropping or dividing by float
+        # centering noise, while still standardizing genuinely tiny-scale signals.
+        const_mask = (std <= 10.0 * _EPS * col_scale) | (
+            std <= np.finfo(np.float64).tiny
+        )
+        std = np.where(const_mask, 1.0, std)
     else:
         std = np.ones(n_features, dtype=np.float64)
-
-    # Preserve constant columns instead of dropping or dividing by zero.
-    std = np.where(std <= _EPS, 1.0, std)
 
     if mode == "pareto":
         # Pareto scaling divides by sqrt(sample std).

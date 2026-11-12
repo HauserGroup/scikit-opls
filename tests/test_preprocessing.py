@@ -172,3 +172,33 @@ def test_apply_scaling_rejects_non_positive_scale(scale):
     X = np.ones((4, 3))
     with pytest.raises(ValueError, match="scale_ must contain only positive values"):
         apply_scaling(X, np.zeros(3), scale)
+
+
+@pytest.mark.parametrize("const_val", [100.1, 1e6 + 0.1, -42.3])
+@pytest.mark.parametrize("mode", ["standard", "pareto"])
+def test_non_dyadic_constant_column_not_amplified_to_unit_variance(const_val, mode):
+    """Non-dyadic constant columns have ~ulp centering residual > 1e-12; they must
+    still be treated as constant (scale=1) rather than amplified to unit variance."""
+    rng = np.random.default_rng(0)
+    X_clean = rng.normal(size=(7, 4))
+    y = X_clean[:, 0] + 0.05 * rng.normal(size=7)
+    X_with_const = np.column_stack([np.full(7, const_val), X_clean])
+
+    mean_, scale_ = compute_scaling(X_with_const, mode)
+    Xs = apply_scaling(X_with_const, mean_, scale_)
+
+    assert scale_[0] == 1.0
+    assert float(np.sum(Xs[:, 0] ** 2)) < 1e-16
+
+    m_clean = OPLS(n_components=1, n_orthogonal=1, scale=mode).fit(X_clean, y)
+    m_const = OPLS(n_components=1, n_orthogonal=1, scale=mode).fit(X_with_const, y)
+    assert_allclose(m_const.r2x_, m_clean.r2x_, rtol=1e-10, atol=1e-10)
+    assert_allclose(m_const.predict(X_with_const), m_clean.predict(X_clean), atol=1e-10)
+
+
+def test_tiny_scale_signal_standardizes_to_unit_variance():
+    rng = np.random.default_rng(5)
+    X_tiny = 1e-17 * rng.normal(size=(30, 4))
+    mean_, scale_ = compute_scaling(X_tiny, "standard")
+    Xs = apply_scaling(X_tiny, mean_, scale_)
+    assert_allclose(Xs.std(axis=0, ddof=1), 1.0, atol=1e-10)
