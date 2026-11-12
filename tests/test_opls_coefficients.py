@@ -93,3 +93,17 @@ def test_oplsda_inner_opls_has_raw_coefficients():
     score_predict = clf.decision_function(X)
     score_linear = (X @ clf.opls_.coef_raw_.T + clf.opls_.intercept_raw_).ravel()
     assert_allclose(score_predict, score_linear, rtol=1e-10, atol=1e-10)
+
+
+@pytest.mark.parametrize("scale", ["none", "standard"])
+def test_wide_raw_coefficients_match_filtered_pls_engine(scale):
+    """Matrix-free O(k_ortho * p) coefficient composition matches filtered PLS."""
+    rng = np.random.default_rng(11)
+    X = 15.0 + rng.normal(size=(35, 400))
+    X_new = 15.0 + rng.normal(size=(12, 400))
+    y = 2.0 * X[:, 0] - 1.5 * X[:, 5] + 0.1 * rng.normal(size=35)
+
+    model = OPLS(n_components=2, n_orthogonal=3, scale=scale).fit(X, y)
+    via_engine = model.pls_.predict(model.filter_transform(X_new)).ravel()
+    via_raw = model.predict(X_new)
+    assert_allclose(via_raw, via_engine, rtol=1e-10, atol=1e-10)

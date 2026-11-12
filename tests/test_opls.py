@@ -174,6 +174,16 @@ def test_opls_scale_none_is_translation_invariant_with_orthogonal_components():
         np.abs(shifted.x_ortho_weights_),
         atol=1e-12,
     )
+    assert_allclose(base.r2x_, shifted.r2x_, atol=1e-12)
+    assert_allclose(base.r2x_ortho_, shifted.r2x_ortho_, atol=1e-12)
+    assert_allclose(base.r2x_components_, shifted.r2x_components_, atol=1e-12)
+    assert_allclose(
+        base.r2x_ortho_components_, shifted.r2x_ortho_components_, atol=1e-12
+    )
+
+    centered = OPLS(n_components=1, n_orthogonal=2, scale="center").fit(X + offset, y)
+    assert_allclose(shifted.r2x_, centered.r2x_, atol=1e-12)
+    assert_allclose(shifted.r2x_ortho_, centered.r2x_ortho_, atol=1e-12)
 
 
 @pytest.mark.parametrize("n_pls_components", [2, 3, 4])
