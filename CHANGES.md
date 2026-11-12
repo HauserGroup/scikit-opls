@@ -12,6 +12,8 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-12
+
 ### Added
 
 - `O2PLS.y_feature_names_in_`: records string column names when fitted on a 2D

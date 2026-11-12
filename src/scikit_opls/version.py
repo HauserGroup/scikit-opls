@@ -5,4 +5,4 @@
 ``__version__`` is the static source of truth read at build time by Hatchling.
 """
 
-__version__ = "0.1.1"
+__version__ = "0.2.0"
