@@ -235,3 +235,78 @@ def test_permutation_test_classifier_wrapped_raises():
     gs = GridSearchCV(pipe, {"clf__n_components": [1]})
     with pytest.raises(TypeError, match="classifiers like OPLSDA are not supported"):
         permutation_test(gs, X, y)
+
+
+def test_permutation_test_accepts_numpy_generator_and_rejects_bool():
+    X, y = _regression_data(seed=21)
+    res_a = permutation_test(
+        OPLS(n_orthogonal=1),
+        X,
+        y,
+        n_permutations=5,
+        random_state=np.random.default_rng(7),
+    )
+    res_b = permutation_test(
+        OPLS(n_orthogonal=1),
+        X,
+        y,
+        n_permutations=5,
+        random_state=np.random.default_rng(7),
+    )
+    assert_allclose(res_a.permuted_r2y, res_b.permuted_r2y)
+    assert_allclose(res_a.permuted_q2, res_b.permuted_q2)
+
+    with pytest.raises(TypeError, match="not bool"):
+        permutation_test(OPLS(), X, y, n_permutations=2, random_state=True)
+
+
+def test_permutation_test_imbalanced_binary_degenerate_fold_error_score():
+    """Permutations that land all positive labels in a single CV test fold yield
+    NaN Q2 by default without aborting the permutation run, and raise when asked."""
+    rng = np.random.default_rng(0)
+    X = rng.normal(size=(15, 4))
+    # Two 1s in 15 samples with KFold(5): whenever both 1s fall in the same
+    # 3-sample test fold, that fold's training y is all zeros (constant).
+    y = np.array([1.0, 0.0, 0.0, 0.0, 1.0] + [0.0] * 10)
+    X[:, 0] += 3.0 * y
+
+    res_nan = permutation_test(
+        OPLS(n_orthogonal=0), X, y, n_permutations=40, cv=5, random_state=0
+    )
+    assert np.any(np.isnan(res_nan.permuted_q2))
+    assert 0.0 < res_nan.q2_p_value <= 1.0
+
+    res_zero = permutation_test(
+        OPLS(n_orthogonal=0),
+        X,
+        y,
+        n_permutations=40,
+        cv=5,
+        random_state=0,
+        error_score=0.0,
+    )
+    assert np.all(np.isfinite(res_zero.permuted_q2))
+
+    with pytest.raises(ValueError, match="non-constant target"):
+        permutation_test(
+            OPLS(n_orthogonal=0),
+            X,
+            y,
+            n_permutations=40,
+            cv=5,
+            random_state=0,
+            error_score="raise",
+        )
+
+    with pytest.raises(ValueError, match="error_score"):
+        permutation_test(OPLS(), X, y, n_permutations=2, error_score="bad")
+
+
+def test_empirical_p_value_excludes_nan_permutations():
+    from scikit_opls.validation import _empirical_p_value
+
+    # 3 valid null draws (one >= observed), plus 7 NaNs -> (1 + 1) / (3 + 1) = 0.5
+    perm = np.array([0.1, 0.8, -0.2] + [np.nan] * 7)
+    assert _empirical_p_value(0.5, perm) == pytest.approx(0.5)
+    # All-NaN null draws must return NaN, not 1 / (N + 1).
+    assert np.isnan(_empirical_p_value(0.5, np.full(10, np.nan)))
