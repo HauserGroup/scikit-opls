@@ -452,3 +452,49 @@ def test_unwrap_estimator_empty_pipeline():
     pipe = Pipeline([])
     with pytest.raises(TypeError, match="Pipeline must contain at least one step"):
         _unwrap_estimator_and_data(pipe, np.ones((5, 2)))
+
+
+def test_splot_display_centered_differs_from_subset_centered_on_shifted_subset():
+    """Verify 'centered' uses training origin and 'subset-centered' uses subset mean."""
+    X, y = _regression_data(seed=14, n_features=5)
+    X = X + np.array([10.0, -5.0, 2.0, 0.0, 8.0])
+    model = OPLS(n_components=1, n_orthogonal=1, scale="standard").fit(X, y)
+
+    # On full training data, centered and subset-centered agree.
+    full_c = SPlotDisplay.from_estimator(model, X, x_space="centered")
+    full_sc = SPlotDisplay.from_estimator(model, X, x_space="subset-centered")
+    assert_allclose(full_c.covariance, full_sc.covariance, atol=1e-12)
+    assert_allclose(full_c.correlation, full_sc.correlation, atol=1e-12)
+
+    # On a high-response subset whose mean differs from training mean, they differ,
+    # and both correlations stay bounded in [-1, 1].
+    subset = X[y > np.median(y)]
+    with pytest.warns(UserWarning, match="usually intended for the training data"):
+        sub_c = SPlotDisplay.from_estimator(model, subset, x_space="centered")
+    with pytest.warns(UserWarning, match="usually intended for the training data"):
+        sub_sc = SPlotDisplay.from_estimator(model, subset, x_space="subset-centered")
+
+    assert not np.allclose(sub_c.covariance, sub_sc.covariance)
+    assert not np.allclose(sub_c.correlation, sub_sc.correlation)
+    assert np.all((sub_c.correlation >= -1.0) & (sub_c.correlation <= 1.0))
+    assert np.all((sub_sc.correlation >= -1.0) & (sub_sc.correlation <= 1.0))
+    plt.close("all")
+
+
+def test_splot_display_tiny_physical_scale_succeeds():
+    """Valid signals at 1e-7 amplitude must not trip false zero-variance floors."""
+    import warnings
+
+    X, y = _regression_data(seed=17, n_features=4)
+    X_tiny = X * 1e-7
+    y_tiny = y * 1e-7
+    model = OPLS(n_components=1, n_orthogonal=1, scale="none").fit(X_tiny, y_tiny)
+
+    with warnings.catch_warnings(record=True) as record:
+        warnings.simplefilter("always")
+        disp = SPlotDisplay.from_estimator(model, X_tiny, x_space="centered")
+
+    assert not any(issubclass(w.category, RuntimeWarning) for w in record)
+    assert np.all(np.isfinite(disp.correlation))
+    assert np.all((disp.correlation >= -1.0) & (disp.correlation <= 1.0))
+    plt.close("all")

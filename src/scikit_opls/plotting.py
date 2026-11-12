@@ -8,10 +8,6 @@ a ``plot`` method that draws them, and stored ``ax_`` / ``figure_`` handles.
 imported lazily inside ``plot``, so importing this module never requires it.
 """
 
-# The sklearn validation helpers are under-typed; suppress false positives from
-# fittedness/metadata validation calls in this plotting adapter.
-# pyright: reportArgumentType=false
-
 from __future__ import annotations
 
 import warnings
@@ -26,8 +22,9 @@ from sklearn.utils.validation import check_is_fitted
 
 from scikit_opls._opls import OPLS
 from scikit_opls._opls_da import OPLSDA
-from scikit_opls._preprocessing import apply_scaling
-from scikit_opls._utils import _validate_int
+from scikit_opls._utils import _EPS, _validate_int
+
+_TINY = float(np.finfo(np.float64).tiny)
 
 if TYPE_CHECKING:
     import matplotlib.axes
@@ -304,17 +301,6 @@ class OPLSScoresDisplay:
 class SPlotDisplay:
     """S-plot: covariance vs correlation of each feature with the predictive score.
 
-    .. note::
-        SPlotDisplay is intended for the fitted training data.
-        For x_space="centered", X is centered by the fitted model mean.
-        For x_space="scaled", X is centered/scaled by the fitted model preprocessing.
-        For x_space="subset-centered", X is centered by the provided subset mean.
-
-        When ``estimator`` is a pipeline, the S-plot is computed in the feature
-        space received by the final OPLS-family step after upstream transformations.
-        Points may therefore represent transformed features rather than original
-        input columns.
-
     Accepts [`OPLS`][scikit_opls.OPLS], [`OPLSDA`][scikit_opls.OPLSDA], or a pipeline
     ending in one. Construct with
     [`from_estimator`][scikit_opls.plotting.SPlotDisplay.from_estimator].
@@ -335,6 +321,20 @@ class SPlotDisplay:
     scatter_ : matplotlib PathCollection
         The scatter plot artist (set by
         [`plot`][scikit_opls.plotting.SPlotDisplay.plot]).
+
+    Notes
+    -----
+    ``SPlotDisplay`` is primarily intended for the fitted training data:
+
+    - ``x_space="centered"`` measures deviations around the fitted training mean.
+    - ``x_space="scaled"`` measures deviations in the fitted model-scaled space.
+    - ``x_space="subset-centered"`` centers the provided ``X`` subset and its
+      projected scores by their own subset means.
+
+    When ``estimator`` is a [`Pipeline`][sklearn.pipeline.Pipeline], the S-plot
+    is computed in the feature space received by the final OPLS-family step
+    after upstream transformations; plotted points therefore correspond to those
+    transformed features rather than raw pipeline input columns.
     """
 
     ax_: matplotlib.axes.Axes
@@ -409,33 +409,44 @@ class SPlotDisplay:
                 stacklevel=2,
             )
 
-        # Scores always come from the fitted model preprocessing/filtering. The
-        # S-plot axes can use original-unit or model-scaled feature space.
-        if x_space == "centered":
-            X_for_splot = X_trans - base.x_mean_
-        elif x_space == "scaled":
-            X_for_splot = apply_scaling(X_trans, base.x_mean_, base.x_std_)
-        else:
-            X_for_splot = X_trans - X_trans.mean(axis=0)
-
-        # Use the fitted predictive score for the selected component as the common
-        # reference vector for both covariance and correlation.
+        # Project supplied data through the fitted preprocessing/filtering path.
         proj = base._project_validated(X_trans)
-        t = np.asarray(proj.t_pred)[:, component]
-        t = t - t.mean()
-        n = t.shape[0]
+        t_raw = np.asarray(proj.t_pred, dtype=np.float64)[:, component]
+        n = t_raw.shape[0]
+        dof = max(n - 1, 1)
 
-        covariance = X_for_splot.T @ t / max(n - 1, 1)
-        x_std = X_for_splot.std(axis=0, ddof=1)
-        t_std = float(t.std(ddof=1))
-        if t_std <= 1e-12:
+        t_sample_std = float(t_raw.std(ddof=1))
+        t_mag = float(np.max(np.abs(t_raw)))
+        if t_sample_std <= max(10.0 * _EPS * t_mag, _TINY):
             raise ValueError("Predictive score has zero variance; S-plot is undefined.")
 
-        denom = x_std * t_std
+        x_sample_std = X_trans.std(axis=0, ddof=1)
+        x_mag = np.max(np.abs(X_trans), axis=0)
+        feature_has_var = (x_sample_std > 10.0 * _EPS * x_mag) & (x_sample_std > _TINY)
+
+        # Fitted training mean in original feature units (handles scale="none"
+        # where x_mean_ is zero and _filter_input_mean holds the training mean).
+        train_mean = base.x_mean_ + base._filter_input_mean
+        if x_space == "centered":
+            X_dev = X_trans - train_mean
+            t_dev = t_raw
+        elif x_space == "scaled":
+            X_dev = (X_trans - train_mean) / base.x_std_
+            t_dev = t_raw
+        else:
+            X_dev = X_trans - X_trans.mean(axis=0)
+            t_dev = t_raw - t_raw.mean()
+
+        covariance = (X_dev.T @ t_dev) / dof
+        x_disp = np.sqrt(np.sum(X_dev**2, axis=0) / dof)
+        t_disp = float(np.sqrt(np.sum(t_dev**2) / dof))
+
+        denom = x_disp * t_disp
         correlation = np.full_like(covariance, np.nan)
-        valid = denom > 1e-12
-        # Constant features have zero denominator; leave their correlations as NaN.
-        correlation[valid] = covariance[valid] / denom[valid]
+        valid = feature_has_var & (denom > _TINY)
+        # Constant features have zero denominator; leave their correlations as NaN,
+        # and clip valid entries to [-1, 1] against floating-point overshoot.
+        correlation[valid] = np.clip(covariance[valid] / denom[valid], -1.0, 1.0)
 
         if np.any(~valid):
             warnings.warn(
