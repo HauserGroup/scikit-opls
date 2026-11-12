@@ -54,20 +54,6 @@ class _OPLSProjection:
     t_ortho: NDArray[np.float64]
 
 
-def _apply_orthogonal_filter_left(
-    vec: NDArray[np.float64],
-    x_ortho_weights: NDArray[np.float64],
-    x_ortho_loadings: NDArray[np.float64],
-) -> NDArray[np.float64]:
-    """Apply the sequential orthogonal filter ``F`` from the left (``vec @ F``)."""
-    out = np.asarray(vec, dtype=np.float64).copy()
-    W = np.asarray(x_ortho_weights, dtype=np.float64)
-    P = np.asarray(x_ortho_loadings, dtype=np.float64)
-    for i in range(W.shape[1]):
-        out = out - float(out @ W[:, i]) * P[:, i]
-    return out
-
-
 def _apply_orthogonal_filter_right(
     x_ortho_weights: NDArray[np.float64],
     x_ortho_loadings: NDArray[np.float64],
@@ -85,17 +71,16 @@ def _apply_orthogonal_filter_right(
 
 def _compose_raw_coefficients(
     coef_filtered: NDArray[np.float64],
-    intercept_filtered: float | NDArray[np.float64],
-    x_mean: NDArray[np.float64],
+    centered_intercept: float | NDArray[np.float64],
+    raw_x_origin: NDArray[np.float64],
     x_std: NDArray[np.float64],
-    filter_offset: NDArray[np.float64],
     x_ortho_weights: NDArray[np.float64],
     x_ortho_loadings: NDArray[np.float64],
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Collapse filtered/scaled-space PLS coefficients into raw-X coefficients.
 
-    ``intercept_filtered`` must be the predictive engine's prediction at zero
-    filtered input (``pls_.predict(0)``), not necessarily its public ``intercept_``.
+    ``centered_intercept`` is the model prediction at ``raw_x_origin`` (the
+    fitted raw training mean), computed without evaluating around ``X = 0``.
     """
     coef_arr = np.asarray(coef_filtered, dtype=np.float64)
     if coef_arr.ndim == 1:
@@ -114,11 +99,9 @@ def _compose_raw_coefficients(
     # Then fold in the original column scaling to obtain raw-X coefficients.
     b_raw = inv_scale[:, None] * b_scaled
 
-    offset_scaled = np.asarray(x_mean, dtype=np.float64) * inv_scale
     intercept_raw = (
-        np.asarray(intercept_filtered, dtype=np.float64)
-        + np.asarray(filter_offset, dtype=np.float64) @ b_filtered
-        - offset_scaled @ b_scaled
+        np.asarray(centered_intercept, dtype=np.float64)
+        - np.asarray(raw_x_origin, dtype=np.float64) @ b_raw
     )
     return b_raw.T, intercept_raw
 
@@ -280,6 +263,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     x_std_: NDArray[np.float64]
     _filter_input_mean: NDArray[np.float64]
     _pls_x_mean: NDArray[np.float64]
+    _raw_x_origin: NDArray[np.float64]
+    _centered_intercept: NDArray[np.float64]
     _score_dist_cache: dict[
         str, tuple[NDArray[np.float64], float | NDArray[np.float64]]
     ]
@@ -339,7 +324,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         X_arr, y_arr = self._validate_fit_data(X, y)
         Xs, X_filtered = self._fit_orthogonal_filter(X_arr, y_arr)
         self._fit_predictive_engine(X_filtered, y_arr)
-        self._set_raw_coefficients(X_filtered)
+        self._set_raw_coefficients()
         self._set_fit_diagnostics(Xs, X_filtered, y_arr)
         return self
 
@@ -452,25 +437,23 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         # compute and store that mean directly without relying on private _x_mean.
         self._pls_x_mean = X_filtered.mean(axis=0)
 
-    def _set_raw_coefficients(self, X_filtered: NDArray[np.float64]) -> None:
-        engine_offset = np.asarray(
-            self.pls_.predict(np.zeros((1, X_filtered.shape[1]), dtype=np.float64)),
-            dtype=np.float64,
-        ).ravel()
-        if self.scale == "none" and self.n_orthogonal_ > 0:
-            filter_offset = self._filter_input_mean - _apply_orthogonal_filter_left(
-                self._filter_input_mean,
-                self.x_ortho_weights_,
-                self.x_ortho_loadings_,
-            )
-        else:
-            filter_offset = np.zeros(X_filtered.shape[1], dtype=np.float64)
+    def _set_raw_coefficients(self) -> None:
+        coef_arr = np.asarray(self.coef_filtered_, dtype=np.float64)
+        if coef_arr.ndim == 1:
+            coef_arr = coef_arr.reshape(1, -1)
+        b_filtered = coef_arr.T
+        self._raw_x_origin = self.x_mean_ + self._filter_input_mean
+        # Evaluate the intercept at the fitted training origin rather than X = 0
+        # so large feature offsets cancel before the dot product with b_filtered.
+        self._centered_intercept = (
+            np.asarray(self.intercept_, dtype=np.float64).ravel()
+            + (self._filter_input_mean - self._pls_x_mean) @ b_filtered
+        )
         self.coef_raw_, self.intercept_raw_ = _compose_raw_coefficients(
-            self.coef_filtered_,
-            engine_offset,
-            self.x_mean_,
+            coef_arr,
+            self._centered_intercept,
+            self._raw_x_origin,
             self.x_std_,
-            filter_offset,
             self.x_ortho_weights_,
             self.x_ortho_loadings_,
         )
@@ -557,6 +540,14 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """Reconstruct scaled X from predictive scores."""
         return self._pls_x_mean + t_pred @ self.x_loadings_.T
 
+    def _predict_validated(self, X_valid: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Evaluate linear raw-X coefficients around the fitted training origin."""
+        return np.asarray(
+            (X_valid - self._raw_x_origin) @ self.coef_raw_.T
+            + self._centered_intercept,
+            dtype=np.float64,
+        ).ravel()
+
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
         """Predict ``y`` for new samples.
 
@@ -571,9 +562,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Predicted target values.
         """
         X_valid = self._validate_X_predict(X)
-        return np.asarray(
-            X_valid @ self.coef_raw_.T + self.intercept_raw_, dtype=np.float64
-        ).ravel()
+        return self._predict_validated(X_valid)
 
     def transform(self, X: ArrayLike) -> NDArray[np.float64]:
         """Project samples onto the predictive components.

@@ -253,10 +253,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             [`predict`][scikit_opls.OPLSDA.predict].
         """
         X_valid = self._validate_X_predict(X)
-        return np.asarray(
-            X_valid @ self.opls_.coef_raw_.T + self.opls_.intercept_raw_,
-            dtype=np.float64,
-        ).ravel()
+        return self.opls_._predict_validated(X_valid)
 
     def predict(self, X: ArrayLike) -> NDArray:
         """Predict class labels.

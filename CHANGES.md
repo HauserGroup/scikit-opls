@@ -78,8 +78,8 @@ and default-value changes will be documented here.
 - Computed explained-variance ratios in `_inspection` and `_o2pls_core` via
   `O(k^2 * (N + p))` cyclic trace identities instead of materializing `(N, p)`
   outer-product reconstructions.
-- Fast-pathed `OPLS.predict` and `OPLSDA.decision_function` via `coef_raw_` /
-  `intercept_raw_`, skipped redundant PLS projections in
+- Fast-pathed `OPLS.predict` and `OPLSDA.decision_function` via centered-origin
+  `coef_raw_` evaluation, skipped redundant PLS projections in
   `transform_orthogonal` / `filter_transform` and `OPLS.fit` diagnostics,
   gated `matrix_rank` checks to `n_components > 1`, cached training score
   dispersion in `score_distance`, and avoided redundant array copies on

@@ -159,3 +159,40 @@ def test_no_probability_param():
     assert "probability" not in OPLSDA().get_params()
     model = OPLSDA(n_orthogonal=1).fit(*_classification_data())
     assert not hasattr(model, "predict_proba")
+
+
+@pytest.mark.parametrize("scale", ["none", "center", "pareto", "standard"])
+def test_large_offset_features_preserve_decision_score_and_predicted_class(scale):
+    """Regression guard: 1e15 offsets must not round small positive scores to zero."""
+    X = (1e15 + np.array([-2.0, -1.0, 1.0, 2.0])).reshape(-1, 1)
+    y = np.array([0, 0, 1, 1])
+    X_query = np.array([[1e15 + 0.125]])
+
+    clf = OPLSDA(n_components=1, n_orthogonal=0, scale=scale).fit(X, y)
+
+    assert_allclose(
+        clf.decision_function(X_query), np.array([0.075]), rtol=1e-12, atol=1e-12
+    )
+    np.testing.assert_array_equal(clf.predict(X_query), np.array([1]))
+
+
+@pytest.mark.parametrize("scale", ["none", "center", "pareto", "standard"])
+def test_large_offset_features_with_orthogonal_component_preserve_predictions(scale):
+    """Orthogonal-filtered OPLS-DA preserves decision scores under 1e15 offsets."""
+    X_base = np.array([[-2.0, 1.0], [-1.0, -1.0], [1.0, 1.0], [2.0, -1.0]])
+    y = np.array(["ctrl", "ctrl", "case", "case"])
+    X_query_base = np.array([[0.125, 0.25], [-0.125, -0.25]])
+
+    ref = OPLSDA(n_components=1, n_orthogonal=1, scale=scale).fit(X_base, y)
+    shifted = OPLSDA(n_components=1, n_orthogonal=1, scale=scale).fit(1e15 + X_base, y)
+
+    assert_allclose(
+        shifted.decision_function(1e15 + X_query_base),
+        ref.decision_function(X_query_base),
+        rtol=1e-12,
+        atol=1e-12,
+    )
+    np.testing.assert_array_equal(
+        shifted.predict(1e15 + X_query_base),
+        ref.predict(X_query_base),
+    )
