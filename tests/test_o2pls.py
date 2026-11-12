@@ -261,10 +261,61 @@ def test_o2pls_predict_matches_scaled_filtered_coefficient_path_all_scales(scale
     X_raw = 10.0 + 3.0 * X
     Y_raw = -5.0 + 2.0 * Y
     model = O2PLS(scale=scale).fit(X_raw, Y_raw)
-    expected = (
-        model.filter_transform_x(X_raw) @ model.coef_filtered_
-    ) * model.y_std_ + model.y_mean_
+    X_filt = model.filter_transform_x(X_raw)
+    if scale == "none":
+        expected = (X_filt - model._x_input_mean) @ model.coef_filtered_ + (
+            model._y_input_mean
+        )
+    else:
+        expected = (X_filt @ model.coef_filtered_) * model.y_std_ + model.y_mean_
     assert_allclose(model.predict(X_raw), expected)
+
+
+def test_o2pls_scale_none_matches_center_and_is_translation_invariant():
+    X, Y = _make_o2pls_data(seed=21)
+    X_shifted = X + 500.0
+    Y_shifted = Y - 200.0
+
+    none_model = O2PLS(
+        n_components=2, n_x_orthogonal=1, n_y_orthogonal=1, scale="none"
+    ).fit(X_shifted, Y_shifted)
+    center_model = O2PLS(
+        n_components=2, n_x_orthogonal=1, n_y_orthogonal=1, scale="center"
+    ).fit(X_shifted, Y_shifted)
+    unshifted_model = O2PLS(
+        n_components=2, n_x_orthogonal=1, n_y_orthogonal=1, scale="none"
+    ).fit(X, Y)
+
+    assert none_model.score(X_shifted, Y_shifted) > 0.7
+    assert none_model.score(X_shifted, Y_shifted) == pytest.approx(
+        center_model.score(X_shifted, Y_shifted)
+    )
+    assert none_model.score(X_shifted, Y_shifted) == pytest.approx(
+        unshifted_model.score(X, Y)
+    )
+    assert_allclose(
+        none_model.predict(X_shifted), center_model.predict(X_shifted), atol=1e-10
+    )
+    assert_allclose(
+        none_model.predict_x(Y_shifted), center_model.predict_x(Y_shifted), atol=1e-10
+    )
+    assert_allclose(
+        none_model.transform(X_shifted), center_model.transform(X_shifted), atol=1e-10
+    )
+    assert_allclose(
+        none_model.transform_y(Y_shifted),
+        center_model.transform_y(Y_shifted),
+        atol=1e-10,
+    )
+    assert_allclose(none_model.r2x_, center_model.r2x_, atol=1e-12)
+    assert_allclose(none_model.r2y_, center_model.r2y_, atol=1e-12)
+    assert_allclose(none_model.r2x_ortho_, center_model.r2x_ortho_, atol=1e-12)
+    assert_allclose(none_model.r2y_ortho_, center_model.r2y_ortho_, atol=1e-12)
+
+    # With zero orthogonal components, filter_transform_x/y remain identities.
+    id_model = O2PLS(n_components=2, scale="none").fit(X_shifted, Y_shifted)
+    assert_allclose(id_model.filter_transform_x(X_shifted), X_shifted, atol=1e-12)
+    assert_allclose(id_model.filter_transform_y(Y_shifted), Y_shifted, atol=1e-12)
 
 
 def test_o2pls_predict_x_unscales_x():

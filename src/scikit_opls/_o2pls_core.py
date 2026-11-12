@@ -121,7 +121,23 @@ def _cross_cov_svd_x_to_y(
 
     # The cross-covariance SVD is the joint X/Y subspace estimate. ``svd_flip``
     # removes arbitrary sign flips so repeated runs expose stable fitted arrays.
+    # When n_samples < min(p, q), reduced QR of X^T and Y^T reduces the SVD from
+    # O(p * q * min(p, q)) to O((p + q) * n_samples^2 + n_samples^3).
+    n_samples = X.shape[0]
     try:
+        if n_samples < max_components and k <= n_samples:
+            Qx, Rx = np.linalg.qr(X.T, mode="reduced")
+            Qy, Ry = np.linalg.qr(Y.T, mode="reduced")
+            Ur, sr, Vtr = np.linalg.svd(Rx @ Ry.T, full_matrices=False)
+            U_k = Qx @ Ur[:, :k]
+            Vt_k = (Qy @ Vtr[:k, :].T).T
+            U_k, Vt_k = svd_flip(U_k, Vt_k)
+            s = (
+                np.pad(sr, (0, max_components - sr.size))
+                if sr.size < max_components
+                else sr
+            )
+            return U_k, Vt_k.T, s
         U, s, Vt = np.linalg.svd(X.T @ Y, full_matrices=False)
     except np.linalg.LinAlgError as exc:
         raise ValueError("SVD failed while computing X.T @ Y.") from exc
@@ -222,11 +238,12 @@ def _extract_one_orthogonal_component(
         return None
 
     try:
-        U, s, _ = np.linalg.svd(cross, full_matrices=False)
+        U, s, Vt = np.linalg.svd(cross, full_matrices=False)
     except np.linalg.LinAlgError:
         return None
     if s.size == 0 or s[0] <= 0.0:
         return None
+    U, _ = svd_flip(U, Vt)
 
     weight = U[:, 0]
     weight_norm = float(np.linalg.norm(weight))
@@ -385,20 +402,16 @@ def o2pls_fit(
             f"{max_components}."
         )
 
-    # Rank is judged on the original cross-covariance before any orthogonal
-    # filtering; the requested final joint space cannot exceed this.
-    _, _, s_initial_full = _cross_cov_svd_x_to_y(X0, Y0, max_components)
+    # Paper step 1: the preliminary joint subspace has exactly n_components
+    # columns, while ``s_initial_full`` exposes all singular values of the
+    # original cross-covariance so rank is judged before orthogonal filtering.
+    W_init, C_init, s_initial_full = _cross_cov_svd_x_to_y(X0, Y0, n_components)
     rank = _effective_rank(s_initial_full, tol)
     if rank < n_components:
         raise ValueError(
             f"n_components={n_components} exceeds the effective rank of X.T @ Y "
             f"({rank})."
         )
-
-    # Paper step 1: the preliminary joint subspace has exactly n_components
-    # columns. Orthogonal directions are then sought in the part of each block
-    # not spanned by these joint weights (steps 3 and 5).
-    W_init, C_init, _ = _cross_cov_svd_x_to_y(X0, Y0, n_components)
 
     # A block cannot yield more independent deflations than its rank bound, and
     # every resolvability test is measured against the original block's energy:
@@ -487,14 +500,25 @@ def o2pls_fit(
     Y_orth_scores = _stack_columns(y_scores, n_samples)
     Y_orth_loadings = _stack_columns(y_loadings, n_y_features)
 
-    # Reconstruct nominal joint, orthogonal and residual parts in the original
-    # preprocessed coordinates for diagnostics and estimator attributes.
+    # Reconstruct nominal joint and residual parts in the original preprocessed
+    # coordinates. Sequential deflation already yields X_work == X0 - X_orth and
+    # Y_work == Y0 - Y_orth, avoiding extra (n_samples, n_features) allocations.
     X_joint = T @ W.T
     Y_joint = U @ C.T
-    X_orth = X_orth_scores @ X_orth_loadings.T
-    Y_orth = Y_orth_scores @ Y_orth_loadings.T
-    X_residuals = X0 - X_joint - X_orth
-    Y_residuals = Y0 - Y_joint - Y_orth
+    X_residuals = X_work - X_joint
+    Y_residuals = Y_work - Y_joint
+    x_orth_ssq = float(
+        np.sum(
+            (X_orth_scores.T @ X_orth_scores) * (X_orth_loadings.T @ X_orth_loadings)
+        )
+    )
+    y_orth_ssq = float(
+        np.sum(
+            (Y_orth_scores.T @ Y_orth_scores) * (Y_orth_loadings.T @ Y_orth_loadings)
+        )
+    )
+    r2x_ortho = 0.0 if x_ref_ssq == 0.0 else x_orth_ssq / x_ref_ssq
+    r2y_ortho = 0.0 if y_ref_ssq == 0.0 else y_orth_ssq / y_ref_ssq
 
     return O2PLSComponents(
         x_joint_weights=W,
@@ -517,8 +541,8 @@ def o2pls_fit(
         y_residuals=Y_residuals,
         r2x=_reconstruction_r2(X_joint, X0),
         r2y=_reconstruction_r2(Y_joint, Y0),
-        r2x_ortho=_reconstruction_r2(X_orth, X0),
-        r2y_ortho=_reconstruction_r2(Y_orth, Y0),
+        r2x_ortho=r2x_ortho,
+        r2y_ortho=r2y_ortho,
         singular_values_initial=s_initial_full,
         singular_values_final=s_final,
         n_components=n_components,
