@@ -41,10 +41,10 @@ classifiers = [
     "Typing :: Typed",
 ]
 dependencies = [
-    "joblib>=1.6.0",
+    "joblib>=1.4",
     "numpy>=1.26",
     "scikit-learn>=1.6",
-    "scipy>=1.18.1",
+    "scipy>=1.13",
 ]
 
 [project.urls]
@@ -72,7 +72,7 @@ dev = [
     "pyright>=1.1.411",
     "pytest>=9.1.1",
     "pytest-cov>=7.0.0",
-    "ruff>=0.16.6",
+    "ruff>=0.17.1",
     "zensical>=0.0.51",
 ]
 
@@ -87,6 +87,8 @@ include = [
     "src/scikit_opls",
     "tests",
     "docs",
+    "examples",
+    "zensical.toml",
     "LICENSE",
     "README.md",
     "CHANGES.md",
@@ -147,3 +149,4 @@ exclude_lines = [
 # Type-check against the support floor. We develop on 3.13 locally, but the
 # package supports 3.12+, so pin the analysis to catch 3.13-only APIs.
 pythonVersion = "3.12"
+include = ["src", "tests", "examples"]

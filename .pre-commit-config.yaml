@@ -19,10 +19,10 @@ repos:
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     # Keep in sync with the `ruff` pin in the pyproject dev group.
-    rev: v0.16.6
+    rev: v0.17.1
     hooks:
       # Run the linter.
-      - id: ruff
+      - id: ruff-check
         types_or: [python, pyi, jupyter]
         args: [--fix, --exit-non-zero-on-fix]
       # Run the formatter.
@@ -51,9 +51,11 @@ repos:
 
 
   - repo: https://github.com/executablebooks/mdformat
-    rev: 0.7.22
+    rev: 1.0.0
     hooks:
       - id: mdformat
-        exclude: ^docs/changelog\.md$
+        # Exclude MkDocs/Zensical syntax (admonitions, mkdocstrings ::: blocks,
+        # snippet includes) and YAML-frontmatter files.
+        exclude: ^(docs/(changelog|quickstart|api/.*)\.md|\.github/ISSUE_TEMPLATE/.*\.md|\.agents/.*\.md)$
         additional_dependencies:
           - mdformat-gfm
