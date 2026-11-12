@@ -23,13 +23,13 @@ Run these before opening a pull request (CI runs the same set):
 uv run pytest --cov        # tests + coverage
 uv run ruff check          # lint
 uv run ruff format --check # format check
-uv run pyright src         # type-check
+uv run pyright src tests examples  # type-check
 uv run pre-commit run --all-files
 ```
 
 ## Standards
 
-- **Estimator compliance.** `tests/test_sklearn_compat.py` runs
+- **Estimator compliance.** `tests/test_estimator_compat.py` runs
   `parametrize_with_checks` over the estimators. This is a hard gate; resolve any
   newly triggered checks rather than silencing them. New public params/methods
   must keep the suite green.

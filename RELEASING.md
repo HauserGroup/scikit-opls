@@ -34,7 +34,8 @@ For a first release of a name that does not exist on PyPI yet, register a
 1. Bump `__version__` in `src/scikit_opls/version.py`. Follow semver.
 1. Move the `Unreleased` section of `CHANGES.md` under the new version with the
    release date.
-1. Update `version` and `date-released` in `CITATION.cff`.
+1. Update `version` and `date-released` in `CITATION.cff`, and update `version`
+   in the BibTeX snippet in `docs/citing.md`.
 1. Review minimum dependency versions in `pyproject.toml`; bump the floor per
    the scikit-learn "bump minimum versions" discipline if appropriate.
 1. Commit, tag, and push:
