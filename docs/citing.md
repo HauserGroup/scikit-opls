@@ -14,7 +14,7 @@ GitHub renders a formatted citation from it under **Cite this repository**.
   author  = {Madsen, Jakob S.},
   title   = {scikit-opls: Orthogonal Projections to Latent Structures for scikit-learn},
   url     = {https://github.com/HauserGroup/scikit-opls},
-  version = {0.1.0}
+  version = {0.2.0}
 }
 ```
 

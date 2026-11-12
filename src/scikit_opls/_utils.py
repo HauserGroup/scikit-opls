@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 from numbers import Integral
+from typing import Any, cast
 
 import numpy as np
-from numpy.typing import ArrayLike
+from numpy.typing import ArrayLike, NDArray
+from sklearn.base import BaseEstimator
+from sklearn.utils.validation import check_array, validate_data
 
 _EPS = np.finfo(np.float64).eps
 
@@ -67,3 +70,76 @@ def _has_nonzero_variation(
     spread = float(np.max(np.abs(centered)))
     scale = float(np.max(np.abs(arr)))
     return spread > _EPS * scale
+
+
+def _validate_x(
+    estimator: BaseEstimator,
+    X: ArrayLike,
+    *,
+    copy: bool = False,
+    reset: bool = False,
+    ensure_min_samples: int = 1,
+) -> NDArray[np.float64]:
+    """Typed wrapper around ``sklearn.utils.validation.validate_data`` for X."""
+    out = cast(Any, validate_data)(
+        estimator,
+        X,
+        dtype=np.float64,
+        ensure_min_samples=ensure_min_samples,
+        copy=copy,
+        reset=reset,
+    )
+    return cast(NDArray[np.float64], out)
+
+
+def _validate_xy(
+    estimator: BaseEstimator,
+    X: ArrayLike,
+    y: ArrayLike,
+    *,
+    copy: bool = True,
+    reset: bool = True,
+    ensure_min_samples: int = 2,
+    multi_output: bool = False,
+) -> tuple[NDArray[np.float64], NDArray[Any]]:
+    """Typed wrapper around ``sklearn.utils.validation.validate_data`` for (X, y)."""
+    x_out, y_out = cast(Any, validate_data)(
+        estimator,
+        X,
+        y,
+        dtype=np.float64,
+        ensure_min_samples=ensure_min_samples,
+        copy=copy,
+        reset=reset,
+        multi_output=multi_output,
+    )
+    return cast(NDArray[np.float64], x_out), cast(NDArray[Any], y_out)
+
+
+def _check_array_float64(
+    array: ArrayLike,
+    *,
+    ensure_2d: bool = True,
+    ensure_min_samples: int = 1,
+    copy: bool = False,
+) -> NDArray[np.float64]:
+    """Typed wrapper around ``sklearn.utils.validation.check_array``."""
+    out = cast(Any, check_array)(
+        array,
+        dtype=np.float64,
+        ensure_2d=ensure_2d,
+        ensure_min_samples=ensure_min_samples,
+        copy=copy,
+    )
+    return cast(NDArray[np.float64], out)
+
+
+def _extract_feature_names(data: object) -> NDArray[np.object_] | None:
+    """Return string column names for DataFrame-like 2D containers, else ``None``."""
+    columns = getattr(data, "columns", None)
+    if columns is None:
+        return None
+    names = list(columns)
+    if not names or not all(isinstance(name, str) for name in names):
+        return None
+    return np.asarray(names, dtype=object)

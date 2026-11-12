@@ -53,11 +53,7 @@ def component_explained_x_variance(
     """Per-component ``SS(t_i @ p_i.T) / SS(X)`` for fitted arrays."""
     X, scores, loadings = _validate_x_scores_loadings(X, scores, loadings)
     total = _safe_total_ss(X)
-    out = np.empty(scores.shape[1], dtype=np.float64)
-    for i in range(scores.shape[1]):
-        Xi = scores[:, [i]] @ loadings[:, [i]].T
-        out[i] = np.sum(Xi**2) / total
-    return out
+    return (np.sum(scores**2, axis=0) * np.sum(loadings**2, axis=0)) / total
 
 
 def component_r2y_from_scores(
@@ -96,11 +92,7 @@ def component_r2y_from_scores(
     if not np.all(np.isfinite(Q)):
         raise ValueError("y_loadings must contain only finite values.")
     total = _safe_total_ss(y_arr - y_arr.mean(axis=0, keepdims=True))
-    out = np.empty(T.shape[1], dtype=np.float64)
-    for i in range(T.shape[1]):
-        Yi = T[:, [i]] @ Q[:, [i]].T
-        out[i] = np.sum(Yi**2) / total
-    return out
+    return (np.sum(T**2, axis=0) * np.sum(Q**2, axis=0)) / total
 
 
 def explained_x_variance(
@@ -115,7 +107,10 @@ def explained_x_variance(
     total = float(np.sum(X**2))
     if total <= 0.0:
         return 0.0
-    return float(np.sum((scores @ loadings.T) ** 2) / total)
+    # Use cyclic trace identity ||T P^T||_F^2 = sum((T^T T) * (P^T P)) so high-p
+    # omics/spectroscopy blocks never materialize an (n_samples, n_features) copy.
+    reconstructed_ss = float(np.sum((scores.T @ scores) * (loadings.T @ loadings)))
+    return reconstructed_ss / total
 
 
 def _weighted_vip(

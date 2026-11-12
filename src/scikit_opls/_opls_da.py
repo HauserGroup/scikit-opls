@@ -11,10 +11,8 @@ has enough
 samples for the chosen calibration CV split.
 """
 
-# See _opls.py: scikit-learn's validate_data is under-typed; suppress the
-# resulting static-checker false positives. reportAbstractUsage covers
-# Interval/StrOptions (abstract __str__ not visibly overridden).
-# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
+# reportAbstractUsage covers Interval/StrOptions: their base _Constraint declares
+# __str__ abstract and the subclass override is not visible to static type checkers.
 # pyright: reportAbstractUsage=false
 
 from __future__ import annotations
@@ -27,11 +25,11 @@ from sklearn.base import BaseEstimator, ClassifierMixin
 from sklearn.preprocessing import LabelEncoder
 from sklearn.utils._param_validation import Interval, StrOptions
 from sklearn.utils.multiclass import check_classification_targets, type_of_target
-from sklearn.utils.validation import check_is_fitted, validate_data
+from sklearn.utils.validation import check_is_fitted
 
 from scikit_opls._opls import OPLS
 from scikit_opls._preprocessing import VALID_SCALING
-from scikit_opls._utils import _reject_bool_param
+from scikit_opls._utils import _reject_bool_param, _validate_x, _validate_xy
 
 
 class OPLSDA(ClassifierMixin, BaseEstimator):
@@ -91,6 +89,18 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
     sklearn.calibration.CalibratedClassifierCV : Wrapper providing calibrated
         class probabilities from
         [`decision_function`][scikit_opls.OPLSDA.decision_function].
+
+    Notes
+    -----
+    Because the binary target is encoded as ``-1`` / ``+1`` and fitted by
+    ordinary PLS regression, the fitted response mean is
+    ``(n_pos - n_neg) / n_samples``. Under strong class imbalance the zero
+    decision threshold shifts toward the majority class prior; wrap ``OPLSDA``
+    in [`CalibratedClassifierCV`][sklearn.calibration.CalibratedClassifierCV]
+    or tune a decision threshold on
+    [`decision_function`][scikit_opls.OPLSDA.decision_function] via
+    [`TunedThresholdClassifierCV`][sklearn.model_selection.TunedThresholdClassifierCV]
+    when balanced sensitivity/specificity is required.
 
     References
     ----------
@@ -166,11 +176,10 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         # inputs with string columns, feature_names_in_ on the OUTER estimator.
         # The returned X is an ndarray, which is what we intentionally pass to the
         # inner OPLS so OPLSDA owns the public input validation contract.
-        X_valid, y_valid = validate_data(
+        X_valid, y_valid = _validate_xy(
             self,
             X,
             y,
-            dtype=np.float64,
             ensure_min_samples=2,
             copy=self.copy,
             reset=True,
@@ -178,7 +187,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         check_classification_targets(y_valid)
 
         self._label_encoder = LabelEncoder().fit(y_valid)
-        self.classes_ = self._label_encoder.classes_
+        self.classes_ = np.asarray(self._label_encoder.classes_)
 
         if self.classes_.shape[0] != 2:
             y_type = type_of_target(y_valid, input_name="y")
@@ -187,7 +196,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
                 f"The type of the target is {y_type}."
             )
 
-        y_encoded = self._label_encoder.transform(y_valid)
+        y_encoded = np.asarray(self._label_encoder.transform(y_valid), dtype=np.intp)
 
         counts = np.bincount(y_encoded)
         if np.any(counts < 2):
@@ -197,12 +206,15 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         # boundary: negative -> classes_[0], positive -> classes_[1].
         y_dummy = np.where(y_encoded == 1, 1.0, -1.0)
 
+        # Outer validation already enforced self.copy; avoid a duplicate X copy
+        # inside the inner regressor, then mirror self.copy on the fitted child.
         self.opls_ = OPLS(
             n_components=self.n_components,
             n_orthogonal=self.n_orthogonal,
             scale=self.scale,
-            copy=self.copy,
+            copy=False,
         ).fit(X_valid, y_dummy)
+        self.opls_.copy = self.copy
 
         # The inner OPLS was deliberately fitted on a validated ndarray. Mirror the
         # public feature metadata onto it so plotting/helper code that uses
@@ -221,16 +233,9 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
         check_is_fitted(self)
 
         # validate_data(..., reset=False) checks n_features_in_ and feature_names_in_
-        # against OPLSDA, then returns a nameless ndarray. Passing that ndarray to
-        # the inner OPLS avoids the spurious "fitted without feature names" warning.
-        X_valid = validate_data(
-            self,
-            X,
-            dtype=np.float64,
-            copy=self.copy,
-            reset=False,
-        )
-        return np.asarray(X_valid, dtype=np.float64)
+        # against OPLSDA, then returns a nameless ndarray. Read-only callers do not
+        # mutate X_valid, so copy=False avoids redundant allocations.
+        return _validate_x(self, X, copy=False, reset=False)
 
     def decision_function(self, X: ArrayLike) -> NDArray[np.float64]:
         """Raw signed OPLS regression output; positive favours ``classes_[1]``.
@@ -248,10 +253,7 @@ class OPLSDA(ClassifierMixin, BaseEstimator):
             [`predict`][scikit_opls.OPLSDA.predict].
         """
         X_valid = self._validate_X_predict(X)
-        proj = self.opls_._project_validated(X_valid)
-        return np.asarray(
-            self.opls_.pls_.predict(proj.X_filtered), dtype=np.float64
-        ).ravel()
+        return self.opls_._predict_validated(X_valid)
 
     def predict(self, X: ArrayLike) -> NDArray:
         """Predict class labels.

@@ -1,14 +1,13 @@
 """O2PLS regressor with a scikit-learn interface."""
 
-# scikit-learn's validation helpers use dynamic sentinel defaults that static
-# type checkers do not model well. Runtime sklearn checks and tests are the gate.
-# pyright: reportArgumentType=false, reportAttributeAccessIssue=false
-# pyright: reportReturnType=false, reportAbstractUsage=false
+# reportAbstractUsage covers Interval/StrOptions: their base _Constraint declares
+# __str__ abstract and the subclass override is not visible to static type checkers.
 # reportIncompatibleMethodOverride: sparse input is rejected by tags/validation.
-# pyright: reportIncompatibleMethodOverride=false
+# pyright: reportAbstractUsage=false, reportIncompatibleMethodOverride=false
 
 from __future__ import annotations
 
+import warnings
 from numbers import Integral
 
 import numpy as np
@@ -17,9 +16,7 @@ from sklearn.base import BaseEstimator, RegressorMixin, TransformerMixin
 from sklearn.utils._param_validation import Interval, StrOptions
 from sklearn.utils.validation import (
     _check_feature_names_in,
-    check_array,
     check_is_fitted,
-    validate_data,
 )
 
 from scikit_opls._o2pls_core import (
@@ -28,7 +25,14 @@ from scikit_opls._o2pls_core import (
     o2pls_fit,
 )
 from scikit_opls._preprocessing import VALID_SCALING, apply_scaling, compute_scaling
-from scikit_opls._utils import _has_nonzero_variation, _reject_bool_param
+from scikit_opls._utils import (
+    _check_array_float64,
+    _extract_feature_names,
+    _has_nonzero_variation,
+    _reject_bool_param,
+    _validate_x,
+    _validate_xy,
+)
 
 
 class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
@@ -113,6 +117,9 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         Names of features seen during [`fit`][scikit_opls.O2PLS.fit]. Defined only when
         ``X`` has
         feature names that are all strings.
+    y_feature_names_in_ : ndarray of shape (n_targets_,)
+        Names of target columns seen during [`fit`][scikit_opls.O2PLS.fit]. Defined
+        only when 2D ``y`` has column names that are all strings.
 
     See Also
     --------
@@ -156,12 +163,15 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
     """
 
     n_features_in_: int
-    feature_names_in_: NDArray[np.str_]
+    feature_names_in_: NDArray[np.object_]
+    y_feature_names_in_: NDArray[np.object_]
     n_targets_: int
     x_mean_: NDArray[np.float64]
     x_std_: NDArray[np.float64]
     y_mean_: NDArray[np.float64]
     y_std_: NDArray[np.float64]
+    _x_input_mean: NDArray[np.float64]
+    _y_input_mean: NDArray[np.float64]
     x_joint_weights_: NDArray[np.float64]
     y_joint_weights_: NDArray[np.float64]
     x_joint_scores_: NDArray[np.float64]
@@ -240,15 +250,21 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         # Preserve whether the user supplied 1D or 2D Y so predict() can mirror the
         # fitted output convention after all internal work has used a 2D block.
         self._y_ndim = np.asarray(y).ndim
-        X, Y_valid = validate_data(
+        y_names = _extract_feature_names(y)
+        X_arr, Y_valid = _validate_xy(
             self,
             X,
             y,
-            dtype=np.float64,
             ensure_min_samples=2,
             copy=self.copy,
+            reset=True,
             multi_output=True,
         )
+        if y_names is not None:
+            self.y_feature_names_in_ = y_names
+        elif hasattr(self, "y_feature_names_in_"):
+            del self.y_feature_names_in_
+
         Y2 = self._as_2d_target(Y_valid)
         self.n_targets_ = Y2.shape[1]
         # A univariate Y block has no separate Y-feature subspace, so keep v1 to the
@@ -259,9 +275,9 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
             if self.n_y_orthogonal != 0:
                 raise ValueError("O2PLS v1 requires n_y_orthogonal=0 for univariate Y.")
 
-        self.x_mean_, self.x_std_ = compute_scaling(X, self.scale)
+        self.x_mean_, self.x_std_ = compute_scaling(X_arr, self.scale)
         self.y_mean_, self.y_std_ = compute_scaling(Y2, self.scale)
-        Xs = apply_scaling(X, self.x_mean_, self.x_std_)
+        Xs = apply_scaling(X_arr, self.x_mean_, self.x_std_)
         Ys = apply_scaling(Y2, self.y_mean_, self.y_std_)
         # Constant blocks make both joint and orthogonal directions undefined.
         if not _has_nonzero_variation(Xs, axis=0):
@@ -269,9 +285,24 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         if not _has_nonzero_variation(Ys, axis=0):
             raise ValueError("Y has no non-zero variation after preprocessing.")
 
+        # O2PLS models covariation around the training means (matching OPLS and
+        # PLSRegression). Every scaling mode except ``none`` already centers X and Y;
+        # for ``none``, center internally while preserving the public identity
+        # scaling vectors x_mean_/y_mean_ and filter_transform_{x,y} contract.
+        if self.scale == "none":
+            self._x_input_mean = Xs.mean(axis=0)
+            self._y_input_mean = Ys.mean(axis=0)
+            X_fit_input = Xs - self._x_input_mean
+            Y_fit_input = Ys - self._y_input_mean
+        else:
+            self._x_input_mean = np.zeros(Xs.shape[1], dtype=np.float64)
+            self._y_input_mean = np.zeros(Ys.shape[1], dtype=np.float64)
+            X_fit_input = Xs
+            Y_fit_input = Ys
+
         fit = o2pls_fit(
-            Xs,
-            Ys,
+            X_fit_input,
+            Y_fit_input,
             self.n_components,
             self.n_x_orthogonal,
             self.n_y_orthogonal,
@@ -292,8 +323,16 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self.y_orthogonal_loadings_ = fit.y_orthogonal_loadings
         self.b_t_ = fit.b_t
         self.b_u_ = fit.b_u
-        self.x_filtered_ = fit.x_filtered
-        self.y_filtered_ = fit.y_filtered
+        self.x_filtered_ = (
+            fit.x_filtered + self._x_input_mean
+            if self.scale == "none"
+            else fit.x_filtered
+        )
+        self.y_filtered_ = (
+            fit.y_filtered + self._y_input_mean
+            if self.scale == "none"
+            else fit.y_filtered
+        )
         self.x_residuals_ = fit.x_residuals
         self.y_residuals_ = fit.y_residuals
         self.r2x_ = fit.r2x
@@ -330,7 +369,10 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         # Only X-specific structure is filtered when predicting Y from X; the Y-side
         # orthogonal model is used by predict_x() and transform_y().
         X_filtered = self.filter_transform_x(X)
-        y_scaled = X_filtered @ self.coef_filtered_
+        X_in = X_filtered - self._x_input_mean if self.scale == "none" else X_filtered
+        y_scaled = X_in @ self.coef_filtered_
+        if self.scale == "none":
+            y_scaled = y_scaled + self._y_input_mean
         y_pred = self._unscale_y(y_scaled)
         return self._restore_y_shape(y_pred)
 
@@ -349,10 +391,13 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """
         check_is_fitted(self)
         Y_filtered = self.filter_transform_y(Y)
+        Y_in = Y_filtered - self._y_input_mean if self.scale == "none" else Y_filtered
         # Project filtered Y into joint score space, map to X scores, then rebuild X.
-        U = Y_filtered @ self.y_joint_weights_
+        U = Y_in @ self.y_joint_weights_
         T_pred = U @ self.b_u_
         x_scaled = T_pred @ self.x_joint_loadings_.T
+        if self.scale == "none":
+            x_scaled = x_scaled + self._x_input_mean
         return x_scaled * self.x_std_ + self.x_mean_
 
     def transform(self, X: ArrayLike) -> NDArray[np.float64]:
@@ -369,7 +414,9 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Joint X scores on the filtered blocks.
         """
         check_is_fitted(self)
-        return self.filter_transform_x(X) @ self.x_joint_weights_
+        X_filtered = self.filter_transform_x(X)
+        X_in = X_filtered - self._x_input_mean if self.scale == "none" else X_filtered
+        return X_in @ self.x_joint_weights_
 
     def transform_y(self, Y: ArrayLike) -> NDArray[np.float64]:
         """Return Y-side joint scores after replaying the fitted Y-orthogonal filter.
@@ -385,7 +432,9 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Joint Y scores on the filtered blocks.
         """
         check_is_fitted(self)
-        return self.filter_transform_y(Y) @ self.y_joint_weights_
+        Y_filtered = self.filter_transform_y(Y)
+        Y_in = Y_filtered - self._y_input_mean if self.scale == "none" else Y_filtered
+        return Y_in @ self.y_joint_weights_
 
     def transform_pair(
         self, X: ArrayLike, Y: ArrayLike
@@ -506,14 +555,38 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
 
     def _validate_y_block(self, Y: ArrayLike) -> NDArray[np.float64]:
         """Validate a Y-like block for Y-side methods."""
+        y_cols = getattr(Y, "columns", None)
+        fitted_y_names = getattr(self, "y_feature_names_in_", None)
+        if fitted_y_names is not None:
+            if y_cols is None:
+                warnings.warn(
+                    "Y does not have valid feature names, but O2PLS was fitted "
+                    "with Y feature names.",
+                    UserWarning,
+                    stacklevel=3,
+                )
+            else:
+                given = list(y_cols)
+                expected = fitted_y_names.tolist()
+                if given != expected:
+                    raise ValueError(
+                        "The feature names of Y should match those that were "
+                        f"passed during fit. Expected {expected}, got {given}."
+                    )
+        elif y_cols is not None and _extract_feature_names(Y) is not None:
+            warnings.warn(
+                "Y has feature names, but O2PLS was fitted without Y feature names.",
+                UserWarning,
+                stacklevel=3,
+            )
+
         # check_array is used directly because validate_data is tied to X feature
         # counts; Y-side public methods validate target-column counts separately.
-        arr = check_array(
+        arr = _check_array_float64(
             Y,
-            dtype=np.float64,
             ensure_2d=False,
             ensure_min_samples=1,
-            copy=self.copy,
+            copy=False,
         )
         Y2 = self._as_2d_target(arr)
         if Y2.shape[1] != self.n_targets_:
@@ -527,13 +600,17 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         self, X: ArrayLike
     ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
         """Scale and replay the fitted X-orthogonal filter."""
-        X_valid = validate_data(self, X, reset=False, dtype=np.float64)
+        X_valid = _validate_x(self, X, copy=False, reset=False)
         Xs = apply_scaling(X_valid, self.x_mean_, self.x_std_)
+        X_in = Xs - self._x_input_mean if self.scale == "none" else Xs
         # Replay uses stored weights/loadings in fit order so new data is filtered
         # exactly like the training block.
-        return _replay_orthogonal_filter(
-            Xs, self.x_orthogonal_weights_, self.x_orthogonal_loadings_
+        X_filt, t_ortho = _replay_orthogonal_filter(
+            X_in, self.x_orthogonal_weights_, self.x_orthogonal_loadings_
         )
+        if self.scale == "none":
+            X_filt = X_filt + self._x_input_mean
+        return X_filt, t_ortho
 
     def _filter_y(
         self, Y: ArrayLike
@@ -541,11 +618,15 @@ class O2PLS(RegressorMixin, TransformerMixin, BaseEstimator):
         """Scale and replay the fitted Y-orthogonal filter."""
         Y_valid = self._validate_y_block(Y)
         Ys = apply_scaling(Y_valid, self.y_mean_, self.y_std_)
+        Y_in = Ys - self._y_input_mean if self.scale == "none" else Ys
         # This may be a no-op with zero columns, but keeping the same path preserves
         # shapes and score outputs for all fitted configurations.
-        return _replay_orthogonal_filter(
-            Ys, self.y_orthogonal_weights_, self.y_orthogonal_loadings_
+        Y_filt, u_ortho = _replay_orthogonal_filter(
+            Y_in, self.y_orthogonal_weights_, self.y_orthogonal_loadings_
         )
+        if self.scale == "none":
+            Y_filt = Y_filt + self._y_input_mean
+        return Y_filt, u_ortho
 
     def _unscale_y(self, Ys: NDArray[np.float64]) -> NDArray[np.float64]:
         """Map a scaled Y block back to raw units."""

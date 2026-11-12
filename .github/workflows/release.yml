@@ -10,7 +10,6 @@ name: Release
 on:
   push:
     tags: ["v*"]
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -27,8 +26,14 @@ jobs:
           enable-cache: true
 
       - name: Verify the tag matches the packaged version
-        if: startsWith(github.ref, 'refs/tags/v')
         run: |
+          case "$GITHUB_REF" in
+            refs/tags/v*) ;;
+            *)
+              echo "Release workflow requires a refs/tags/v* ref, got $GITHUB_REF" >&2
+              exit 1
+              ;;
+          esac
           tag="${GITHUB_REF#refs/tags/v}"
           version="$(sed -n 's/^__version__ = "\(.*\)"$/\1/p' src/scikit_opls/version.py)"
           if [ "$tag" != "$version" ]; then

@@ -12,6 +12,79 @@ and default-value changes will be documented here.
 
 ## Unreleased
 
+## 0.2.0 — 2026-11-12
+
+### Added
+
+- `O2PLS.y_feature_names_in_`: records string column names when fitted on a 2D
+  DataFrame-like target block `y`, and validates column names and column order
+  in `predict_x`, `transform_y`, `transform_orthogonal_y`, and
+  `filter_transform_y` (mirroring scikit-learn's `feature_names_in_` contract).
+- `validation.permutation_test` now accepts `numpy.random.Generator` instances
+  (such as `np.random.default_rng(0)`) for `random_state` and adds an
+  `error_score: float | str = np.nan` keyword argument so degenerate null
+  permutations (e.g. constant permuted CV folds on imbalanced binary responses)
+  are scored as `NaN` and excluded from empirical p-value calculations unless
+  `error_score="raise"` is requested.
+
+### Changed
+
+- `O2PLS(scale="none")` now centers `X` and `Y` internally around their fitted
+  training means and restores those means in `predict` / `predict_x`, matching
+  `OPLS(scale="none")` and `PLSRegression(scale=False)` while preserving the
+  public identity scaling vectors `x_mean_`, `y_mean_` and
+  `filter_transform_x` / `filter_transform_y`.
+- `SPlotDisplay.from_estimator` now differentiates `x_space="centered"`
+  (covariance and RMS correlation around the fitted training mean) from
+  `x_space="subset-centered"` (covariance and Pearson correlation around the
+  provided subset mean), uses scale-relative zero-variance guards instead of a
+  hardcoded `1e-12` product floor, and clips finite correlations to `[-1, 1]`.
+- Relaxed runtime dependency floors in `pyproject.toml` (`scipy>=1.13`,
+  `joblib>=1.4`) so the declared `numpy>=1.26` and `scikit-learn>=1.6` floors on
+  Python 3.12 are mutually satisfiable, and included `examples/` and
+  `zensical.toml` in source distributions.
+
+### Fixed
+
+- Constant columns with non-dyadic values or large offsets (e.g. `100.1`) are
+  now detected with a magnitude-relative tolerance in `compute_scaling`,
+  preventing unit-variance amplification of floating-point rounding noise under
+  `scale="standard"` and `scale="pareto"`.
+- `OPLS(scale="none")` now evaluates `r2x_`, `r2x_ortho_`, `r2x_components_`,
+  and `r2x_ortho_components_` relative to centered training variation rather
+  than uncentered `sum(X**2)`, restoring translation invariance.
+- Applied deterministic sign canonicalization (`svd_flip`) to multivariate
+  `predictive_weight` and `O2PLS` orthogonal-component extraction so latent
+  signs do not flip across BLAS/LAPACK implementations.
+- Removed private `PLSRegression._x_mean` attribute access in `OPLS` by
+  recording the filtered training mean directly.
+- Fixed Zensical/mkdocstrings rendering of `docs/api/validation.md`,
+  `docs/api/plotting.md`, `docs/quickstart.md` admonitions, numpydoc notes in
+  `plotting.py` and `validation.py`, GitHub issue template YAML frontmatter,
+  and sequential variable collisions in `docs/quickstart.md`.
+- Removed `workflow_dispatch` and enforced `refs/tags/v*` verification in
+  `.github/workflows/release.yml` so non-tag runs can never trigger PyPI
+  publishing.
+
+### Performance
+
+- Replaced `O(p^3)` dense `(p, p)` filter-matrix construction in `OPLS`
+  raw-coefficient composition with `O(k_ortho * p)` sequential rank-one
+  projections.
+- Added thin-QR dual cross-covariance SVD in `O2PLS` when
+  `n_samples < max(n_features, n_targets)`, reducing wide-omics complexity from
+  `O(p * q * min(p, q))` to `O(N^2 * (p + q) + N^3)` and deduplicating the
+  initial joint SVD pass.
+- Computed explained-variance ratios in `_inspection` and `_o2pls_core` via
+  `O(k^2 * (N + p))` cyclic trace identities instead of materializing `(N, p)`
+  outer-product reconstructions.
+- Fast-pathed `OPLS.predict` and `OPLSDA.decision_function` via centered-origin
+  `coef_raw_` evaluation, skipped redundant PLS projections in
+  `transform_orthogonal` / `filter_transform` and `OPLS.fit` diagnostics,
+  gated `matrix_rank` checks to `n_components > 1`, cached training score
+  dispersion in `score_distance`, and avoided redundant array copies on
+  read-only inference paths.
+
 ## 0.1.1 — 2026-10-30
 
 Maintenance release. No API or behaviour changes.

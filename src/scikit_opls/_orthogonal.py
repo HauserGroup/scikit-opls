@@ -8,6 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import ArrayLike, NDArray
 from sklearn.exceptions import ConvergenceWarning
+from sklearn.utils.extmath import svd_flip
 
 from scikit_opls._utils import _validate_int
 
@@ -97,11 +98,12 @@ def predictive_weight(X: ArrayLike, Y: ArrayLike) -> NDArray[np.float64]:
             "X is numerically orthogonal to Y; predictive direction is undefined."
         )
     try:
-        u, _, _ = np.linalg.svd(S, full_matrices=False)
+        u, _, vt = np.linalg.svd(S, full_matrices=False)
     except np.linalg.LinAlgError as exc:
         raise ValueError(
             "SVD failed while computing the predictive OPLS direction."
         ) from exc
+    u, _ = svd_flip(u, vt)
     return u[:, 0]  # already unit norm
 
 

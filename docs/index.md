@@ -6,7 +6,8 @@ scikit-learn interface.
 OPLS (Trygg & Wold, 2002) splits the variation in `X` into a *predictive* part
 correlated with `y` and *orthogonal* parts uncorrelated with `y`, removes the
 orthogonal variation with an OSC-style orthogonal filter, then fits a standard PLS engine on the
-cleaned `X`. With `n_orthogonal=0` it reduces exactly to `PLSRegression`.
+cleaned `X`. With `n_orthogonal=0` and `scale="none"` it reduces exactly to
+`PLSRegression(scale=False)`.
 
 ## Highlights
 

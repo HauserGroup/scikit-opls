@@ -7,13 +7,8 @@ With ``n_orthogonal=0``, this reduces to ordinary PLS after this package's
 selected X preprocessing.
 """
 
-# scikit-learn's validate_data uses sentinel-string parameter defaults that lead
-# static type checkers to flag every downstream array op as a false positive.
-# Suppress those categories here; the test suite and ``check_estimator`` are the
-# real correctness gate. reportAbstractUsage covers Interval/StrOptions: their
-# base _Constraint declares __str__ abstract and the subclass override is not
-# visible to the type checker, so instantiating them looks abstract (it is not).
-# pyright: reportArgumentType=false, reportAttributeAccessIssue=false, reportReturnType=false
+# reportAbstractUsage covers Interval/StrOptions: their base _Constraint declares
+# __str__ abstract and the subclass override is not visible to static type checkers.
 # pyright: reportAbstractUsage=false
 
 from __future__ import annotations
@@ -30,7 +25,6 @@ from sklearn.utils._param_validation import Interval, StrOptions
 from sklearn.utils.validation import (
     _check_feature_names_in,
     check_is_fitted,
-    validate_data,
 )
 
 from scikit_opls._inspection import (
@@ -42,7 +36,12 @@ from scikit_opls._inspection import (
 )
 from scikit_opls._orthogonal import apply_orthogonal_filter, opls_filter
 from scikit_opls._preprocessing import VALID_SCALING, apply_scaling, compute_scaling
-from scikit_opls._utils import _has_nonzero_variation, _reject_bool_param
+from scikit_opls._utils import (
+    _has_nonzero_variation,
+    _reject_bool_param,
+    _validate_x,
+    _validate_xy,
+)
 
 
 @dataclass(frozen=True)
@@ -55,35 +54,33 @@ class _OPLSProjection:
     t_ortho: NDArray[np.float64]
 
 
-def _orthogonal_filter_matrix(
+def _apply_orthogonal_filter_right(
     x_ortho_weights: NDArray[np.float64],
     x_ortho_loadings: NDArray[np.float64],
+    mat: NDArray[np.float64],
 ) -> NDArray[np.float64]:
-    """Right-side matrix ``F`` such that ``X_filtered == X_scaled @ F``."""
+    """Apply the sequential orthogonal filter ``F`` from the right (``F @ mat``)."""
+    out = np.asarray(mat, dtype=np.float64).copy()
     W = np.asarray(x_ortho_weights, dtype=np.float64)
     P = np.asarray(x_ortho_loadings, dtype=np.float64)
-    n_features = W.shape[0]
-    eye = np.eye(n_features, dtype=np.float64)
-    F = eye.copy()
-    for i in range(W.shape[1]):
-        # Compose filters in the same order they were fitted and replayed.
-        F = F @ (eye - np.outer(W[:, i], P[:, i]))
-    return F
+    # Compose filters in reverse order so out == F @ mat without forming (p, p) F.
+    for i in range(W.shape[1] - 1, -1, -1):
+        out = out - np.outer(W[:, i], P[:, i] @ out)
+    return out
 
 
 def _compose_raw_coefficients(
     coef_filtered: NDArray[np.float64],
-    intercept_filtered: float | NDArray[np.float64],
-    x_mean: NDArray[np.float64],
+    centered_intercept: float | NDArray[np.float64],
+    raw_x_origin: NDArray[np.float64],
     x_std: NDArray[np.float64],
-    filter_offset: NDArray[np.float64],
     x_ortho_weights: NDArray[np.float64],
     x_ortho_loadings: NDArray[np.float64],
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Collapse filtered/scaled-space PLS coefficients into raw-X coefficients.
 
-    ``intercept_filtered`` must be the predictive engine's prediction at zero
-    filtered input (``pls_.predict(0)``), not necessarily its public ``intercept_``.
+    ``centered_intercept`` is the model prediction at ``raw_x_origin`` (the
+    fitted raw training mean), computed without evaluating around ``X = 0``.
     """
     coef_arr = np.asarray(coef_filtered, dtype=np.float64)
     if coef_arr.ndim == 1:
@@ -92,19 +89,19 @@ def _compose_raw_coefficients(
     # transpose B as (n_features, n_targets).
     b_filtered = coef_arr.T
 
-    f_matrix = _orthogonal_filter_matrix(x_ortho_weights, x_ortho_loadings)
-    # First collapse the sequential orthogonal filter into scaled feature space.
-    b_scaled = f_matrix @ b_filtered
+    # First collapse the sequential orthogonal filter into scaled feature space
+    # in O(k_ortho * p) time without materializing a (p, p) matrix.
+    b_scaled = _apply_orthogonal_filter_right(
+        x_ortho_weights, x_ortho_loadings, b_filtered
+    )
 
     inv_scale = 1.0 / np.asarray(x_std, dtype=np.float64)
     # Then fold in the original column scaling to obtain raw-X coefficients.
     b_raw = inv_scale[:, None] * b_scaled
 
-    offset_scaled = np.asarray(x_mean, dtype=np.float64) * inv_scale
     intercept_raw = (
-        np.asarray(intercept_filtered, dtype=np.float64)
-        + np.asarray(filter_offset, dtype=np.float64) @ b_filtered
-        - offset_scaled @ b_scaled
+        np.asarray(centered_intercept, dtype=np.float64)
+        - np.asarray(raw_x_origin, dtype=np.float64) @ b_raw
     )
     return b_raw.T, intercept_raw
 
@@ -209,7 +206,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     OPLSDA : Binary OPLS discriminant analysis built on this regressor.
     O2PLS : Two-block variant that also models Y-specific orthogonal structure.
     sklearn.cross_decomposition.PLSRegression : Predictive engine fitted after
-        orthogonal filtering; ``OPLS(n_orthogonal=0)`` reduces to it exactly.
+        orthogonal filtering; ``OPLS(n_orthogonal=0, scale="none")`` reduces to
+        ``PLSRegression(scale=False)`` exactly.
 
     Notes
     -----
@@ -264,6 +262,12 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     x_mean_: NDArray[np.float64]
     x_std_: NDArray[np.float64]
     _filter_input_mean: NDArray[np.float64]
+    _pls_x_mean: NDArray[np.float64]
+    _raw_x_origin: NDArray[np.float64]
+    _centered_intercept: NDArray[np.float64]
+    _score_dist_cache: dict[
+        str, tuple[NDArray[np.float64], float | NDArray[np.float64]]
+    ]
     x_ortho_weights_: NDArray[np.float64]
     x_ortho_loadings_: NDArray[np.float64]
     x_ortho_scores_: NDArray[np.float64]
@@ -317,15 +321,15 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             The fitted estimator.
         """
         self._clear_fit_caches()
-        X, y = self._validate_fit_data(X, y)
-        Xs, X_filtered = self._fit_orthogonal_filter(X, y)
-        self._fit_predictive_engine(X_filtered, y)
-        self._set_raw_coefficients(X_filtered)
-        self._set_fit_diagnostics(X, Xs, X_filtered, y)
+        X_arr, y_arr = self._validate_fit_data(X, y)
+        Xs, X_filtered = self._fit_orthogonal_filter(X_arr, y_arr)
+        self._fit_predictive_engine(X_filtered, y_arr)
+        self._set_raw_coefficients()
+        self._set_fit_diagnostics(Xs, X_filtered, y_arr)
         return self
 
     def _clear_fit_caches(self) -> None:
-        for attr in ("_vip_", "_ortho_vip_"):
+        for attr in ("_vip_", "_ortho_vip_", "_score_dist_cache"):
             self.__dict__.pop(attr, None)
 
     def _validate_fit_data(
@@ -336,23 +340,25 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         _reject_bool_param("n_components", self.n_components)
         _reject_bool_param("n_orthogonal", self.n_orthogonal)
         self._validate_params()
-        X, y = validate_data(
+        X_arr, y_raw = _validate_xy(
             self,
             X,
             y,
-            dtype=np.float64,
             ensure_min_samples=2,
             copy=self.copy,
+            reset=True,
+            multi_output=False,
         )
-        if not _has_nonzero_variation(y):
+        y_arr = np.asarray(y_raw, dtype=np.float64)
+        if not _has_nonzero_variation(y_arr):
             raise ValueError("OPLS requires a non-constant target y.")
 
-        if self.n_components > min(X.shape):
+        if self.n_components > min(X_arr.shape):
             raise ValueError(
                 f"n_components={self.n_components} exceeds the maximum of "
-                f"min(n_samples, n_features)={min(X.shape)}."
+                f"min(n_samples, n_features)={min(X_arr.shape)}."
             )
-        return X, y
+        return X_arr, y_arr
 
     def _fit_orthogonal_filter(
         self,
@@ -363,12 +369,16 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         Xs = apply_scaling(X, self.x_mean_, self.x_std_)
         if not _has_nonzero_variation(Xs, axis=0):
             raise ValueError("X has no non-zero variation after preprocessing.")
-        # OPLS extracts variation around the training mean.  This is normally a
-        # no-op because every scaling mode except ``none`` already centers X.
-        # For ``none``, keep the public preprocessing contract (identity) while
-        # preventing arbitrary feature offsets from changing the orthogonal model.
-        self._filter_input_mean = Xs.mean(axis=0)
-        X_filter_input = Xs - self._filter_input_mean
+        # OPLS extracts variation around the training mean. Every scaling mode
+        # except ``none`` already centers X; for ``none``, keep the public
+        # preprocessing contract (identity) while centering internally so
+        # arbitrary feature offsets never alter the orthogonal model or R2X.
+        if self.scale == "none":
+            self._filter_input_mean = Xs.mean(axis=0)
+            X_filter_input = Xs - self._filter_input_mean
+        else:
+            self._filter_input_mean = np.zeros(Xs.shape[1], dtype=np.float64)
+            X_filter_input = Xs
         ofit = opls_filter(X_filter_input, y - y.mean(), self.n_orthogonal)
         self.x_ortho_weights_ = ofit.x_ortho_weights
         self.x_ortho_loadings_ = ofit.x_ortho_loadings
@@ -379,10 +389,15 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
                 "X has no remaining variation after orthogonal filtering; "
                 "reduce n_orthogonal."
             )
-        # Restore the preprocessing-space mean. PLSRegression centers this block
-        # internally, and filter_transform() remains an identity when no
+        # Restore the preprocessing-space mean for ``none``. PLSRegression centers
+        # this block internally, and filter_transform() remains an identity when no
         # orthogonal components are requested.
-        return Xs, ofit.x_filtered + self._filter_input_mean
+        X_filtered = (
+            ofit.x_filtered + self._filter_input_mean
+            if self.scale == "none"
+            else ofit.x_filtered
+        )
+        return Xs, X_filtered
 
     def _fit_predictive_engine(
         self,
@@ -394,79 +409,77 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
                 "X has no remaining variation after orthogonal filtering; "
                 "reduce n_orthogonal."
             )
-        # PLSRegression always centers X, including when scale=False. Validate
-        # against the effective matrix seen by that engine rather than a possibly
-        # one-rank-higher uncentered block.
-        rank_filtered = np.linalg.matrix_rank(
-            X_filtered - X_filtered.mean(axis=0, keepdims=True)
-        )
-        if self.n_components > rank_filtered:
-            raise ValueError(
-                f"n_components={self.n_components} exceeds the numerical rank of "
-                f"X after orthogonal filtering ({rank_filtered}). "
-                "Reduce n_components or n_orthogonal."
+        # Non-zero centered variation above already guarantees numerical rank >= 1;
+        # only incur a full matrix_rank SVD when multiple predictive components are
+        # requested. PLSRegression always centers X even when scale=False.
+        if self.n_components > 1:
+            rank_filtered = int(
+                np.linalg.matrix_rank(
+                    X_filtered - X_filtered.mean(axis=0, keepdims=True)
+                )
             )
+            if self.n_components > rank_filtered:
+                raise ValueError(
+                    f"n_components={self.n_components} exceeds the numerical rank of "
+                    f"X after orthogonal filtering ({rank_filtered}). "
+                    "Reduce n_components or n_orthogonal."
+                )
         self.pls_ = PLSRegression(n_components=self.n_components, scale=False)
         self.pls_.fit(X_filtered, y)
         self._n_features_out = self.n_components
-        self.x_weights_ = self.pls_.x_weights_
-        self.x_loadings_ = self.pls_.x_loadings_
-        self.x_scores_ = self.pls_.x_scores_
-        self.y_loadings_ = self.pls_.y_loadings_
-        self.coef_filtered_ = self.pls_.coef_
-        self.intercept_ = self.pls_.intercept_
-        # PLSRegression centers the filtered X block internally; reconstructing
-        # scaled X from predictive scores (``_predictive_x_hat``) needs that fitted
-        # mean back. sklearn does not expose it publicly, so we intentionally read
-        # the private ``_x_mean`` attribute and pin the behavior with regression
-        # tests (test_opls_coefficients.py) rather than relying on it silently.
-        try:
-            self._pls_x_mean = np.asarray(self.pls_._x_mean, dtype=np.float64)
-        except AttributeError as exc:
-            raise AttributeError(
-                "Could not access PLSRegression._x_mean. OPLS's reconstruction of "
-                "scaled X from predictive scores depends on sklearn's fitted PLS "
-                "centering state."
-            ) from exc
+        self.x_weights_ = np.asarray(self.pls_.x_weights_, dtype=np.float64)
+        self.x_loadings_ = np.asarray(self.pls_.x_loadings_, dtype=np.float64)
+        self.x_scores_ = np.asarray(self.pls_.x_scores_, dtype=np.float64)
+        self.y_loadings_ = np.asarray(self.pls_.y_loadings_, dtype=np.float64)
+        self.coef_filtered_ = np.asarray(self.pls_.coef_, dtype=np.float64)
+        self.intercept_ = np.asarray(self.pls_.intercept_, dtype=np.float64)
+        # PLSRegression(scale=False) centers X_filtered by X_filtered.mean(axis=0);
+        # compute and store that mean directly without relying on private _x_mean.
+        self._pls_x_mean = X_filtered.mean(axis=0)
 
-    def _set_raw_coefficients(self, X_filtered: NDArray[np.float64]) -> None:
-        engine_offset = self.pls_.predict(
-            np.zeros((1, X_filtered.shape[1]), dtype=np.float64)
-        ).ravel()
+    def _set_raw_coefficients(self) -> None:
+        coef_arr = np.asarray(self.coef_filtered_, dtype=np.float64)
+        if coef_arr.ndim == 1:
+            coef_arr = coef_arr.reshape(1, -1)
+        b_filtered = coef_arr.T
+        self._raw_x_origin = self.x_mean_ + self._filter_input_mean
+        # Evaluate the intercept at the fitted training origin rather than X = 0
+        # so large feature offsets cancel before the dot product with b_filtered.
+        self._centered_intercept = (
+            np.asarray(self.intercept_, dtype=np.float64).ravel()
+            + (self._filter_input_mean - self._pls_x_mean) @ b_filtered
+        )
         self.coef_raw_, self.intercept_raw_ = _compose_raw_coefficients(
-            self.coef_filtered_,
-            engine_offset,
-            self.x_mean_,
+            coef_arr,
+            self._centered_intercept,
+            self._raw_x_origin,
             self.x_std_,
-            self._filter_input_mean
-            - self._filter_input_mean
-            @ _orthogonal_filter_matrix(self.x_ortho_weights_, self.x_ortho_loadings_),
             self.x_ortho_weights_,
             self.x_ortho_loadings_,
         )
 
     def _set_fit_diagnostics(
         self,
-        X: NDArray[np.float64],
         Xs: NDArray[np.float64],
         X_filtered: NDArray[np.float64],
         y: NDArray[np.float64],
     ) -> None:
-        y_fit = self.pls_.predict(X_filtered)
-        self.r2x_ = explained_x_variance(Xs, self.x_scores_, self.x_loadings_)
+        y_fit = np.asarray(self.pls_.predict(X_filtered), dtype=np.float64)
+        X_centered = Xs - self._filter_input_mean if self.scale == "none" else Xs
+        self.r2x_ = explained_x_variance(X_centered, self.x_scores_, self.x_loadings_)
         self.r2x_ortho_ = explained_x_variance(
-            Xs, self.x_ortho_scores_, self.x_ortho_loadings_
+            X_centered, self.x_ortho_scores_, self.x_ortho_loadings_
         )
         self.r2y_ = float(r2_score(y, y_fit))
         self.rmse_ = float(root_mean_squared_error(y, y_fit))
 
         self.r2x_components_ = component_explained_x_variance(
-            Xs,
+            X_centered,
             self.x_scores_,
             self.x_loadings_,
         )
         self.r2x_ortho_components_ = component_explained_x_variance(
-            Xs,
+            X_centered,
             self.x_ortho_scores_,
             self.x_ortho_loadings_,
         )
@@ -476,7 +489,12 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             self.y_loadings_,
         )
 
-        proj = self._project_validated(X)
+        proj = _OPLSProjection(
+            Xs=Xs,
+            X_filtered=X_filtered,
+            t_pred=self.x_scores_,
+            t_ortho=self.x_ortho_scores_,
+        )
         self.q_residuals_train_ = self._q_residuals_from_projection(proj, space="full")
         self.x_residual_ss_ = float(np.sum(self.q_residuals_train_))
 
@@ -484,23 +502,33 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             proj, space="predictive"
         )
 
-        y_fit_arr = np.asarray(y_fit, dtype=np.float64)
         y_arr = np.asarray(y, dtype=np.float64)
-        if y_arr.ndim == 1:
+        if y_arr.ndim == 1 and y_fit.ndim == 2:
             y_arr = y_arr.reshape(-1, 1)
-        self.y_residual_ss_ = float(np.sum((y_arr - y_fit_arr) ** 2))
+        elif y_arr.ndim == 2 and y_fit.ndim == 1:
+            y_fit = y_fit.reshape(-1, 1)
+        self.y_residual_ss_ = float(np.sum((y_arr - y_fit) ** 2))
+        self._score_dist_cache = {}
 
-    def _project_validated(self, X_valid: NDArray[np.float64]) -> _OPLSProjection:
-        """Project already validated raw X into fitted OPLS model spaces."""
+    def _filter_validated(
+        self, X_valid: NDArray[np.float64]
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+        """Scale and replay the fitted orthogonal filter without PLS projection."""
         Xs = apply_scaling(X_valid, self.x_mean_, self.x_std_)
-        X_filter_input = Xs - self._filter_input_mean
+        X_filter_input = Xs - self._filter_input_mean if self.scale == "none" else Xs
         X_filtered, t_ortho = apply_orthogonal_filter(
             X_filter_input,
             self.x_ortho_weights_,
             self.x_ortho_loadings_,
         )
-        X_filtered += self._filter_input_mean
-        t_pred = self.pls_.transform(X_filtered)
+        if self.scale == "none":
+            X_filtered = X_filtered + self._filter_input_mean
+        return Xs, X_filtered, t_ortho
+
+    def _project_validated(self, X_valid: NDArray[np.float64]) -> _OPLSProjection:
+        """Project already validated raw X into fitted OPLS model spaces."""
+        Xs, X_filtered, t_ortho = self._filter_validated(X_valid)
+        t_pred = np.asarray(self.pls_.transform(X_filtered), dtype=np.float64)
         return _OPLSProjection(
             Xs=Xs,
             X_filtered=X_filtered,
@@ -511,6 +539,14 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     def _predictive_x_hat(self, t_pred: NDArray[np.float64]) -> NDArray[np.float64]:
         """Reconstruct scaled X from predictive scores."""
         return self._pls_x_mean + t_pred @ self.x_loadings_.T
+
+    def _predict_validated(self, X_valid: NDArray[np.float64]) -> NDArray[np.float64]:
+        """Evaluate linear raw-X coefficients around the fitted training origin."""
+        return np.asarray(
+            (X_valid - self._raw_x_origin) @ self.coef_raw_.T
+            + self._centered_intercept,
+            dtype=np.float64,
+        ).ravel()
 
     def predict(self, X: ArrayLike) -> NDArray[np.float64]:
         """Predict ``y`` for new samples.
@@ -526,8 +562,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Predicted target values.
         """
         X_valid = self._validate_X_predict(X)
-        proj = self._project_validated(X_valid)
-        return self.pls_.predict(proj.X_filtered).ravel()
+        return self._predict_validated(X_valid)
 
     def transform(self, X: ArrayLike) -> NDArray[np.float64]:
         """Project samples onto the predictive components.
@@ -561,7 +596,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Orthogonal scores.
         """
         X_valid = self._validate_X_predict(X)
-        return self._project_validated(X_valid).t_ortho
+        return self._filter_validated(X_valid)[2]
 
     def filter_transform(self, X: ArrayLike) -> NDArray[np.float64]:
         """Return ``X`` after preprocessing and orthogonal filtering.
@@ -583,7 +618,7 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
             Preprocessed ``X`` with the fitted orthogonal variation removed.
         """
         X_valid = self._validate_X_predict(X)
-        return self._project_validated(X_valid).X_filtered
+        return self._filter_validated(X_valid)[1]
 
     @property
     def vip_(self) -> NDArray[np.float64]:
@@ -647,36 +682,38 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
     def _validate_X_predict(self, X: ArrayLike) -> NDArray[np.float64]:  # noqa: N802
         """Validate prediction/projection input against fitted OPLS metadata."""
         check_is_fitted(self)
-        return validate_data(
-            self,
-            X,
-            dtype=np.float64,
-            copy=self.copy,
-            reset=False,
-        )
+        return _validate_x(self, X, copy=False, reset=False)
 
-    def _score_distance_from_scores(
-        self,
-        scores: NDArray[np.float64],
-        reference_scores: NDArray[np.float64],
-    ) -> NDArray[np.float64]:
-        """Mahalanobis-like distance in latent score space."""
-        T = np.asarray(scores, dtype=np.float64)
+    def _compute_score_dist_stats(
+        self, reference_scores: NDArray[np.float64]
+    ) -> tuple[NDArray[np.float64], float | NDArray[np.float64]]:
+        """Compute training score center and inverse dispersion for Mahalanobis dist."""
         T_ref = np.asarray(reference_scores, dtype=np.float64)
-        if T.ndim == 1:
-            T = T.reshape(-1, 1)
         if T_ref.ndim == 1:
             T_ref = T_ref.reshape(-1, 1)
         center = T_ref.mean(axis=0, keepdims=True)
-        T_centered = T - center
         T_ref_centered = T_ref - center
         if T_ref.shape[1] == 1:
             var = float(np.var(T_ref_centered[:, 0], ddof=1))
-            var = max(var, np.finfo(np.float64).eps)
-            return (T_centered[:, 0] ** 2) / var
+            return center, max(var, float(np.finfo(np.float64).eps))
         cov = np.cov(T_ref_centered, rowvar=False)
-        inv_cov = np.linalg.pinv(cov)
-        return np.sum((T_centered @ inv_cov) * T_centered, axis=1)
+        inv_cov = np.asarray(np.linalg.pinv(cov), dtype=np.float64)
+        return center, inv_cov
+
+    @staticmethod
+    def _apply_score_dist_stats(
+        scores: NDArray[np.float64],
+        center: NDArray[np.float64],
+        dispersion: float | NDArray[np.float64],
+    ) -> NDArray[np.float64]:
+        """Evaluate Mahalanobis-like squared distance from cached training stats."""
+        T = np.asarray(scores, dtype=np.float64)
+        if T.ndim == 1:
+            T = T.reshape(-1, 1)
+        T_centered = T - center
+        if isinstance(dispersion, float):
+            return (T_centered[:, 0] ** 2) / dispersion
+        return np.sum((T_centered @ dispersion) * T_centered, axis=1)
 
     def score_distance(
         self,
@@ -709,25 +746,32 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         kind: str = "predictive",
     ) -> NDArray[np.float64]:
         """Compute score distance internally, assuming X is already validated."""
-        proj = self._project_validated(X_valid)
-        if kind == "predictive":
-            scores = proj.t_pred
-            reference = self.x_scores_
-        elif kind == "orthogonal":
+        if kind not in {"predictive", "orthogonal", "all"}:
+            raise ValueError("kind must be one of {'predictive', 'orthogonal', 'all'}.")
+        if kind == "orthogonal":
             if self.n_orthogonal_ == 0:
                 return np.zeros(X_valid.shape[0], dtype=np.float64)
-            scores = proj.t_ortho
+            scores = self._filter_validated(X_valid)[2]
             reference = self.x_ortho_scores_
-        elif kind == "all":
-            if self.n_orthogonal_ == 0:
+        else:
+            proj = self._project_validated(X_valid)
+            if kind == "predictive" or self.n_orthogonal_ == 0:
                 scores = proj.t_pred
                 reference = self.x_scores_
+                kind = "predictive"
             else:
                 scores = np.hstack([proj.t_pred, proj.t_ortho])
                 reference = np.hstack([self.x_scores_, self.x_ortho_scores_])
-        else:
-            raise ValueError("kind must be one of {'predictive', 'orthogonal', 'all'}.")
-        return self._score_distance_from_scores(scores, reference)
+
+        cache = getattr(self, "_score_dist_cache", None)
+        if cache is None:
+            cache = {}
+            self._score_dist_cache = cache
+        stats = cache.get(kind)
+        if stats is None:
+            stats = self._compute_score_dist_stats(reference)
+            cache[kind] = stats
+        return self._apply_score_dist_stats(scores, stats[0], stats[1])
 
     def q_residuals(
         self,
@@ -764,6 +808,8 @@ class OPLS(RegressorMixin, TransformerMixin, BaseEstimator):
         space: str = "full",
     ) -> NDArray[np.float64]:
         """Compute Q residuals internally, assuming X is already validated."""
+        if space not in {"full", "predictive"}:
+            raise ValueError("space must be one of {'full', 'predictive'}.")
         return self._q_residuals_from_projection(
             self._project_validated(X_valid), space=space
         )

@@ -23,16 +23,16 @@ model.r2y_, model.rmse_  # training-fit summaries
 import numpy as np
 from scikit_opls import O2PLS
 
-rng = np.random.default_rng(1)
-Z = rng.normal(size=(80, 2))
-X = Z @ rng.normal(size=(2, 20)) + 0.1 * rng.normal(size=(80, 20))
-Y = Z @ rng.normal(size=(2, 10)) + 0.1 * rng.normal(size=(80, 10))
+rng_o2 = np.random.default_rng(1)
+Z = rng_o2.normal(size=(80, 2))
+Xb = Z @ rng_o2.normal(size=(2, 20)) + 0.1 * rng_o2.normal(size=(80, 20))
+Yb = Z @ rng_o2.normal(size=(2, 10)) + 0.1 * rng_o2.normal(size=(80, 10))
 
-model = O2PLS(n_components=2, n_x_orthogonal=1, n_y_orthogonal=1).fit(X, Y)
-model.predict(X)  # predicted joint Y structure, raw Y units
-model.predict_x(Y)  # predicted joint X structure, raw X units
-model.transform(X)  # X-side joint scores
-model.transform_y(Y)  # Y-side joint scores
+o2 = O2PLS(n_components=2, n_x_orthogonal=1, n_y_orthogonal=1).fit(Xb, Yb)
+o2.predict(Xb)  # predicted joint Y structure, raw Y units
+o2.predict_x(Yb)  # predicted joint X structure, raw X units
+o2.transform(Xb)  # X-side joint scores
+o2.transform_y(Yb)  # Y-side joint scores
 ```
 
 `O2PLS.coef_filtered_` maps scaled, X-orthogonally-filtered `X` to scaled
@@ -130,8 +130,8 @@ permutation_test(OPLS(n_orthogonal=2), X, y)
 ```
 
 !!! note "Pipeline support in plotting"
-Diagnostic plotting displays support `OPLS`, `OPLSDA`, and pipelines ending in
-one. For tuned models, pass `search.best_estimator_` explicitly. When passing a
-pipeline, pass raw `X` as expected by the pipeline. When passing the final OPLS
-step directly, pass the already transformed matrix. For pipeline S-plots, points
-are in the transformed feature space received by the final OPLS step.
+    Diagnostic plotting displays support `OPLS`, `OPLSDA`, and pipelines ending in
+    one. For tuned models, pass `search.best_estimator_` explicitly. When passing a
+    pipeline, pass raw `X` as expected by the pipeline. When passing the final OPLS
+    step directly, pass the already transformed matrix. For pipeline S-plots, points
+    are in the transformed feature space received by the final OPLS step.

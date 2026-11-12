@@ -377,3 +377,47 @@ def test_extract_one_orthogonal_component_stops_below_the_reference_floor():
     assert (
         _extract_one_orthogonal_component(X, T, W, block_ref_ssq=huge_reference) is None
     )
+
+
+def test_cross_cov_svd_wide_qr_matches_dense_svd():
+    """When n_samples < min(p, q), thin-QR dual SVD matches dense SVD exactly."""
+    from sklearn.utils.extmath import svd_flip
+
+    rng = np.random.default_rng(42)
+    X = rng.normal(size=(16, 65))
+    Y = rng.normal(size=(16, 45))
+    X -= X.mean(axis=0)
+    Y -= Y.mean(axis=0)
+
+    W, C, s = _cross_cov_svd_x_to_y(X, Y, 4)
+
+    U_ref, s_ref, Vt_ref = np.linalg.svd(X.T @ Y, full_matrices=False)
+    U_ref_k, Vt_ref_k = svd_flip(U_ref[:, :4], Vt_ref[:4, :])
+    assert s.shape == (45,)
+    assert_allclose(s, s_ref, atol=1e-11)
+    assert_allclose(W, U_ref_k, atol=1e-11)
+    assert_allclose(C, Vt_ref_k.T, atol=1e-11)
+
+
+def test_orthogonal_extraction_and_multivariate_predictive_weight_signs_canonical():
+    """Leading largest-magnitude entries have deterministic positive signs."""
+    from scikit_opls._orthogonal import predictive_weight
+
+    rng = np.random.default_rng(19)
+    X = rng.normal(size=(30, 8))
+    Y = rng.normal(size=(30, 4))
+    X -= X.mean(axis=0)
+    Y -= Y.mean(axis=0)
+
+    w = predictive_weight(X, Y)
+    assert w[int(np.argmax(np.abs(w)))] > 0.0
+
+    W_init, _, _ = _cross_cov_svd_x_to_y(X, Y, 1)
+    comp = _extract_one_orthogonal_component(X, X @ W_init, W_init)
+    assert comp is not None
+    assert comp.weight[int(np.argmax(np.abs(comp.weight)))] > 0.0
+    # Negating both T and W preserves T @ W.T while flipping E.T @ T; svd_flip
+    # still selects the identical canonical weight direction.
+    comp_flipped = _extract_one_orthogonal_component(X, -(X @ W_init), -W_init)
+    assert comp_flipped is not None
+    assert_allclose(comp.weight, comp_flipped.weight, atol=1e-12)

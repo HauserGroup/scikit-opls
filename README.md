@@ -16,8 +16,10 @@ OPLS (Trygg & Wold, 2002) splits the variation in `X` into a *predictive* part
 correlated with the response and *orthogonal* parts that are not. `scikit-opls`
 removes the orthogonal variation with an OSC-style orthogonal filter and then fits
 [`sklearn.cross_decomposition.PLSRegression`](https://scikit-learn.org/stable/modules/generated/sklearn.cross_decomposition.PLSRegression.html)
-on the cleaned `X` as the predictive engine. With `n_orthogonal=0` the model
-reduces *exactly* to `PLSRegression`.
+on the cleaned `X` as the predictive engine. With `n_orthogonal=0` and
+`scale="none"` the model reduces *exactly* to `PLSRegression(scale=False)`
+(note that `PLSRegression(scale=True)` also standardizes `y`, whereas `OPLS`
+scales only `X`).
 
 ## Install
 
@@ -213,7 +215,7 @@ uv run pre-commit install  # enable the git hooks (run once)
 uv run pytest --cov        # tests + coverage (incl. sklearn check_estimator)
 uv run ruff check          # lint
 uv run ruff format --check # format check
-uv run pyright src         # type-check
+uv run pyright src tests examples  # type-check
 uv run pre-commit run --all-files  # run every hook
 ```
 
@@ -223,8 +225,8 @@ See [CONTRIBUTING.md](https://github.com/HauserGroup/scikit-opls/blob/main/CONTR
 
 This project is inspired by the R
 [`ropls`](https://www.rdocumentation.org/packages/ropls/versions/1.4.2) package
-and uses the orthogonal-scores PLS algorithm of
-[`pls::oscorespls.fit`](https://cran.r-project.org/package=pls) as its engine.
+and uses [`sklearn.cross_decomposition.PLSRegression`](https://scikit-learn.org/stable/modules/generated/sklearn.cross_decomposition.PLSRegression.html)
+as its predictive PLS engine after Trygg–Wold OSC orthogonal filtering.
 
 - Trygg, J. & Wold, S. (2002). *Orthogonal projections to latent structures
   (O-PLS).* Journal of Chemometrics, 16(3), 119–128.
